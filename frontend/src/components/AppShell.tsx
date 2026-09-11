@@ -7,6 +7,7 @@ import BottomNav from './BottomNav';
 import { useAuth } from '@/contexts/AuthContext';
 
 const AUTH_PATHS = ['/login', '/forgot-password', '/verify-otp', '/reset-password'];
+const PUBLIC_PORTAL_PATHS = ['/crew-registration'];
 
 // Land on Dashboard for all authenticated roles.
 const homeRouteFor = (_role: string) => '/dashboard';
@@ -17,17 +18,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
 
   const isAuthPage = AUTH_PATHS.some((p) => pathname.startsWith(p));
+  const isPublicPortal = PUBLIC_PORTAL_PATHS.some((p) => pathname.startsWith(p));
 
   useEffect(() => {
     if (loading) return;
+    if (isPublicPortal) return;
     if (!isAuthPage && !user) router.replace('/login');
     if (isAuthPage && user)   router.replace(homeRouteFor(user.role));
-  }, [loading, user, isAuthPage, router]);
+  }, [loading, user, isAuthPage, isPublicPortal, router]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (isPublicPortal) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        {children}
       </div>
     );
   }

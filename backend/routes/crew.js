@@ -1,13 +1,22 @@
 const express    = require('express');
 const router     = express.Router();
 const multer     = require('multer');
-const ctrl       = require('../Controllers/crewController');
-const { upload } = require('../Middleware/upload');
+const ctrl         = require('../Controllers/crewController');
+const requestsCtrl = require('../Controllers/crewRequestsController');
+const { upload }   = require('../Middleware/upload');
 const { requireRole } = require('../Middleware/requireRole');
 
 const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 const ALL_ROLES = ['managing_director', 'construction_accountant', 'construction_coordinator'];
+
+// ── Registration Requests & Invites (specific paths before /:id) ──────────────
+router.post('/send-invite',            requireRole(...ALL_ROLES), requestsCtrl.sendInvite);
+router.get('/requests',                requireRole(...ALL_ROLES), requestsCtrl.listRequests);
+router.get('/requests/:id',            requireRole(...ALL_ROLES), requestsCtrl.getRequestById);
+router.post('/requests/:id/approve',   requireRole(...ALL_ROLES), requestsCtrl.approveRequest);
+router.post('/requests/:id/reject',    requireRole(...ALL_ROLES), requestsCtrl.rejectRequest);
+router.delete('/requests/:id',         requireRole(...ALL_ROLES), requestsCtrl.deleteRequest);
 
 // ── Import (specific paths before /:id) ───────────────────────────────────────
 router.get('/import/template',                                ctrl.getImportTemplate);

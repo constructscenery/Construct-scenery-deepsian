@@ -282,6 +282,94 @@ const templates = {
     };
   },
 
+  /**
+   * Crew Registration Invitation
+   */
+  crewInvite: ({ inviteeName, inviteUrl, senderName, customMessage, to }) => ({
+    to,
+    subject: 'Invitation to Register with Construct Scenery Crew Roster',
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+        <div style="background:#1e3a8a;padding:24px;text-align:center">
+          <h1 style="color:#ffffff;font-size:20px;margin:0">Construct Scenery Limited</h1>
+          <p style="color:#93c5fd;font-size:13px;margin:6px 0 0">Crew Registration & Onboarding Portal</p>
+        </div>
+        <div style="padding:28px 24px">
+          <h2 style="color:#0f172a;font-size:16px;margin:0 0 14px">Hello ${inviteeName || 'there'},</h2>
+          <p style="color:#334155;font-size:14px;line-height:1.6;margin:0 0 16px">
+            You have been invited by <strong>${senderName || 'Construct Scenery'}</strong> to register your details for our construction crew database.
+          </p>
+          ${customMessage ? `
+            <div style="background:#f1f5f9;border-left:4px solid #3b82f6;padding:12px 16px;margin:16px 0;border-radius:0 6px 6px 0">
+              <p style="color:#334155;font-size:13px;font-style:italic;margin:0">"${customMessage}"</p>
+            </div>
+          ` : ''}
+          <p style="color:#334155;font-size:14px;line-height:1.6;margin:0 0 24px">
+            Please click the button below to complete your crew onboarding form (contact information, trade specialism, emergency contact, and bank details for payroll).
+          </p>
+          <div style="text-align:center;margin:30px 0">
+            <a href="${inviteUrl}" style="background:#2563eb;color:#ffffff;padding:14px 28px;font-size:15px;font-weight:600;text-decoration:none;border-radius:6px;display:inline-block">
+              Complete Crew Registration &rarr;
+            </a>
+          </div>
+          <p style="color:#64748b;font-size:12px;margin:24px 0 0;line-height:1.5">
+            If the button above does not work, copy and paste this link into your browser:<br/>
+            <a href="${inviteUrl}" style="color:#2563eb">${inviteUrl}</a>
+          </p>
+        </div>
+        <div style="background:#f8fafc;padding:14px 24px;border-top:1px solid #e2e8f0;text-align:center">
+          <p style="color:#94a3b8;font-size:11px;margin:0">Construct Scenery Limited · info@constructscenery.co.uk</p>
+        </div>
+      </div>
+    `,
+  }),
+
+  /**
+   * Crew Registration Approved Notification
+   */
+  crewApproved: ({ name, crewNumber, trade, rank, to }) => ({
+    to,
+    subject: `Construct Scenery — Crew Registration Approved (${crewNumber})`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+        <div style="background:#166534;padding:24px;text-align:center">
+          <h1 style="color:#ffffff;font-size:20px;margin:0">Construct Scenery Limited</h1>
+          <p style="color:#bbf7d0;font-size:13px;margin:6px 0 0">Crew Registration Confirmed</p>
+        </div>
+        <div style="padding:28px 24px">
+          <h2 style="color:#0f172a;font-size:16px;margin:0 0 14px">Welcome aboard, ${name}!</h2>
+          <p style="color:#334155;font-size:14px;line-height:1.6;margin:0 0 16px">
+            Your registration request with Construct Scenery has been reviewed and approved.
+          </p>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:20px 0">
+            <table style="width:100%;font-size:14px;color:#334155">
+              <tr>
+                <td style="padding:4px 0;color:#64748b;width:40%">Crew Number:</td>
+                <td style="padding:4px 0;font-weight:700;color:#166534;font-size:16px">${crewNumber}</td>
+              </tr>
+              <tr>
+                <td style="padding:4px 0;color:#64748b">Trade / Department:</td>
+                <td style="padding:4px 0;font-weight:600">${trade}</td>
+              </tr>
+              ${rank ? `
+                <tr>
+                  <td style="padding:4px 0;color:#64748b">Assigned Rank:</td>
+                  <td style="padding:4px 0;font-weight:600">${rank}</td>
+                </tr>
+              ` : ''}
+            </table>
+          </div>
+          <p style="color:#64748b;font-size:13px;margin:16px 0 0">
+            Please quote your Crew Number (<strong>${crewNumber}</strong>) on all timesheets and correspondence.
+          </p>
+        </div>
+        <div style="background:#f8fafc;padding:14px 24px;border-top:1px solid #e2e8f0;text-align:center">
+          <p style="color:#94a3b8;font-size:11px;margin:0">Construct Scenery Limited · info@constructscenery.co.uk</p>
+        </div>
+      </div>
+    `,
+  }),
+
 };
 
 module.exports = { sendEmail, templates };

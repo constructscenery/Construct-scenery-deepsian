@@ -92,6 +92,9 @@ app.get('/', (req, res) => {
 // logout + /me handle their own authenticate internally
 app.use('/api/auth', require('./routes/auth'));
 
+// ─── PUBLIC CREW REGISTRATION (public — no auth required) ───────────────────
+app.use('/api/public/crew', require('./routes/publicCrew'));
+
 // ─── GLOBAL MIDDLEWARE (applied to every route BELOW this line) ───────────────
 // 1. Verify JWT access token → populates req.user
 // 2. Policy check via policies.json → enforces RBAC per role

@@ -650,6 +650,62 @@ export type CrewDetail = CrewMember & {
   documents: CrewDocument[];
 };
 
+export type CrewRegistrationRequest = {
+  id: string;
+  status: 'pending' | 'approved' | 'rejected';
+  first_name: string;
+  last_name: string;
+  date_of_birth: string | null;
+  home_address: string | null;
+  email: string;
+  phone: string | null;
+  employment_status: EmploymentStatus;
+  crew_trade: string;
+  company_name: string | null;
+  company_registration_number: string | null;
+  vat_registration_number: string | null;
+  company_utr: string | null;
+  account_name: string | null;
+  account_number: string | null;
+  sort_code: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_relationship: string | null;
+  emergency_contact_phone: string | null;
+  qualifications: string[];
+  notes: string | null;
+  reviewed_by: string | null;
+  reviewed_by_name?: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  created_crew_member_id: string | null;
+  created_crew_number?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PublicCrewRegistrationData = {
+  first_name: string;
+  last_name: string;
+  date_of_birth?: string;
+  home_address?: string;
+  email: string;
+  phone?: string;
+  employment_status: EmploymentStatus;
+  crew_trade: string;
+  company_name?: string;
+  company_registration_number?: string;
+  vat_registration_number?: string;
+  company_utr?: string;
+  account_name?: string;
+  account_number?: string;
+  sort_code?: string;
+  emergency_contact_name?: string;
+  emergency_contact_relationship?: string;
+  emergency_contact_phone?: string;
+  qualifications?: string[];
+  notes?: string;
+};
+
 export const crewApi = {
   list: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
@@ -679,6 +735,29 @@ export const crewApi = {
     request<{ message: string }>(`/api/crew/${crewId}/documents/${docId}`, { method: 'DELETE' }),
   delete: (id: string) =>
     request<{ message: string; soft_deleted: boolean }>(`/api/crew/${id}`, { method: 'DELETE' }),
+
+  // ── Registration Requests & Invites ─────────────────────────────────────────
+  sendInvite: (data: { email: string; name?: string; message?: string }) =>
+    request<{ message: string; inviteUrl: string }>('/api/crew/send-invite', { method: 'POST', body: data }),
+  listRequests: (status: 'pending' | 'approved' | 'rejected' | 'all' = 'pending') =>
+    request<{
+      requests: CrewRegistrationRequest[];
+      counts: { pending: number; approved: number; rejected: number; total: number };
+    }>(`/api/crew/requests?status=${status}`),
+  getRequestById: (id: string) =>
+    request<CrewRegistrationRequest>(`/api/crew/requests/${id}`),
+  approveRequest: (id: string, data: { crew_rank: string; paye_withholding_rate?: number }) =>
+    request<{ message: string; crew_member: CrewMember }>(`/api/crew/requests/${id}/approve`, { method: 'POST', body: data }),
+  rejectRequest: (id: string, data: { reason?: string }) =>
+    request<{ message: string; request: CrewRegistrationRequest }>(`/api/crew/requests/${id}/reject`, { method: 'POST', body: data }),
+  deleteRequest: (id: string) =>
+    request<{ message: string }>(`/api/crew/requests/${id}`, { method: 'DELETE' }),
+
+  // ── Public Portal endpoints (no auth required) ──────────────────────────────
+  getPublicTrades: () =>
+    request<{ bectu: Record<string, string[]>; non_bectu: string[] }>('/api/public/crew/trades'),
+  submitPublicRegistration: (data: PublicCrewRegistrationData) =>
+    request<{ message: string; id: string }>('/api/public/crew/register', { method: 'POST', body: data }),
 };
 
 // ─── Cost Report types ─────────────────────────────────────────────────────────
