@@ -166,6 +166,30 @@ async function start() {
     console.error('⚠️  Schema guard failed (is_active):', err.message);
   }
 
+  try {
+    await db.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.tables 
+          WHERE table_name = 'crew_registration_requests'
+        ) THEN
+          ALTER TABLE crew_registration_requests
+          DROP CONSTRAINT IF EXISTS crew_registration_requests_created_crew_member_id_fkey;
+
+          ALTER TABLE crew_registration_requests
+          ADD CONSTRAINT crew_registration_requests_created_crew_member_id_fkey
+          FOREIGN KEY (created_crew_member_id)
+          REFERENCES crew_members(id)
+          ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+    console.log('✅ Schema guard: crew_registration_requests FK ON DELETE SET NULL ensured');
+  } catch (err) {
+    console.error('⚠️  Schema guard failed (crew_registration_requests FK):', err.message);
+  }
+
   // ── Daily handover alert cron — 07:00 UTC every day ──────────────────────────
   const { runHandoverAlerts } = require('./Controllers/productionsController');
   cron.schedule('0 7 * * *', async () => {

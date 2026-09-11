@@ -368,11 +368,13 @@ const deleteCrewMember = async (req, res) => {
     );
     if (!member) return res.status(404).json({ error: 'Crew member not found' });
 
-    // Hard-delete guard: check for timesheets or production engagements
+    // Hard-delete guard: check for timesheets, pay runs, cost reports, or production engagements
     const { rows: [linked] } = await db.query(
       `SELECT (
-         EXISTS(SELECT 1 FROM timesheets     WHERE crew_member_id = $1) OR
-         EXISTS(SELECT 1 FROM production_crew WHERE crew_member_id = $1)
+         EXISTS(SELECT 1 FROM timesheets          WHERE crew_member_id = $1) OR
+         EXISTS(SELECT 1 FROM pay_run_items       WHERE crew_member_id = $1) OR
+         EXISTS(SELECT 1 FROM cost_report_entries WHERE crew_member_id = $1) OR
+         EXISTS(SELECT 1 FROM production_crew     WHERE crew_member_id = $1)
        ) AS has_records`,
       [req.params.id]
     );
@@ -385,6 +387,12 @@ const deleteCrewMember = async (req, res) => {
         soft_deleted: true,
       });
     }
+
+    // Clear reference in crew_registration_requests if applicable
+    await db.query(
+      'UPDATE crew_registration_requests SET created_crew_member_id = NULL WHERE created_crew_member_id = $1',
+      [req.params.id]
+    ).catch(() => {});
 
     await db.query('DELETE FROM crew_members WHERE id = $1', [req.params.id]);
     res.json({ message: `${member.first_name} ${member.last_name} has been permanently deleted.`, soft_deleted: false });

@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS crew_registration_requests (
   reviewed_by                     UUID REFERENCES users(id),
   reviewed_at                     TIMESTAMPTZ,
   rejection_reason                TEXT,
-  created_crew_member_id          UUID REFERENCES crew_members(id),
+  created_crew_member_id          UUID REFERENCES crew_members(id) ON DELETE SET NULL,
   
   created_at                      TIMESTAMPTZ DEFAULT NOW(),
   updated_at                      TIMESTAMPTZ DEFAULT NOW()
