@@ -137,12 +137,19 @@ describe('PATCH /api/percentometer/ratios/:id', () => {
     expect(res.status).toBe(200);
   });
 
-  test('Coordinator → 403', async () => {
+  test('Coordinator updates ratio — 200', async () => {
+    dbMock.respond({ rows: [], rowCount: 0 });  // BEGIN
+    dbMock.respond([SAMPLE_RATIOS[0]]);          // find current ratio
+    dbMock.respond(SAMPLE_RATIOS);               // find all other active ratios (for sum check)
+    dbMock.respond({ rows: [], rowCount: 1 });  // UPDATE old row (effective_to)
+    dbMock.respond([{ ...SAMPLE_RATIOS[0], id: 'r-new', percentage: '0.4200', effective_to: null }]); // INSERT new row
+    dbMock.respond({ rows: [], rowCount: 0 });  // COMMIT
+
     const res = await request(app)
       .patch('/api/percentometer/ratios/r1')
       .set(authHeader('coordinator'))
       .send({ percentage: 0.42 });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   test('Ratios not summing to 100% → 400', async () => {

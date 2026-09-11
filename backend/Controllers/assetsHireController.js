@@ -607,14 +607,14 @@ const runVehicleComplianceAlerts = async () => {
   const { rows: vehicles } = await db.query('SELECT * FROM vehicles');
   if (!vehicles.length) return { sent: 0, skipped: 0 };
 
-  // Fetch recipients: Construction Coordinators & Managing Directors
+  // Fetch recipients: Construction Coordinators, Managing Directors & Accountants
   const { rows: recipients } = await db.query(
-    `SELECT email, full_name, role FROM users WHERE role IN ('construction_coordinator', 'managing_director') AND is_active = true`
+    `SELECT email, full_name, role FROM users WHERE role IN ('construction_coordinator', 'managing_director', 'construction_accountant') AND is_active = true`
   );
 
   const recipientEmails = recipients.map(r => r.email).filter(Boolean);
   if (!recipientEmails.length) {
-    console.warn('[COMPLIANCE] No active coordinators or MDs found to receive vehicle alerts.');
+    console.warn('[COMPLIANCE] No active staff found to receive vehicle alerts.');
     return { sent: 0, skipped: 0 };
   }
 

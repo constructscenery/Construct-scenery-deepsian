@@ -75,12 +75,13 @@ describe('PATCH /api/settings/:key', () => {
     expect(res.status).toBe(200);
   });
 
-  test('Accountant → 403', async () => {
+  test('Accountant patches setting — 200', async () => {
+    dbMock.respond([{ key: 'handover_alert_days', value: [14], updated_at: '2026-06-07T00:00:00Z' }]);
     const res = await request(app)
       .patch('/api/settings/handover_alert_days')
       .set(authHeader('accountant'))
       .send({ value: [14] });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   test('handover_alert_days with non-integers → 400', async () => {

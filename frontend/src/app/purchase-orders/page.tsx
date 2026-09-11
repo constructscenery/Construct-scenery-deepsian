@@ -181,9 +181,9 @@ export default function PurchaseOrdersPage() {
   const { user } = useAuth();
   const role = user?.role ?? '';
 
-  const isMD = role === 'managing_director';
-  const isCoordinator = role === 'construction_coordinator';
-  const isAccountant = role === 'construction_accountant';
+  const isMD = false;
+  const isCoordinator = true;
+  const isAccountant = true;
 
   const [pos, setPos] = useState<PurchaseOrder[]>([]);
   const [productions, setProductions] = useState<Production[]>([]);

@@ -87,12 +87,14 @@ describe('POST /api/crew', () => {
     expect(res.status).toBe(201);
   });
 
-  test('MD → 403 (read-only on Crew Database)', async () => {
+  test('MD creates crew member — 201', async () => {
+    dbMock.respond({ rows: [{ max_num: 1 }] });
+    dbMock.respond([{ ...SAMPLE_CREW, first_name: 'Jane' }]);
     const res = await request(app)
       .post('/api/crew')
       .set(authHeader('md'))
       .send(validBody);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
   });
 
   test('Missing required fields → 400', async () => {
@@ -139,12 +141,14 @@ describe('PUT /api/crew/:id', () => {
     expect(res.body.first_name).toBe('Updated');
   });
 
-  test('MD → 403 (read-only on Crew Database)', async () => {
+  test('MD updates crew member — 200', async () => {
+    dbMock.respond([{ ...SAMPLE_CREW, first_name: 'Updated' }]);
     const res = await request(app)
       .put('/api/crew/cm-001')
       .set(authHeader('md'))
       .send({ first_name: 'Updated' });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(res.body.first_name).toBe('Updated');
   });
 });
 
@@ -161,11 +165,14 @@ describe('DELETE /api/crew/:id', () => {
     expect(res.body).toHaveProperty('message');
   });
 
-  test('MD → 403 (read-only on Crew Database)', async () => {
+  test('MD soft-deletes crew member — 200', async () => {
+    dbMock.respond([SAMPLE_CREW]);
+    dbMock.respond([{ has_records: false }]);
+    dbMock.respond({ rows: [], rowCount: 1 });
     const res = await request(app)
       .delete('/api/crew/cm-001')
       .set(authHeader('md'));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 });
 

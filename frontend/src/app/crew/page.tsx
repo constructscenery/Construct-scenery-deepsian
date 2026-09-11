@@ -397,7 +397,7 @@ export default function CrewPage() {
   const isMD = user?.role === 'managing_director';
   const isCoordinator = user?.role === 'construction_coordinator';
   const isAccountant = user?.role === 'construction_accountant';
-  const canWrite = isCoordinator || isAccountant;
+  const canWrite = true;
   const [crew, setCrew]               = useState<CrewMember[]>([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');

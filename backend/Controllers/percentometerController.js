@@ -60,8 +60,8 @@ const calculate = async (req, res) => {
 // All ratios must still sum to 100% after the update.
 const updateRatio = async (req, res) => {
   const role = req.user?.role;
-  if (role !== 'managing_director' && role !== 'construction_accountant')
-    return res.status(403).json({ error: 'Only MD or Construction Accountant can update percentometer ratios' });
+  if (!['managing_director', 'construction_accountant', 'construction_coordinator'].includes(role))
+    return res.status(403).json({ error: 'Unauthorized to update percentometer ratios' });
 
   const { percentage } = req.body;
   if (percentage === undefined) return res.status(400).json({ error: 'percentage is required' });

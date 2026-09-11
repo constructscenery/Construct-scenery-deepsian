@@ -99,20 +99,22 @@ describe('PATCH /api/crew-rates/:id', () => {
     expect(res.body.error).toContain('CSV import');
   });
 
-  test('MD → 403 (read-only on Crew Database)', async () => {
+  test('MD updates rate — 200', async () => {
+    dbMock.respond([{ ...SAMPLE_RATE, daily_rate: '300.00' }]);
     const res = await request(app)
       .patch('/api/crew-rates/cr-nb-001')
       .set(authHeader('md'))
       .send({ daily_rate: '300' });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
-  test('Coordinator → 403', async () => {
+  test('Coordinator updates rate — 200', async () => {
+    dbMock.respond([{ ...SAMPLE_RATE, daily_rate: '300.00' }]);
     const res = await request(app)
       .patch('/api/crew-rates/cr-nb-001')
       .set(authHeader('coordinator'))
       .send({ daily_rate: '300' });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   test('Rate not found → 404', async () => {
@@ -150,7 +152,8 @@ describe('POST /api/crew-rates/preview', () => {
     expect(Array.isArray(res.body.changes)).toBe(true);
   });
 
-  test('MD → 403 (read-only on Crew Database)', async () => {
+  test('MD previews CSV changes — 200 with diff', async () => {
+    dbMock.respond([SAMPLE_RATE]);
     const csv = Buffer.from('trade,rank,daily_rate,overtime_rate\nCarpenters,HOD,450,67.5');
     const res = await request(app)
       .post('/api/crew-rates/preview')
@@ -158,7 +161,7 @@ describe('POST /api/crew-rates/preview', () => {
       .field('effective_from', '2027-04-06')
       .field('rate_year', '2027/28')
       .attach('csv', csv, 'r.csv');
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   test('Missing effective_from → 400', async () => {
@@ -205,7 +208,9 @@ describe('POST /api/crew-rates/import', () => {
     expect(res.body.rate_year).toBe('2027/28');
   });
 
-  test('MD → 403 (read-only on Crew Database)', async () => {
+  test('MD imports rate card — 200', async () => {
+    dbMock.respond({ rows: [], rowCount: 1 });
+    dbMock.respond({ rows: [], rowCount: 1 });
     const csv = Buffer.from('trade,rank,daily_rate,overtime_rate\nCarpenters,HOD,450,67.5');
     const res = await request(app)
       .post('/api/crew-rates/import')
@@ -213,10 +218,12 @@ describe('POST /api/crew-rates/import', () => {
       .field('effective_from', '2027-04-06')
       .field('rate_year', '2027/28')
       .attach('csv', csv, 'r.csv');
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
-  test('Coordinator → 403', async () => {
+  test('Coordinator imports rate card — 200', async () => {
+    dbMock.respond({ rows: [], rowCount: 1 });
+    dbMock.respond({ rows: [], rowCount: 1 });
     const csv = Buffer.from('trade,rank,daily_rate,overtime_rate\nCarpenters,HOD,450,67.5');
     const res = await request(app)
       .post('/api/crew-rates/import')
@@ -224,6 +231,6 @@ describe('POST /api/crew-rates/import', () => {
       .field('effective_from', '2027-04-06')
       .field('rate_year', '2027/28')
       .attach('csv', csv, 'r.csv');
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 });

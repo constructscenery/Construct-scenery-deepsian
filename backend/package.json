@@ -20,7 +20,10 @@
   "jest": {
     "testEnvironment": "node",
     "testMatch": [
-      "**/tests/**/*.test.js"
+      "<rootDir>/tests/**/*.test.js"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/"
     ],
     "testTimeout": 10000,
     "coverageDirectory": "coverage",

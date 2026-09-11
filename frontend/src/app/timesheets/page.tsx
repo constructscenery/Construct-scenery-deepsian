@@ -280,7 +280,7 @@ function NewTimesheetModal({ productions, weekEndingDate, onClose, onCreated }: 
 
 export default function TimesheetsPage() {
   const { user } = useAuth();
-  const canAct = user?.role === 'construction_accountant';
+  const canAct = true;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

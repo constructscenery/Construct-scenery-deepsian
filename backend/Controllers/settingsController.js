@@ -1,6 +1,6 @@
 const db = require('../config/db');
 
-const ALLOWED_ROLES = new Set(['managing_director', 'construction_coordinator']);
+const ALLOWED_ROLES = new Set(['managing_director', 'construction_coordinator', 'construction_accountant']);
 
 // ─── GET /api/settings ────────────────────────────────────────────────────────
 // Returns all application settings as a flat key→value object.
@@ -15,12 +15,12 @@ const getSettings = async (_req, res) => {
   }
 };
 
-// ─── PATCH /api/settings/:key  (MD + Coordinator) ────────────────────────────
+// ─── PATCH /api/settings/:key ─────────────────────────────────────────────────
 // Updates a single setting by key. Creates the row if it doesn't exist.
 // handover_alert_days expects a JSON array of integers e.g. [14, 7, 3]
 const patchSetting = async (req, res) => {
   if (!ALLOWED_ROLES.has(req.user?.role))
-    return res.status(403).json({ error: 'Only MD or Construction Coordinator can update settings' });
+    return res.status(403).json({ error: 'Unauthorized to update settings' });
 
   const { key } = req.params;
   const { value } = req.body;

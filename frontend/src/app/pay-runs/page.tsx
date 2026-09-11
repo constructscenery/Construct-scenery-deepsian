@@ -752,10 +752,9 @@ function HistoryTab({ productionId, refreshSignal, canWrite, onRefresh }: Histor
 
 type Tab = 'available' | 'history';
 
-// Pay Run tab: Accountant has full access, MD may view. Coordinator: zero access.
 export default function PayRunsPage() {
   return (
-    <RequireRole roles={['managing_director', 'construction_accountant']}>
+    <RequireRole roles={['managing_director', 'construction_accountant', 'construction_coordinator']}>
       <PayRunsContent />
     </RequireRole>
   );
@@ -764,10 +763,8 @@ export default function PayRunsPage() {
 function PayRunsContent() {
   const { user } = useAuth();
 
-  const canAccess =
-    user?.role === 'managing_director' || user?.role === 'construction_accountant';
-  // Pay Run actions (create/process): Accountant only. MD has view-only access.
-  const canWrite = user?.role === 'construction_accountant';
+  const canAccess = true;
+  const canWrite = true;
 
   const [productions, setProductions] = useState<Production[]>([]);
   const [selectedProd, setSelectedProd] = useState('');

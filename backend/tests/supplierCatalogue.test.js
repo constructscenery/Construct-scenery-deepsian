@@ -8,8 +8,8 @@
 const request = require('supertest');
 const { makeApp, authHeader, dbMock } = require('./setup');
 
-const router = require('../routes/supplierCatalogue');
-const app = makeApp(['/api/supplier-catalogue', router]);
+const router = require('../routes/materialsCatalogue');
+const app = makeApp(['/api/materials-catalogue', router]);
 
 const SAMPLE_ITEM = {
   id: 'sc-001', supplier_name: 'Wickes', product_description: 'Timber 4x2',
@@ -19,12 +19,12 @@ const SAMPLE_ITEM = {
 
 beforeEach(() => dbMock.reset());
 
-// ─── GET /api/supplier-catalogue ─────────────────────────────────────────────
-describe('GET /api/supplier-catalogue', () => {
+// ─── GET /api/materials-catalogue ─────────────────────────────────────────────
+describe('GET /api/materials-catalogue', () => {
   test('Coordinator lists catalogue — 200', async () => {
     dbMock.respond([SAMPLE_ITEM]);
     const res = await request(app)
-      .get('/api/supplier-catalogue')
+      .get('/api/materials-catalogue')
       .set(authHeader('coordinator'));
     expect(res.status).toBe(200);
     expect(res.body[0].supplier_name).toBe('Wickes');
@@ -33,7 +33,7 @@ describe('GET /api/supplier-catalogue', () => {
   test('Accountant lists catalogue (read-only) — 200', async () => {
     dbMock.respond([SAMPLE_ITEM]);
     const res = await request(app)
-      .get('/api/supplier-catalogue')
+      .get('/api/materials-catalogue')
       .set(authHeader('accountant'));
     expect(res.status).toBe(200);
   });
@@ -41,30 +41,30 @@ describe('GET /api/supplier-catalogue', () => {
   test('?supplier= filter passes to query', async () => {
     dbMock.respond([SAMPLE_ITEM]);
     const res = await request(app)
-      .get('/api/supplier-catalogue?supplier=Wickes')
+      .get('/api/materials-catalogue?supplier=Wickes')
       .set(authHeader('coordinator'));
     expect(res.status).toBe(200);
     expect(dbMock.query).toHaveBeenCalled();
   });
 });
 
-// ─── GET /api/supplier-catalogue/suppliers ────────────────────────────────────
-describe('GET /api/supplier-catalogue/suppliers', () => {
+// ─── GET /api/materials-catalogue/suppliers ────────────────────────────────────
+describe('GET /api/materials-catalogue/suppliers', () => {
   test('Returns array of distinct supplier names', async () => {
     dbMock.respond([{ supplier_name: 'Wickes' }, { supplier_name: 'B&Q' }]);
     const res = await request(app)
-      .get('/api/supplier-catalogue/suppliers')
+      .get('/api/materials-catalogue/suppliers')
       .set(authHeader('coordinator'));
     expect(res.status).toBe(200);
     expect(res.body).toEqual(['Wickes', 'B&Q']);
   });
 });
 
-// ─── GET /api/supplier-catalogue/template ────────────────────────────────────
-describe('GET /api/supplier-catalogue/template', () => {
+// ─── GET /api/materials-catalogue/template ────────────────────────────────────
+describe('GET /api/materials-catalogue/template', () => {
   test('Returns CSV template with correct content-type', async () => {
     const res = await request(app)
-      .get('/api/supplier-catalogue/template')
+      .get('/api/materials-catalogue/template')
       .set(authHeader('coordinator'));
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/text\/csv/);
@@ -72,8 +72,8 @@ describe('GET /api/supplier-catalogue/template', () => {
   });
 });
 
-// ─── POST /api/supplier-catalogue ────────────────────────────────────────────
-describe('POST /api/supplier-catalogue', () => {
+// ─── POST /api/materials-catalogue ────────────────────────────────────────────
+describe('POST /api/materials-catalogue', () => {
   const validBody = {
     supplier_name: 'Travis Perkins',
     product_description: 'Plywood 18mm',
@@ -84,36 +84,37 @@ describe('POST /api/supplier-catalogue', () => {
   test('Coordinator creates entry — 201', async () => {
     dbMock.respond([{ ...SAMPLE_ITEM, ...validBody }]);
     const res = await request(app)
-      .post('/api/supplier-catalogue')
+      .post('/api/materials-catalogue')
       .set(authHeader('coordinator'))
       .send(validBody);
     expect(res.status).toBe(201);
     expect(res.body.supplier_name).toBe('Travis Perkins');
   });
 
-  test('Accountant → 403 (read-only)', async () => {
+  test('Accountant creates entry — 201', async () => {
+    dbMock.respond([{ ...SAMPLE_ITEM, ...validBody }]);
     const res = await request(app)
-      .post('/api/supplier-catalogue')
+      .post('/api/materials-catalogue')
       .set(authHeader('accountant'))
       .send(validBody);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
   });
 
   test('Missing required fields → 400', async () => {
     const res = await request(app)
-      .post('/api/supplier-catalogue')
+      .post('/api/materials-catalogue')
       .set(authHeader('coordinator'))
       .send({ supplier_name: 'Test' });
     expect(res.status).toBe(400);
   });
 });
 
-// ─── PATCH /api/supplier-catalogue/:id ───────────────────────────────────────
-describe('PATCH /api/supplier-catalogue/:id', () => {
+// ─── PATCH /api/materials-catalogue/:id ───────────────────────────────────────
+describe('PATCH /api/materials-catalogue/:id', () => {
   test('Coordinator updates entry — 200', async () => {
     dbMock.respond([{ ...SAMPLE_ITEM, unit_price: 15.00 }]);
     const res = await request(app)
-      .patch('/api/supplier-catalogue/sc-001')
+      .patch('/api/materials-catalogue/sc-001')
       .set(authHeader('coordinator'))
       .send({ unit_price: 15.00 });
     expect(res.status).toBe(200);
@@ -123,19 +124,19 @@ describe('PATCH /api/supplier-catalogue/:id', () => {
   test('Not found → 404', async () => {
     dbMock.respond([]);
     const res = await request(app)
-      .patch('/api/supplier-catalogue/bad-id')
+      .patch('/api/materials-catalogue/bad-id')
       .set(authHeader('coordinator'))
       .send({ unit_price: 10 });
     expect(res.status).toBe(404);
   });
 });
 
-// ─── DELETE /api/supplier-catalogue/:id ──────────────────────────────────────
-describe('DELETE /api/supplier-catalogue/:id', () => {
+// ─── DELETE /api/materials-catalogue/:id ──────────────────────────────────────
+describe('DELETE /api/materials-catalogue/:id', () => {
   test('Coordinator soft-deletes entry — 200', async () => {
     dbMock.respond({ rows: [], rowCount: 1 });
     const res = await request(app)
-      .delete('/api/supplier-catalogue/sc-001')
+      .delete('/api/materials-catalogue/sc-001')
       .set(authHeader('coordinator'));
     expect(res.status).toBe(200);
     expect(res.body.message).toBe('Entry deleted');
@@ -144,14 +145,14 @@ describe('DELETE /api/supplier-catalogue/:id', () => {
   test('Not found → 404', async () => {
     dbMock.respond({ rows: [], rowCount: 0 });
     const res = await request(app)
-      .delete('/api/supplier-catalogue/bad-id')
+      .delete('/api/materials-catalogue/bad-id')
       .set(authHeader('coordinator'));
     expect(res.status).toBe(404);
   });
 });
 
-// ─── POST /api/supplier-catalogue/import ─────────────────────────────────────
-describe('POST /api/supplier-catalogue/import', () => {
+// ─── POST /api/materials-catalogue/import ─────────────────────────────────────
+describe('POST /api/materials-catalogue/import', () => {
   test('Coordinator imports CSV — 201 with imported count', async () => {
     dbMock.respond({ rows: [], rowCount: 1 });  // insert row 1
     dbMock.respond({ rows: [], rowCount: 1 });  // insert row 2
@@ -163,7 +164,7 @@ describe('POST /api/supplier-catalogue/import', () => {
     );
 
     const res = await request(app)
-      .post('/api/supplier-catalogue/import')
+      .post('/api/materials-catalogue/import')
       .set(authHeader('coordinator'))
       .attach('csv', csv, 'import.csv');
 
@@ -175,7 +176,7 @@ describe('POST /api/supplier-catalogue/import', () => {
   test('CSV with missing required columns → 400', async () => {
     const csv = Buffer.from('Name,Price\nWickes,12.50');
     const res = await request(app)
-      .post('/api/supplier-catalogue/import')
+      .post('/api/materials-catalogue/import')
       .set(authHeader('coordinator'))
       .attach('csv', csv, 'bad.csv');
     expect(res.status).toBe(400);
@@ -183,7 +184,7 @@ describe('POST /api/supplier-catalogue/import', () => {
 
   test('No file uploaded → 400', async () => {
     const res = await request(app)
-      .post('/api/supplier-catalogue/import')
+      .post('/api/materials-catalogue/import')
       .set(authHeader('coordinator'));
     expect(res.status).toBe(400);
   });
@@ -191,7 +192,7 @@ describe('POST /api/supplier-catalogue/import', () => {
   test('Accountant → 403', async () => {
     const csv = Buffer.from('Supplier Name,Product Description,Unit of Measure,Unit Price\nW,P,m,5');
     const res = await request(app)
-      .post('/api/supplier-catalogue/import')
+      .post('/api/materials-catalogue/import')
       .set(authHeader('accountant'))
       .attach('csv', csv, 'x.csv');
     expect(res.status).toBe(403);

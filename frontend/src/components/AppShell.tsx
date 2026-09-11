@@ -8,8 +8,8 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const AUTH_PATHS = ['/login', '/forgot-password', '/verify-otp', '/reset-password'];
 
-// Warren's Dashboard is MD-exclusive; everyone else lands on the shared Overview page.
-const homeRouteFor = (role: string) => (role === 'managing_director' ? '/dashboard' : '/overview');
+// Land on Dashboard for all authenticated roles.
+const homeRouteFor = (_role: string) => '/dashboard';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname  = usePathname();

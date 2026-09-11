@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -30,35 +30,23 @@ const PRIMARY: Record<string, NavItem[]> = {
   ],
 };
 
+const FULL_NAV_ITEMS: NavItem[] = [
+  { href: '/dashboard',       label: 'Dashboard',          icon: LayoutDashboard },
+  { href: '/overview',        label: 'Overview',           icon: LayoutDashboard },
+  { href: '/productions',     label: 'Productions',        icon: Clapperboard },
+  { href: '/purchase-orders', label: 'Purchase Orders',    icon: ShoppingCart },
+  { href: '/cost-report',     label: 'Cost Report',        icon: BarChart2 },
+  { href: '/forecasting',     label: 'Forecasting',        icon: TrendingUp },
+  { href: '/crew',            label: 'Crew',               icon: Users },
+  { href: '/crew/import',     label: 'Crew Import',        icon: Upload },
+  { href: '/timesheets',      label: 'Timesheets & Pay',   icon: ClipboardList },
+];
+
 // All items per role (for "More" drawer)
 const ALL_ITEMS: Record<string, NavItem[]> = {
-  managing_director: [
-    { href: '/dashboard',       label: 'Dashboard',          icon: LayoutDashboard },
-    { href: '/productions',     label: 'Productions',        icon: Clapperboard },
-    { href: '/purchase-orders', label: 'Purchase Orders',    icon: ShoppingCart },
-    { href: '/cost-report',     label: 'Cost Report',        icon: BarChart2 },
-    { href: '/forecasting',     label: 'Forecasting',        icon: TrendingUp },
-    { href: '/crew',            label: 'Crew',               icon: Users },
-    { href: '/timesheets',      label: 'Timesheets & Pay',   icon: ClipboardList },
-  ],
-  construction_accountant: [
-    { href: '/overview',        label: 'Overview',           icon: LayoutDashboard },
-    { href: '/timesheets',      label: 'Timesheets & Pay',   icon: ClipboardList },
-    { href: '/purchase-orders', label: 'Purchase Orders',    icon: ShoppingCart },
-    { href: '/cost-report',     label: 'Cost Report',        icon: BarChart2 },
-    { href: '/forecasting',     label: 'Forecasting',        icon: TrendingUp },
-    { href: '/crew',            label: 'Crew',               icon: Users },
-    { href: '/crew/import',     label: 'Crew Import',        icon: Upload },
-    { href: '/productions',     label: 'Productions',        icon: Clapperboard },
-  ],
-  construction_coordinator: [
-    { href: '/overview',        label: 'Overview',        icon: LayoutDashboard },
-    { href: '/productions',     label: 'Productions',     icon: Clapperboard },
-    { href: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart },
-    { href: '/timesheets',      label: 'Timesheets',      icon: ClipboardList },
-    { href: '/crew',            label: 'Crew',            icon: Users },
-    { href: '/crew/import',     label: 'Crew Import',     icon: Upload },
-  ],
+  managing_director: FULL_NAV_ITEMS,
+  construction_accountant: FULL_NAV_ITEMS,
+  construction_coordinator: FULL_NAV_ITEMS,
 };
 
 function getRoleLabel(role: string) {

@@ -3,21 +3,17 @@ const router  = express.Router();
 const ctrl = require('../Controllers/payRunsController');
 const { requireRole } = require('../Middleware/requireRole');
 
-// Pay Run tab: Accountant has full access. MD may view (read access to all
-// modules). Coordinator has zero access — enforced here AND in policies.json.
-const MD         = 'managing_director';
-const ACCOUNTANT = 'construction_accountant';
-const READERS    = [MD, ACCOUNTANT];
+const ALL_ROLES = ['managing_director', 'construction_accountant', 'construction_coordinator'];
 
 // Specific paths before /:id
-router.get('/available-weeks', requireRole(...READERS), ctrl.getAvailableWeeks);
-router.get('/preview',         requireRole(...READERS), ctrl.getPayRunPreview);
+router.get('/available-weeks', requireRole(...ALL_ROLES), ctrl.getAvailableWeeks);
+router.get('/preview',         requireRole(...ALL_ROLES), ctrl.getPayRunPreview);
 
-router.get('/',               requireRole(...READERS), ctrl.getAllPayRuns);
-router.post('/',              requireRole(ACCOUNTANT),  ctrl.createPayRun);
-router.get('/:id',            requireRole(...READERS), ctrl.getPayRunById);
-router.post('/:id/process',     requireRole(ACCOUNTANT), ctrl.processPayRun);
-router.post('/:id/sync-labour', requireRole(ACCOUNTANT), ctrl.syncLabourCosts);
-router.get('/:id/export-csv',   requireRole(...READERS), ctrl.exportCsv);
+router.get('/',               requireRole(...ALL_ROLES), ctrl.getAllPayRuns);
+router.post('/',              requireRole(...ALL_ROLES),  ctrl.createPayRun);
+router.get('/:id',            requireRole(...ALL_ROLES), ctrl.getPayRunById);
+router.post('/:id/process',     requireRole(...ALL_ROLES), ctrl.processPayRun);
+router.post('/:id/sync-labour', requireRole(...ALL_ROLES), ctrl.syncLabourCosts);
+router.get('/:id/export-csv',   requireRole(...ALL_ROLES), ctrl.exportCsv);
 
 module.exports = router;

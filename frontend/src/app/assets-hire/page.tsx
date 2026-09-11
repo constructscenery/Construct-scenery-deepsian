@@ -69,8 +69,8 @@ export default function AssetsHirePage() {
   const [complianceChecking, setComplianceChecking] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const isCoordinatorOrMD = user?.role === 'construction_coordinator' || user?.role === 'managing_director';
-  const isAccountant = user?.role === 'construction_accountant';
+  const isCoordinatorOrMD = true;
+  const isAccountant = false;
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });

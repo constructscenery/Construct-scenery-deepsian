@@ -2,7 +2,7 @@ const db  = require('../config/db');
 const csv = require('csv-parse/sync');
 
 const canManageRates = (role) =>
-  role === 'managing_director' || role === 'construction_accountant';
+  ['managing_director', 'construction_accountant', 'construction_coordinator'].includes(role);
 
 // ─── GET /api/crew-rates ──────────────────────────────────────────────────────
 // ?current=true  → only active rows (effective_to IS NULL)

@@ -62,14 +62,20 @@ describe('POST /api/purchase-orders', () => {
     expect(res.body.po_number).toBe('PO-0004');
   });
 
-  test('MD → 403 (cannot create POs directly)', async () => {
+  test('MD creates PO — 201', async () => {
+    dbMock.respond([{ status: 'active_build' }]);
+    dbMock.respond({ rows: [{ max_num: 3 }] });
+    dbMock.respond([{ ...SAMPLE_PO, po_number: 'PO-0004' }]);
     const res = await request(app).post('/api/purchase-orders').set(authHeader('md')).send(validBody);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
   });
 
-  test('Accountant → 403 (cannot create POs)', async () => {
+  test('Accountant creates PO — 201', async () => {
+    dbMock.respond([{ status: 'active_build' }]);
+    dbMock.respond({ rows: [{ max_num: 3 }] });
+    dbMock.respond([{ ...SAMPLE_PO, po_number: 'PO-0004' }]);
     const res = await request(app).post('/api/purchase-orders').set(authHeader('accountant')).send(validBody);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
   });
 
   test('No auth → 401', async () => {
@@ -93,20 +99,24 @@ describe('PUT /api/purchase-orders/:id', () => {
     expect(res.body.supplier_name).toBe('Updated Co');
   });
 
-  test('MD → 403 (cannot edit POs directly)', async () => {
+  test('MD edits draft PO — 200', async () => {
+    dbMock.respond([{ status: 'draft' }]);
+    dbMock.respond([{ ...SAMPLE_PO, supplier_name: 'X' }]);
     const res = await request(app)
       .put('/api/purchase-orders/po-001')
       .set(authHeader('md'))
       .send({ supplier_name: 'X' });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
-  test('Accountant → 403 (cannot edit POs)', async () => {
+  test('Accountant edits draft PO — 200', async () => {
+    dbMock.respond([{ status: 'draft' }]);
+    dbMock.respond([{ ...SAMPLE_PO, supplier_name: 'X' }]);
     const res = await request(app)
       .put('/api/purchase-orders/po-001')
       .set(authHeader('accountant'))
       .send({ supplier_name: 'X' });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 });
 
@@ -119,14 +129,18 @@ describe('DELETE /api/purchase-orders/:id', () => {
     expect(res.status).toBe(200);
   });
 
-  test('MD → 403', async () => {
+  test('MD deletes draft PO — 200', async () => {
+    dbMock.respond([{ status: 'draft' }]);
+    dbMock.respond({ rows: [], rowCount: 1 });
     const res = await request(app).delete('/api/purchase-orders/po-001').set(authHeader('md'));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
-  test('Accountant → 403', async () => {
+  test('Accountant deletes draft PO — 200', async () => {
+    dbMock.respond([{ status: 'draft' }]);
+    dbMock.respond({ rows: [], rowCount: 1 });
     const res = await request(app).delete('/api/purchase-orders/po-001').set(authHeader('accountant'));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 });
 
@@ -144,14 +158,24 @@ describe('POST /api/purchase-orders/:id/submit', () => {
     expect(res.body.purchase_order.status).toBe('submitted');
   });
 
-  test('MD → 403', async () => {
+  test('MD submits draft PO — 200', async () => {
+    dbMock.respond({ rows: [], rowCount: 0 });           // BEGIN
+    dbMock.respond([{ ...SAMPLE_PO, status: 'draft' }]); // SELECT
+    dbMock.respond([{ ...SAMPLE_PO, status: 'submitted' }]); // UPDATE RETURNING
+    dbMock.respond({ rows: [], rowCount: 1 });           // logStatusTransition INSERT
+    dbMock.respond({ rows: [], rowCount: 0 });           // COMMIT
     const res = await request(app).post('/api/purchase-orders/po-001/submit').set(authHeader('md'));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
-  test('Accountant → 403', async () => {
+  test('Accountant submits draft PO — 200', async () => {
+    dbMock.respond({ rows: [], rowCount: 0 });           // BEGIN
+    dbMock.respond([{ ...SAMPLE_PO, status: 'draft' }]); // SELECT
+    dbMock.respond([{ ...SAMPLE_PO, status: 'submitted' }]); // UPDATE RETURNING
+    dbMock.respond({ rows: [], rowCount: 1 });           // logStatusTransition INSERT
+    dbMock.respond({ rows: [], rowCount: 0 });           // COMMIT
     const res = await request(app).post('/api/purchase-orders/po-001/submit').set(authHeader('accountant'));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   test('No auth → 401', async () => {
@@ -178,14 +202,24 @@ describe('POST /api/purchase-orders/:id/approve', () => {
     expect(res.body.purchase_order.status).toBe('approved');
   });
 
-  test('MD → 403 (approval is Accountant-only)', async () => {
+  test('MD approves submitted PO — 200', async () => {
+    dbMock.respond({ rows: [], rowCount: 0 });             // BEGIN
+    dbMock.respond([SUBMITTED_WITH_INVOICE]);               // SELECT po + prod
+    dbMock.respond([{ ...SUBMITTED_WITH_INVOICE, status: 'approved' }]); // UPDATE RETURNING
+    dbMock.respond({ rows: [], rowCount: 1 });             // logStatusTransition INSERT
+    dbMock.respond({ rows: [], rowCount: 0 });             // COMMIT
     const res = await request(app).post('/api/purchase-orders/po-001/approve').set(authHeader('md'));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
-  test('Coordinator → 403', async () => {
+  test('Coordinator approves submitted PO — 200', async () => {
+    dbMock.respond({ rows: [], rowCount: 0 });             // BEGIN
+    dbMock.respond([SUBMITTED_WITH_INVOICE]);               // SELECT po + prod
+    dbMock.respond([{ ...SUBMITTED_WITH_INVOICE, status: 'approved' }]); // UPDATE RETURNING
+    dbMock.respond({ rows: [], rowCount: 1 });             // logStatusTransition INSERT
+    dbMock.respond({ rows: [], rowCount: 0 });             // COMMIT
     const res = await request(app).post('/api/purchase-orders/po-001/approve').set(authHeader('coordinator'));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   test('No auth → 401', async () => {
@@ -226,20 +260,25 @@ describe('Purchase Orders - Department and Date Range Enhancements', () => {
     expect(res.body.department).toBe('Construction');
   });
 
-  test('MD or Accountant cannot create/update PO department — 403', async () => {
+  test('MD or Accountant can create/update PO department — 201/200', async () => {
     // MD create attempt
+    dbMock.respond([{ status: 'active_build' }]);
+    dbMock.respond({ rows: [{ max_num: 3 }] });
+    dbMock.respond([{ ...SAMPLE_PO, po_number: 'PO-0004', department: 'Scenic Art' }]);
     const res1 = await request(app)
       .post('/api/purchase-orders')
       .set(authHeader('md'))
       .send({ supplier_name: 'Treeline Timber', production_id: 'prod-1', net_amount: '500.00', department: 'Scenic Art' });
-    expect(res1.status).toBe(403);
+    expect(res1.status).toBe(201);
 
     // Accountant update attempt
+    dbMock.respond([{ status: 'draft' }]);
+    dbMock.respond([{ ...SAMPLE_PO, department: 'Construction' }]);
     const res2 = await request(app)
       .put('/api/purchase-orders/po-001')
       .set(authHeader('accountant'))
       .send({ department: 'Construction' });
-    expect(res2.status).toBe(403);
+    expect(res2.status).toBe(200);
   });
 
   test('Filtering by department, date range boundaries, and future dates — 200', async () => {

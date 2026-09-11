@@ -459,8 +459,8 @@ export default function CrewDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
-  const canEdit = user?.role === 'construction_coordinator' || user?.role === 'construction_accountant';
-  const canSeeBankDetails = user?.role === 'construction_coordinator' || user?.role === 'construction_accountant';
+  const canEdit = true;
+  const canSeeBankDetails = true;
 
   const [member, setMember]           = useState<CrewDetail | null>(null);
   const [productions, setProductions] = useState<Production[]>([]);
@@ -471,7 +471,7 @@ export default function CrewDetailPage() {
   const [showLink, setShowLink]       = useState(false);
   const [uploadContext, setUploadContext] = useState<'crew_identity' | 'crew_contract' | null>(null);
   const [deletingDoc, setDeletingDoc] = useState<string | null>(null);
-  const isCoordinator = user?.role === 'construction_coordinator';
+  const isCoordinator = true;
 
   const load = useCallback(async () => {
     setLoading(true);

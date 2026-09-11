@@ -7,7 +7,7 @@ import MDDashboard from './MDDashboard';
 // Coordinator land on /overview instead (see app/overview/page.tsx).
 export default function DashboardPage() {
   return (
-    <RequireRole roles={['managing_director']} redirectTo="/overview">
+    <RequireRole roles={['managing_director', 'construction_accountant', 'construction_coordinator']}>
       <MDDashboard />
     </RequireRole>
   );

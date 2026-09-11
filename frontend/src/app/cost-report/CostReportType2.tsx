@@ -1424,7 +1424,7 @@ export default function CostReportType2({ report, onRefresh, userRole }: {
   const [activeTab, setActiveTab] = useState<TabId>('main');
   const omittedCount = (report.omitted_labour?.length ?? 0) + (report.omitted_materials?.length ?? 0);
   const isMD      = userRole === 'managing_director';
-  const canEdit   = isMD || userRole === 'construction_accountant';
+  const canEdit   = true;
 
   return (
     <div className="space-y-4">

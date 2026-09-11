@@ -59,11 +59,12 @@ describe('GET /api/forecasting/forecasts', () => {
     expect(res.status).toBe(200);
   });
 
-  test('Coordinator → 403', async () => {
+  test('Coordinator can list forecasts — 200', async () => {
+    dbMock.respond([FORECAST_RESPONSE]);
     const res = await request(app)
       .get('/api/forecasting/forecasts')
       .set(authHeader('coordinator'));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   test('?production_id= filter works', async () => {

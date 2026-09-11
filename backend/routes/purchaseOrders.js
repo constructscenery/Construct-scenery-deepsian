@@ -8,8 +8,7 @@ const multer       = require('multer');
 
 const csvUpload    = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-const COORDINATOR = 'construction_coordinator';
-const ACCOUNTANT  = 'construction_accountant';
+const ALL_ROLES = ['managing_director', 'construction_accountant', 'construction_coordinator'];
 
 router.get('/',                          ctrl.getAllPOs);
 router.get('/export/csv',                ctrl.exportCSV);
@@ -17,18 +16,18 @@ router.get('/export/pdf',                ctrl.exportPDFList);
 router.get('/:id/pdf',                   ctrl.downloadPdf);
 router.get('/account-codes',             ctrl.getAccountCodes);
 router.get('/import/template',           importCtrl.getImportTemplate);
-router.post('/import',                   csvUpload.single('csv'), requireRole(COORDINATOR), importCtrl.importCSV);
-router.post('/',                         requireRole(COORDINATOR), ctrl.createPO);
+router.post('/import',                   csvUpload.single('csv'), requireRole(...ALL_ROLES), importCtrl.importCSV);
+router.post('/',                         requireRole(...ALL_ROLES), ctrl.createPO);
 router.get('/:id',                       ctrl.getPOById);
-router.put('/:id',                       requireRole(COORDINATOR), ctrl.updatePO);
-router.patch('/:id',                     requireRole(COORDINATOR), ctrl.updatePO);
-router.delete('/:id',                    requireRole(COORDINATOR), ctrl.deletePO);
-router.post('/:id/issue',                requireRole(COORDINATOR), ctrl.issuePO);
-router.post('/:id/submit',               requireRole(COORDINATOR), ctrl.submitPO);
-router.post('/:id/attach-invoice',       upload.single('invoice'), requireRole(COORDINATOR, ACCOUNTANT), ctrl.attachInvoice);
-router.post('/:id/attach-confirmation',  upload.single('confirmation'), requireRole(COORDINATOR, ACCOUNTANT), ctrl.attachConfirmation);
+router.put('/:id',                       requireRole(...ALL_ROLES), ctrl.updatePO);
+router.patch('/:id',                     requireRole(...ALL_ROLES), ctrl.updatePO);
+router.delete('/:id',                    requireRole(...ALL_ROLES), ctrl.deletePO);
+router.post('/:id/issue',                requireRole(...ALL_ROLES), ctrl.issuePO);
+router.post('/:id/submit',               requireRole(...ALL_ROLES), ctrl.submitPO);
+router.post('/:id/attach-invoice',       upload.single('invoice'), requireRole(...ALL_ROLES), ctrl.attachInvoice);
+router.post('/:id/attach-confirmation',  upload.single('confirmation'), requireRole(...ALL_ROLES), ctrl.attachConfirmation);
 router.get('/:id/invoice/download',      ctrl.downloadInvoice);
-router.delete('/:id/invoice',            requireRole(COORDINATOR), ctrl.deleteInvoice);
-router.post('/:id/approve',              requireRole(ACCOUNTANT), ctrl.approvePO);
+router.delete('/:id/invoice',            requireRole(...ALL_ROLES), ctrl.deleteInvoice);
+router.post('/:id/approve',              requireRole(...ALL_ROLES), ctrl.approvePO);
 
 module.exports = router;

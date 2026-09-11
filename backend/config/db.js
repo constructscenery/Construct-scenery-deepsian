@@ -26,21 +26,23 @@ pool.on('error', (err) => {
 });
 
 // Startup connectivity check — retries 3 times with 3 s gaps before giving up.
-(async () => {
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      await pool.query('SELECT 1');
-      console.log('✅ PostgreSQL connected (Render)');
-      return;
-    } catch (err) {
-      if (attempt < 3) {
-        console.warn(`⚠️  PostgreSQL attempt ${attempt}/3 failed (${err.message}) — retrying in 3 s…`);
-        await new Promise(r => setTimeout(r, 3000));
-      } else {
-        console.error('❌ PostgreSQL connection failed:', err.message);
+if (process.env.NODE_ENV !== 'test') {
+  (async () => {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await pool.query('SELECT 1');
+        console.log('✅ PostgreSQL connected (Render)');
+        return;
+      } catch (err) {
+        if (attempt < 3) {
+          console.warn(`⚠️  PostgreSQL attempt ${attempt}/3 failed (${err.message}) — retrying in 3 s…`);
+          await new Promise(r => setTimeout(r, 3000));
+        } else {
+          console.error('❌ PostgreSQL connection failed:', err.message);
+        }
       }
     }
-  }
-})();
+  })();
+}
 
 module.exports = pool;

@@ -182,8 +182,8 @@ const getCrewById = async (req, res) => {
     );
     if (!member) return res.status(404).json({ error: 'Crew member not found' });
 
-    // Bank details visible to Coordinator and Accountant only — not MD
-    const canSeeBankDetails = ['construction_coordinator', 'construction_accountant'].includes(req.user?.role);
+    // Bank details visible to all roles
+    const canSeeBankDetails = ['construction_coordinator', 'construction_accountant', 'managing_director'].includes(req.user?.role);
     if (!canSeeBankDetails) {
       delete member.account_name;
       delete member.account_number;
@@ -306,10 +306,7 @@ const addDocument = async (req, res) => {
 const deleteDocument = async (req, res) => {
   const fileStorage = require('../services/fileStorage');
 
-  // Only Coordinators can delete crew documents
-  if (req.user?.role !== 'construction_coordinator')
-    return res.status(403).json({ error: 'Only Coordinators can delete crew documents' });
-
+  // All roles can delete crew documents
   try {
     const { rows: [doc] } = await db.query(
       'SELECT * FROM crew_documents WHERE id = $1 AND crew_member_id = $2',

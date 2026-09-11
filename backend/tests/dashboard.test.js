@@ -36,18 +36,24 @@ describe('GET /api/dashboard/cost-summary', () => {
     expect(res.body[0]).toHaveProperty('budget_utilisation_pct');
   });
 
-  test('Accountant → 403', async () => {
+  test('Accountant gets cost summary — 200', async () => {
+    dbMock.respond([{ id: 'p1', name: 'Test', contract_type: 'on_a_price', agreed_price: '100000' }]);
+    dbMock.respond([{ total: '50000' }]);
+    dbMock.respond([{ total_budget: '100000' }]);
     const res = await request(app)
       .get('/api/dashboard/cost-summary')
       .set(authHeader('accountant'));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
-  test('Coordinator → 403', async () => {
+  test('Coordinator gets cost summary — 200', async () => {
+    dbMock.respond([{ id: 'p1', name: 'Test', contract_type: 'on_a_price', agreed_price: '100000' }]);
+    dbMock.respond([{ total: '50000' }]);
+    dbMock.respond([{ total_budget: '100000' }]);
     const res = await request(app)
       .get('/api/dashboard/cost-summary')
       .set(authHeader('coordinator'));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   test('RAG is green when utilisation < 75%', async () => {
@@ -139,11 +145,14 @@ describe('GET /api/dashboard/labour-costs', () => {
     expect(res.body.breakdown[0].status).toBe('approved');
   });
 
-  test('Accountant → 403', async () => {
+  test('Accountant gets labour costs — 200', async () => {
+    dbMock.respond([
+      { production_id: 'p1', prod_name: 'Test', approved_amount: '5000', pending_amount: '0', rejected_amount: '0' }
+    ]);
     const res = await request(app)
       .get('/api/dashboard/labour-costs')
       .set(authHeader('accountant'));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 });
 

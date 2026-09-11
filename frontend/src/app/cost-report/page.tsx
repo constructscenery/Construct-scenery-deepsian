@@ -144,10 +144,9 @@ function AddInvoiceForm({ productionId, onClose, onSaved }: AddInvoiceFormProps)
   );
 }
 
-// Cost Report: full access for MD + Accountant. Coordinator: no access.
 export default function CostReportPage() {
   return (
-    <RequireRole roles={['managing_director', 'construction_accountant']}>
+    <RequireRole roles={['managing_director', 'construction_accountant', 'construction_coordinator']}>
       <CostReportContent />
     </RequireRole>
   );
@@ -155,7 +154,7 @@ export default function CostReportPage() {
 
 function CostReportContent() {
   const { user } = useAuth();
-  const canAddInvoice = user?.role === 'managing_director' || user?.role === 'construction_accountant';
+  const canAddInvoice = true;
 
   const [productions, setProductions] = useState<Production[]>([]);
   const [selectedId, setSelectedId] = useState<string>('');

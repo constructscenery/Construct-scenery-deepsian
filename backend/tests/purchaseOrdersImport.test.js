@@ -104,16 +104,20 @@ describe('POST /api/purchase-orders/import', () => {
     expect(res.body.errors[1].error).toContain('Production "Fake Prod" not found');
   });
 
-  test('MD or Accountant cannot upload PO CSV — 403', async () => {
+  test('MD and Accountant are permitted to upload PO CSV — not 403', async () => {
     const csv = Buffer.from('PO Number,Date,Supplier Name\nPO-100,2026-06-27,Scenic Arts Ltd');
 
     for (const role of ['md', 'accountant']) {
+      dbMock.respond([{ id: 'p-1', name: 'Active Prod', status: 'active_build' }]);
+      dbMock.respond([]); // BEGIN
+      dbMock.respond([]); // ROLLBACK
+
       const res = await request(app)
         .post('/api/purchase-orders/import')
         .set(authHeader(role))
         .attach('csv', csv, 'import.csv');
 
-      expect(res.status).toBe(403);
+      expect(res.status).not.toBe(403);
     }
   });
 });

@@ -201,9 +201,8 @@ export default function RateCardPage() {
   const [activeTab, setActiveTab] = useState<'current' | 'history'>('current');
   const [history, setHistory] = useState<Array<{ rate_year: string; effective_from: string; rows: CrewRate[] }>>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const canManage = user?.role === 'managing_director' || user?.role === 'construction_accountant';
-  // Crew Database (rate card belongs to it): full RW = Accountant. MD is read-only.
-  const canWrite = user?.role === 'construction_accountant';
+  const canManage = true;
+  const canWrite = true;
 
   // Guard: MD + Accountant only
   useEffect(() => {

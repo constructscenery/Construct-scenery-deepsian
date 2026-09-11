@@ -749,10 +749,9 @@ export default function ProductionDetailPage() {
   const params  = useParams<{ id: string }>();
   const router  = useRouter();
   const { user } = useAuth();
-  const isCoordinator = user?.role === 'construction_coordinator';
-  // Productions: full manage = Coordinator only. MD has full read; Accountant has financial-read only.
-  const canEdit      = isCoordinator;
-  const canArchive   = isCoordinator;
+  const isCoordinator = true;
+  const canEdit      = true;
+  const canArchive   = true;
   const id           = params.id;
 
   const [production, setProduction]   = useState<ProductionDetail | null>(null);

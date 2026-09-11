@@ -9,39 +9,44 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
+const ALL_ROLES: ('managing_director' | 'construction_accountant' | 'construction_coordinator')[] = [
+  'managing_director',
+  'construction_accountant',
+  'construction_coordinator',
+];
+
 const NAV_GROUPS = [
   {
     label: 'Core',
     items: [
-      // Warren's Dashboard — MD exclusive. Accountant/Coordinator land on Overview instead.
-      { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard, roles: ['managing_director'] },
-      { href: '/overview',    label: 'Overview',    icon: LayoutDashboard, roles: ['construction_accountant', 'construction_coordinator'] },
-      { href: '/productions', label: 'Productions', icon: Clapperboard,    roles: ['managing_director', 'construction_accountant', 'construction_coordinator'] },
-      { href: '/assets-hire', label: 'Assets & Hire', icon: Truck,          roles: ['managing_director', 'construction_accountant', 'construction_coordinator'] },
+      { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard, roles: ALL_ROLES },
+      { href: '/overview',    label: 'Overview',    icon: LayoutDashboard, roles: ALL_ROLES },
+      { href: '/productions', label: 'Productions', icon: Clapperboard,    roles: ALL_ROLES },
+      { href: '/assets-hire', label: 'Assets & Hire', icon: Truck,          roles: ALL_ROLES },
     ],
   },
   {
     label: 'Finance',
     items: [
-      { href: '/purchase-orders',    label: 'Purchase Orders',   icon: ShoppingCart, roles: ['managing_director', 'construction_accountant', 'construction_coordinator'] },
-      { href: '/cost-report',        label: 'Cost Report',       icon: BarChart2,    roles: ['managing_director', 'construction_accountant'] },
-      { href: '/pay-runs',           label: 'Pay Runs',          icon: Banknote,     roles: ['managing_director', 'construction_accountant'] },
-      { href: '/materials-catalogue', label: 'Materials Catalogue',icon: BookOpen,     roles: ['managing_director', 'construction_accountant', 'construction_coordinator'] },
-      { href: '/suppliers',          label: 'Supplier Database', icon: BookOpen,     roles: ['managing_director', 'construction_accountant', 'construction_coordinator'] },
+      { href: '/purchase-orders',    label: 'Purchase Orders',   icon: ShoppingCart, roles: ALL_ROLES },
+      { href: '/cost-report',        label: 'Cost Report',       icon: BarChart2,    roles: ALL_ROLES },
+      { href: '/pay-runs',           label: 'Pay Runs',          icon: Banknote,     roles: ALL_ROLES },
+      { href: '/materials-catalogue', label: 'Materials Catalogue',icon: BookOpen,     roles: ALL_ROLES },
+      { href: '/suppliers',          label: 'Supplier Database', icon: BookOpen,     roles: ALL_ROLES },
     ],
   },
   {
     label: 'People',
     items: [
-      { href: '/crew',        label: 'Crew Database', icon: Users,        roles: ['managing_director', 'construction_accountant', 'construction_coordinator'] },
-      { href: '/crew/import', label: 'Crew Import',   icon: Upload,       roles: ['construction_accountant', 'construction_coordinator'] },
-      { href: '/timesheets',  label: 'Timesheets',    icon: ClipboardList, roles: ['managing_director', 'construction_accountant', 'construction_coordinator'] },
+      { href: '/crew',        label: 'Crew Database', icon: Users,        roles: ALL_ROLES },
+      { href: '/crew/import', label: 'Crew Import',   icon: Upload,       roles: ALL_ROLES },
+      { href: '/timesheets',  label: 'Timesheets',    icon: ClipboardList, roles: ALL_ROLES },
     ],
   },
   {
     label: 'Settings',
     items: [
-      { href: '/settings/rate-card', label: 'Rate Card',        icon: CreditCard,   roles: ['managing_director', 'construction_accountant'] },
+      { href: '/settings/rate-card', label: 'Rate Card',        icon: CreditCard,   roles: ALL_ROLES },
       { href: '/settings/users',     label: 'User Accounts',    icon: ShieldCheck,  roles: ['managing_director'] },
     ],
   },

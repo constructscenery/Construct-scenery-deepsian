@@ -234,12 +234,13 @@ describe('PUT /api/cost-reports/:productionId/margins-reference', () => {
     expect(res.status).toBe(200);
   });
 
-  test('Accountant → 403 (MD only endpoint)', async () => {
+  test('Accountant updates margins-reference — 200', async () => {
+    dbMock.respond([{ production_id: 'prod-2', items: [] }]);
     const res = await request(app)
       .put('/api/cost-reports/prod-2/margins-reference')
       .set(authHeader('accountant'))
       .send({ items: [] });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 });
 

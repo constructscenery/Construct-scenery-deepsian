@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import TopBar from '@/components/TopBar';
@@ -29,10 +29,9 @@ const inputCls =
 
 type CalcResult = { cost_type: string; percentage: number; estimated_cost: number };
 
-// Forecasting: full access for MD + Accountant. Coordinator: no access.
 export default function ForecastingPage() {
   return (
-    <RequireRole roles={['managing_director', 'construction_accountant']}>
+    <RequireRole roles={['managing_director', 'construction_accountant', 'construction_coordinator']}>
       <ForecastingContent />
     </RequireRole>
   );
@@ -40,8 +39,8 @@ export default function ForecastingPage() {
 
 function ForecastingContent() {
   const { user } = useAuth();
-  const isMD = user?.role === 'managing_director';
-  const isAccountant = user?.role === 'construction_accountant';
+  const isMD = true;
+  const isAccountant = true;
 
   const [activeTab, setActiveTab] = useState<'percentometer' | 'catalogue' | 'scenarios'>('percentometer');
 

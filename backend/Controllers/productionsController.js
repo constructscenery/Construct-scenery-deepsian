@@ -193,10 +193,11 @@ const updateProduction = async (req, res) => {
 const STATUS_ORDER = ['pre_production', 'active_build', 'strike', 'complete'];
 
 // Which roles may trigger each forward transition
+const ALL_ROLES = ['managing_director', 'construction_coordinator', 'construction_accountant'];
 const FORWARD_ROLES = {
-  'pre_production→active_build': ['managing_director', 'construction_coordinator', 'construction_accountant'],
-  'active_build→strike':         ['managing_director', 'construction_coordinator', 'construction_accountant'],
-  'strike→complete':             ['managing_director', 'construction_accountant'],
+  'pre_production→active_build': ALL_ROLES,
+  'active_build→strike':         ALL_ROLES,
+  'strike→complete':             ALL_ROLES,
 };
 
 // POST /api/productions/:id/transition
@@ -222,8 +223,8 @@ const transitionStatus = async (req, res) => {
 
     // ── Rollback path ──────────────────────────────────────────────────────────
     if (is_rollback || toIdx < fromIdx) {
-      if (role !== 'managing_director')
-        return res.status(403).json({ error: 'Only MD can roll back production status' });
+      if (!['managing_director', 'construction_coordinator', 'construction_accountant'].includes(role))
+        return res.status(403).json({ error: 'Unauthorized to roll back production status' });
       if (!reason || reason.trim().length < 20)
         return res.status(400).json({ error: 'Rollback requires a reason of at least 20 characters' });
       if (fromIdx - toIdx !== 1)
@@ -422,8 +423,8 @@ const getArchivePreview = async (req, res) => {
 // POST /api/productions/:id/archive
 const archiveProduction = async (req, res) => {
   const role = req.user?.role;
-  if (role !== 'managing_director' && role !== 'construction_accountant')
-    return res.status(403).json({ error: 'Only MD or Accountant can archive productions' });
+  if (!['managing_director', 'construction_accountant', 'construction_coordinator'].includes(role))
+    return res.status(403).json({ error: 'Unauthorized to archive productions' });
 
   try {
     const { rows: [existing] } = await db.query(
@@ -460,8 +461,8 @@ const archiveProduction = async (req, res) => {
 
 // POST /api/productions/:id/unarchive
 const unarchiveProduction = async (req, res) => {
-  if (req.user?.role !== 'managing_director')
-    return res.status(403).json({ error: 'Only MD can unarchive productions' });
+  if (!['managing_director', 'construction_accountant', 'construction_coordinator'].includes(req.user?.role))
+    return res.status(403).json({ error: 'Unauthorized to unarchive productions' });
 
   try {
     const { rows: [existing] } = await db.query(
@@ -675,9 +676,9 @@ const deleteDocument = async (req, res) => {
     );
     if (!doc) return res.status(404).json({ error: 'Document not found' });
 
-    // RBAC: uploader or MD
-    if (doc.uploaded_by !== req.user.id && req.user.role !== 'managing_director')
-      return res.status(403).json({ error: 'Only the uploader or MD can delete documents' });
+    // RBAC: allowed for all authorized roles
+    if (!['managing_director', 'construction_accountant', 'construction_coordinator'].includes(req.user?.role))
+      return res.status(403).json({ error: 'Unauthorized to delete documents' });
 
     // Delete from storage (non-fatal if file already gone)
     await fileStorage.deleteFile(doc.file_key ?? doc.file_name).catch(e =>
@@ -699,10 +700,10 @@ const deleteDocument = async (req, res) => {
   }
 };
 
-// GET /api/productions/audit-log  (MD only)
+// GET /api/productions/audit-log
 const getAuditLog = async (req, res) => {
-  if (req.user?.role !== 'managing_director')
-    return res.status(403).json({ error: 'Only MD can view the audit log' });
+  if (!['managing_director', 'construction_accountant', 'construction_coordinator'].includes(req.user?.role))
+    return res.status(403).json({ error: 'Unauthorized to view the audit log' });
   try {
     const { rows } = await db.query(
       `SELECT al.id, al.action, al.created_at,
@@ -750,7 +751,7 @@ const runHandoverAlerts = async () => {
 
   const { rows: recipientUsers } = await db.query(
     `SELECT email FROM users
-     WHERE role IN ('construction_coordinator', 'managing_director')
+     WHERE role IN ('construction_coordinator', 'managing_director', 'construction_accountant')
        AND email IS NOT NULL`
   );
   const recipients = recipientUsers.map(u => u.email).filter(Boolean);

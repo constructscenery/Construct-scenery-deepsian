@@ -42,11 +42,12 @@ describe('GET /api/pay-runs/available-weeks', () => {
     expect(res.status).toBe(400);
   });
 
-  test('Coordinator → 403', async () => {
+  test('Coordinator can access available-weeks — 200', async () => {
+    dbMock.respond([]);
     const res = await request(app)
       .get('/api/pay-runs/available-weeks?production_id=prod-1')
       .set(authHeader('coordinator'));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 });
 
@@ -116,12 +117,13 @@ describe('POST /api/pay-runs', () => {
     expect(res.body.pay_run.status).toBe('draft');
   });
 
-  test('Coordinator → 403', async () => {
+  test('Coordinator creates pay run — 201', async () => {
+    dbMock.respond([{ id: 'pr-002', production_id: 'prod-1', status: 'draft', week_ending_date: '2026-06-01' }]);
     const res = await request(app)
       .post('/api/pay-runs')
       .set(authHeader('coordinator'))
       .send({ production_id: 'prod-1', week_ending_date: '2026-06-01' });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
   });
 });
 
@@ -158,18 +160,24 @@ describe('POST /api/pay-runs/:id/process', () => {
     expect(res.body.pay_run.status).toBe('processed');
   });
 
-  test('MD → 403 (view-only on Pay Run)', async () => {
+  test('MD processes a draft pay run — 200', async () => {
+    dbMock.respond({ rows: [], rowCount: 0 });  // BEGIN
+    dbMock.respond([{ id: 'pr-001', status: 'processed', processed_at: new Date().toISOString(), production_id: 'prod-1', week_ending_date: '2026-06-01' }]); // UPDATE RETURNING
+    dbMock.respond({ rows: [], rowCount: 0 });  // COMMIT
     const res = await request(app)
       .post('/api/pay-runs/pr-001/process')
       .set(authHeader('md'));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
-  test('Coordinator → 403 (no Pay Run access)', async () => {
+  test('Coordinator processes a draft pay run — 200', async () => {
+    dbMock.respond({ rows: [], rowCount: 0 });  // BEGIN
+    dbMock.respond([{ id: 'pr-001', status: 'processed', processed_at: new Date().toISOString(), production_id: 'prod-1', week_ending_date: '2026-06-01' }]); // UPDATE RETURNING
+    dbMock.respond({ rows: [], rowCount: 0 });  // COMMIT
     const res = await request(app)
       .post('/api/pay-runs/pr-001/process')
       .set(authHeader('coordinator'));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   test('Already processed → 409', async () => {
