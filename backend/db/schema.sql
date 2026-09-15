@@ -228,9 +228,15 @@ CREATE TABLE timesheet_entries (
   set_number      TEXT,
   site            TEXT,
   travel          DECIMAL(8,2) DEFAULT 0,
+  mileage         DECIMAL(8,2) DEFAULT 0,
+  per_diem        DECIMAL(8,2) DEFAULT 0,
+  ad_hoc_reimbursement DECIMAL(8,2) DEFAULT 0,
   meal_breakfast  BOOLEAN DEFAULT FALSE,
   meal_lunch      BOOLEAN DEFAULT FALSE,
   meal_supper     BOOLEAN DEFAULT FALSE,
+  meal_allowance_breakfast DECIMAL(8,2),
+  meal_allowance_lunch     DECIMAL(8,2),
+  meal_allowance_supper    DECIMAL(8,2),
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 

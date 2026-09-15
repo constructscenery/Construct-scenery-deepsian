@@ -1312,5 +1312,84 @@ export const assetsHireApi = {
     request<{ summary: AssetsHireSummary }>('/api/assets-hire/summary'),
 };
 
+// ─── Buildings, Assets & IT ──────────────────────────────────────────────────
+
+export interface Building {
+  id: string;
+  name: string;
+  address: string | null;
+  ownership_status: string | null;
+  lease_expiry: string | null;
+  landlord_contact: string | null;
+  access_code: string | null;
+  utilities: any | null;
+  insurance_policies: any | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Asset {
+  id: string;
+  name: string;
+  category: string | null;
+  description: string | null;
+  make: string | null;
+  model: string | null;
+  serial_number: string | null;
+  purchase_date: string | null;
+  cost: number | null;
+  condition: string | null;
+  assigned_to: string | null;
+  assignment_type: 'production' | 'location' | null;
+  maintenance_schedule: any | null;
+  depreciation: any | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ITResource {
+  id: string;
+  name: string;
+  type: string | null;
+  vendor: string | null;
+  subscription_start: string | null;
+  renewal_date: string | null;
+  cost: number | null;
+  billing_cycle: 'monthly' | 'annual' | 'one_time' | 'free' | null;
+  reminder_enabled: boolean;
+  reminder_days: number;
+  credentials?: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const buildingsApi = {
+  getAll: () => request<{ buildings: Building[] }>('/api/buildings'),
+  getById: (id: string) => request<{ building: Building }>(`/api/buildings/${id}`),
+  create: (data: Partial<Building>) => request<{ message: string; building: Building }>('/api/buildings', { method: 'POST', body: data }),
+  update: (id: string, data: Partial<Building>) => request<{ message: string; building: Building }>(`/api/buildings/${id}`, { method: 'PUT', body: data }),
+  delete: (id: string) => request<{ message: string }>(`/api/buildings/${id}`, { method: 'DELETE' }),
+};
+
+export const assetsPlantApi = {
+  getAll: () => request<{ assets: Asset[] }>('/api/assets-plant'),
+  getById: (id: string) => request<{ asset: Asset }>(`/api/assets-plant/${id}`),
+  create: (data: Partial<Asset>) => request<{ message: string; asset: Asset }>('/api/assets-plant', { method: 'POST', body: data }),
+  update: (id: string, data: Partial<Asset>) => request<{ message: string; asset: Asset }>(`/api/assets-plant/${id}`, { method: 'PUT', body: data }),
+  delete: (id: string) => request<{ message: string }>(`/api/assets-plant/${id}`, { method: 'DELETE' }),
+};
+
+export const itResourcesApi = {
+  getAll: () => request<{ it_resources: ITResource[] }>('/api/it-resources'),
+  getById: (id: string) => request<{ it_resource: ITResource }>(`/api/it-resources/${id}`),
+  getCredentials: (id: string) => request<{ credentials: string }>(`/api/it-resources/${id}/credentials`),
+  create: (data: Partial<ITResource>) => request<{ message: string; it_resource: ITResource }>('/api/it-resources', { method: 'POST', body: data }),
+  update: (id: string, data: Partial<ITResource>) => request<{ message: string; it_resource: ITResource }>(`/api/it-resources/${id}`, { method: 'PUT', body: data }),
+  delete: (id: string) => request<{ message: string }>(`/api/it-resources/${id}`, { method: 'DELETE' }),
+};
+
 export default request;
 

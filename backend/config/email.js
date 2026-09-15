@@ -370,6 +370,84 @@ const templates = {
     `,
   }),
 
+  /**
+   * Building Lease Expiry Alert
+   */
+  leaseExpiryAlert: (building, daysRemaining) => ({
+    subject: `Lease Expiry Alert: ${building.name} (${daysRemaining} days remaining)`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px">
+        <div style="background:#0f172a;padding:16px 24px">
+          <span style="color:#fff;font-size:18px;font-weight:700">Construct Scenery</span>
+          <span style="color:#94a3b8;font-size:11px;margin-left:10px">Buildings Register</span>
+        </div>
+        <div style="padding:24px">
+          <h3>Lease Expiry Notice</h3>
+          <p>The lease for <strong>${building.name}</strong> is due to expire in <strong>${daysRemaining} days</strong> on <strong>${building.lease_expiry}</strong>.</p>
+        </div>
+      </div>
+    `,
+  }),
+
+  /**
+   * Building Insurance Renewal Alert
+   */
+  insuranceRenewalAlert: (building, policyDetails, daysRemaining) => ({
+    subject: `Insurance Renewal Alert: ${building.name} (${daysRemaining} days remaining)`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px">
+        <div style="background:#0f172a;padding:16px 24px">
+          <span style="color:#fff;font-size:18px;font-weight:700">Construct Scenery</span>
+          <span style="color:#94a3b8;font-size:11px;margin-left:10px">Buildings Register</span>
+        </div>
+        <div style="padding:24px">
+          <h3>Insurance Renewal Notice</h3>
+          <p>An insurance policy for <strong>${building.name}</strong> is due for renewal in <strong>${daysRemaining} days</strong>.</p>
+          <p>Policy Details: ${policyDetails}</p>
+        </div>
+      </div>
+    `,
+  }),
+
+  /**
+   * Asset Maintenance Alert
+   */
+  assetMaintenanceAlert: (asset, maintenanceDetails, daysRemaining) => ({
+    subject: `Asset Maintenance Alert: ${asset.name} (${daysRemaining} days remaining)`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px">
+        <div style="background:#0f172a;padding:16px 24px">
+          <span style="color:#fff;font-size:18px;font-weight:700">Construct Scenery</span>
+          <span style="color:#94a3b8;font-size:11px;margin-left:10px">Assets Register</span>
+        </div>
+        <div style="padding:24px">
+          <h3>Asset Maintenance Notice</h3>
+          <p>Maintenance for asset <strong>${asset.name}</strong> is due in <strong>${daysRemaining} days</strong>.</p>
+          <p>Details: ${maintenanceDetails}</p>
+        </div>
+      </div>
+    `,
+  }),
+
+  /**
+   * IT Subscription Renewal Alert
+   */
+  itRenewalAlert: (resource, daysRemaining) => ({
+    subject: `IT Subscription Renewal: ${resource.name} (${daysRemaining} days remaining)`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px">
+        <div style="background:#0f172a;padding:16px 24px">
+          <span style="color:#fff;font-size:18px;font-weight:700">Construct Scenery</span>
+          <span style="color:#94a3b8;font-size:11px;margin-left:10px">IT Register</span>
+        </div>
+        <div style="padding:24px">
+          <h3>IT Subscription Renewal Notice</h3>
+          <p>The subscription for <strong>${resource.name}</strong> is due for renewal in <strong>${daysRemaining} days</strong> on <strong>${resource.renewal_date}</strong>.</p>
+        </div>
+      </div>
+    `,
+  }),
+
 };
 
 module.exports = { sendEmail, templates };

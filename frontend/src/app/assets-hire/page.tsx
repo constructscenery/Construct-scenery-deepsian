@@ -1,6 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import BuildingsTab from './components/BuildingsTab';
+import AssetsPlantTab from './components/AssetsPlantTab';
+import ITResourcesTab from './components/ITResourcesTab';
 import TopBar from '@/components/TopBar';
 import {
   Truck, Wrench, ShieldAlert, AlertTriangle, CheckCircle2, Clock,
@@ -34,7 +37,7 @@ export default function AssetsHirePage() {
   const { user } = useAuth();
 
   // Active sub-module tab
-  const [activeTab, setActiveTab] = useState<'vehicles' | 'hire'>('vehicles');
+  const [activeTab, setActiveTab] = useState<'vehicles' | 'hire' | 'buildings' | 'assets' | 'it'>('vehicles');
 
   // Data states
   const [summary, setSummary] = useState<AssetsHireSummary | null>(null);
@@ -69,8 +72,7 @@ export default function AssetsHirePage() {
   const [complianceChecking, setComplianceChecking] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const isCoordinatorOrMD = true;
-  const isAccountant = false;
+  const isCoordinatorOrMD = Boolean(user);
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
@@ -382,6 +384,42 @@ export default function AssetsHirePage() {
             }`}>
               {hireList.length}
             </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('buildings')}
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-semibold text-sm transition-all ${
+              activeTab === 'buildings'
+                ? 'border-blue-600 text-blue-600 bg-blue-50/40 rounded-t-lg'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+            }`}
+          >
+            <Building2 size={17} />
+            <span>Buildings</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('assets')}
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-semibold text-sm transition-all ${
+              activeTab === 'assets'
+                ? 'border-blue-600 text-blue-600 bg-blue-50/40 rounded-t-lg'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+            }`}
+          >
+            <Truck size={17} />
+            <span>Assets / Plant</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('it')}
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-semibold text-sm transition-all ${
+              activeTab === 'it'
+                ? 'border-blue-600 text-blue-600 bg-blue-50/40 rounded-t-lg'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+            }`}
+          >
+            <Sparkles size={17} />
+            <span>IT Resources</span>
           </button>
         </div>
 
@@ -737,6 +775,11 @@ export default function AssetsHirePage() {
             </div>
           </div>
         )}
+        {/* ─── NEW TABS ──────────────────────────────────────────────────────── */}
+        {activeTab === 'buildings' && <BuildingsTab isCoordinatorOrMD={isCoordinatorOrMD} />}
+        {activeTab === 'assets' && <AssetsPlantTab isCoordinatorOrMD={isCoordinatorOrMD} productions={productions} />}
+        {activeTab === 'it' && <ITResourcesTab isCoordinatorOrMD={isCoordinatorOrMD} />}
+
       </main>
 
       {/* ─── MODAL 1: ADD / EDIT VEHICLE ──────────────────────────────────────── */}

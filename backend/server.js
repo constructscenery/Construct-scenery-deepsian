@@ -119,6 +119,9 @@ app.use('/api/users',               require('./routes/users'));
 app.use('/api/vehicles',            require('./routes/vehicles'));
 app.use('/api/hire-equipment',      require('./routes/hireEquipment'));
 app.use('/api/assets-hire',         require('./routes/assetsHire'));
+app.use('/api/buildings',           require('./routes/buildings'));
+app.use('/api/assets-plant',        require('./routes/assetsPlant'));
+app.use('/api/it-resources',        require('./routes/itResources'));
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
@@ -159,11 +162,41 @@ async function start() {
   try {
     await db.query(`
       ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE
+      ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      ADD COLUMN IF NOT EXISTS avatar_url TEXT
     `);
-    console.log('✅ Schema guard: users.is_active ensured');
+    console.log('✅ Schema guard: users.is_active and avatar_url ensured');
   } catch (err) {
-    console.error('⚠️  Schema guard failed (is_active):', err.message);
+    console.error('⚠️  Schema guard failed (users columns):', err.message);
+  }
+
+  try {
+    await db.query(`
+      ALTER TABLE productions
+        ADD COLUMN IF NOT EXISTS agreed_price DECIMAL(14,2),
+        ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS archived_by UUID,
+        ADD COLUMN IF NOT EXISTS post_production_percentometer DECIMAL(5,2),
+        ADD COLUMN IF NOT EXISTS target_profit_pct DECIMAL(5,2);
+
+      ALTER TABLE forecasts
+        ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+      ALTER TABLE cost_report_weekly_pl
+        ADD COLUMN IF NOT EXISTS luton_uplift DECIMAL(12,2) NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS box_rental_uplift DECIMAL(12,2) NOT NULL DEFAULT 0;
+
+      ALTER TABLE forecast_labour_items
+        ADD COLUMN IF NOT EXISTS daily_rate DECIMAL(10,2),
+        ADD COLUMN IF NOT EXISTS ot_rate DECIMAL(10,2);
+
+      ALTER TABLE forecast_materials_items
+        ADD COLUMN IF NOT EXISTS quantity DECIMAL(10,3) NOT NULL DEFAULT 1;
+    `);
+    console.log('✅ Schema guard: dashboard and forecast columns ensured');
+  } catch (err) {
+    console.error('⚠️  Schema guard failed (dashboard columns):', err.message);
   }
 
   try {
@@ -188,6 +221,35 @@ async function start() {
     console.log('✅ Schema guard: crew_registration_requests FK ON DELETE SET NULL ensured');
   } catch (err) {
     console.error('⚠️  Schema guard failed (crew_registration_requests FK):', err.message);
+  }
+
+  try {
+    await db.query(`
+      ALTER TABLE timesheet_entries
+        ADD COLUMN IF NOT EXISTS mileage DECIMAL(10,2) NOT NULL DEFAULT 0;
+
+      ALTER TABLE buildings
+        ADD COLUMN IF NOT EXISTS utilities       JSONB,
+        ADD COLUMN IF NOT EXISTS insurance_policies JSONB;
+
+      ALTER TABLE assets
+        ADD COLUMN IF NOT EXISTS depreciation JSONB;
+
+      ALTER TABLE it_resources
+        ADD COLUMN IF NOT EXISTS credentials TEXT,
+        ADD COLUMN IF NOT EXISTS billing_cycle TEXT NOT NULL DEFAULT 'annual',
+        ADD COLUMN IF NOT EXISTS reminder_enabled BOOLEAN NOT NULL DEFAULT true,
+        ADD COLUMN IF NOT EXISTS reminder_days INTEGER NOT NULL DEFAULT 30;
+
+      ALTER TABLE assets
+        ADD COLUMN IF NOT EXISTS make TEXT,
+        ADD COLUMN IF NOT EXISTS model TEXT,
+        ADD COLUMN IF NOT EXISTS serial_number TEXT,
+        ADD COLUMN IF NOT EXISTS assignment_type TEXT NOT NULL DEFAULT 'location';
+    `);
+    console.log('✅ Schema guard: timesheet_entries.mileage and module columns ensured');
+  } catch (err) {
+    console.error('⚠️  Schema guard failed (module columns):', err.message);
   }
 
   // ── Daily handover alert cron — 07:00 UTC every day ──────────────────────────
@@ -215,6 +277,18 @@ async function start() {
     }
   }, { timezone: 'UTC' });
   console.log('✅ Cron: vehicle compliance alerts scheduled at 07:15 UTC daily');
+
+  // ── Daily asset/building reminders cron — 07:30 UTC every day ────────────────
+  const { runAssetReminders } = require('./services/reminderService');
+  cron.schedule('30 7 * * *', async () => {
+    console.log(`[CRON] Running asset reminders — ${new Date().toISOString()}`);
+    try {
+      await runAssetReminders();
+    } catch (err) {
+      console.error('[CRON] Asset reminders failed:', err.message);
+    }
+  }, { timezone: 'UTC' });
+  console.log('✅ Cron: asset reminders scheduled at 07:30 UTC daily');
   return server;
 }
 
