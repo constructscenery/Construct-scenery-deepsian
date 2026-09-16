@@ -160,7 +160,7 @@ const createVehicle = async (req, res) => {
   const {
     registration_number, make, model, year_of_manufacture,
     number_plate, colour, vehicle_type, owner_assigned_to,
-    notes, mot_expiry_date, insurance_renewal_date, tax_renewal_date,
+    notes, mileage, mot_expiry_date, insurance_renewal_date, tax_renewal_date, tax_direct_debit,
   } = req.body;
 
   if (!registration_number || !make || !model) {
@@ -172,8 +172,8 @@ const createVehicle = async (req, res) => {
       `INSERT INTO vehicles (
         registration_number, make, model, year_of_manufacture,
         number_plate, colour, vehicle_type, owner_assigned_to,
-        notes, mot_expiry_date, insurance_renewal_date, tax_renewal_date
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        notes, mileage, mot_expiry_date, insurance_renewal_date, tax_renewal_date, tax_direct_debit
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *`,
       [
         registration_number.trim(),
@@ -185,9 +185,11 @@ const createVehicle = async (req, res) => {
         vehicle_type ? vehicle_type.trim() : null,
         owner_assigned_to ? owner_assigned_to.trim() : null,
         notes ? notes.trim() : null,
+        mileage !== undefined && mileage !== null && mileage !== '' ? parseInt(mileage, 10) : null,
         mot_expiry_date || null,
         insurance_renewal_date || null,
         tax_renewal_date || null,
+        tax_direct_debit ?? false,
       ]
     );
 
@@ -204,7 +206,7 @@ const updateVehicle = async (req, res) => {
   const {
     registration_number, make, model, year_of_manufacture,
     number_plate, colour, vehicle_type, owner_assigned_to,
-    notes, mot_expiry_date, insurance_renewal_date, tax_renewal_date,
+    notes, mileage, mot_expiry_date, insurance_renewal_date, tax_renewal_date, tax_direct_debit,
   } = req.body;
 
   try {
@@ -219,11 +221,13 @@ const updateVehicle = async (req, res) => {
         vehicle_type           = $7,
         owner_assigned_to      = $8,
         notes                  = $9,
-        mot_expiry_date        = $10,
-        insurance_renewal_date = $11,
-        tax_renewal_date       = $12,
+        mileage                = $10,
+        mot_expiry_date        = $11,
+        insurance_renewal_date = $12,
+        tax_renewal_date       = $13,
+        tax_direct_debit      = COALESCE($14, tax_direct_debit),
         updated_at             = NOW()
-      WHERE id = $13
+      WHERE id = $15
       RETURNING *`,
       [
         registration_number?.trim(),
@@ -235,9 +239,11 @@ const updateVehicle = async (req, res) => {
         vehicle_type !== undefined ? (vehicle_type ? vehicle_type.trim() : null) : undefined,
         owner_assigned_to !== undefined ? (owner_assigned_to ? owner_assigned_to.trim() : null) : undefined,
         notes !== undefined ? (notes ? notes.trim() : null) : undefined,
+        mileage !== undefined ? (mileage !== null && mileage !== '' ? parseInt(mileage, 10) : null) : undefined,
         mot_expiry_date !== undefined ? mot_expiry_date : undefined,
         insurance_renewal_date !== undefined ? insurance_renewal_date : undefined,
         tax_renewal_date !== undefined ? tax_renewal_date : undefined,
+        tax_direct_debit !== undefined ? tax_direct_debit : undefined,
         id,
       ]
     );

@@ -1222,6 +1222,7 @@ export interface Vehicle {
   make: string;
   model: string;
   year_of_manufacture: number | null;
+  mileage: number | null;
   number_plate: string | null;
   colour: string | null;
   vehicle_type: string | null;
@@ -1230,6 +1231,7 @@ export interface Vehicle {
   mot_expiry_date: string | null;
   insurance_renewal_date: string | null;
   tax_renewal_date: string | null;
+  tax_direct_debit: boolean;
   mot_compliance?: VehicleComplianceInfo;
   insurance_compliance?: VehicleComplianceInfo;
   tax_compliance?: VehicleComplianceInfo;

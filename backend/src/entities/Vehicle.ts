@@ -19,6 +19,9 @@ export class Vehicle {
   @Column({ name: 'year_of_manufacture', type: 'int', nullable: true })
   yearOfManufacture: number | null;
 
+  @Column({ type: 'int', nullable: true })
+  mileage: number | null;
+
   @Column({ name: 'number_plate', length: 50, nullable: true })
   numberPlate: string | null;
 
@@ -42,6 +45,9 @@ export class Vehicle {
 
   @Column({ name: 'tax_renewal_date', type: 'date', nullable: true })
   taxRenewalDate: string | null;
+
+  @Column({ name: 'tax_direct_debit', type: 'boolean', default: false })
+  taxDirectDebit: boolean;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

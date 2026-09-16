@@ -354,16 +354,16 @@ export default function AssetsHirePage() {
         <div className="flex items-center gap-2 border-b border-slate-200 pb-0">
           <button
             onClick={() => setActiveTab('vehicles')}
-            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-semibold text-sm transition-all ${
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${
               activeTab === 'vehicles'
-                ? 'border-blue-600 text-blue-600 bg-blue-50/40 rounded-t-lg'
-                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                ? 'border-blue-600 bg-blue-50/40 rounded-t-lg'
+                : 'border-transparent hover:border-slate-300'
             }`}
           >
             <Truck size={17} />
             <span>9.2 Vehicle Asset Register</span>
-            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-              activeTab === 'vehicles' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
+            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-sm font-normal text-slate-600 ${
+              activeTab === 'vehicles' ? 'bg-blue-100' : 'bg-slate-100'
             }`}>
               {vehicles.length}
             </span>
@@ -371,16 +371,16 @@ export default function AssetsHirePage() {
 
           <button
             onClick={() => setActiveTab('hire')}
-            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-semibold text-sm transition-all ${
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${
               activeTab === 'hire'
-                ? 'border-blue-600 text-blue-600 bg-blue-50/40 rounded-t-lg'
-                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                ? 'border-blue-600 bg-blue-50/40 rounded-t-lg'
+                : 'border-transparent hover:border-slate-300'
             }`}
           >
             <Wrench size={17} />
             <span>9.4 Hire Equipment Tracker</span>
-            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-              activeTab === 'hire' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
+            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-sm font-normal text-slate-600 ${
+              activeTab === 'hire' ? 'bg-blue-100' : 'bg-slate-100'
             }`}>
               {hireList.length}
             </span>
@@ -388,10 +388,10 @@ export default function AssetsHirePage() {
 
           <button
             onClick={() => setActiveTab('buildings')}
-            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-semibold text-sm transition-all ${
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${
               activeTab === 'buildings'
-                ? 'border-blue-600 text-blue-600 bg-blue-50/40 rounded-t-lg'
-                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                ? 'border-blue-600 bg-blue-50/40 rounded-t-lg'
+                : 'border-transparent hover:border-slate-300'
             }`}
           >
             <Building2 size={17} />
@@ -400,10 +400,10 @@ export default function AssetsHirePage() {
 
           <button
             onClick={() => setActiveTab('assets')}
-            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-semibold text-sm transition-all ${
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${
               activeTab === 'assets'
-                ? 'border-blue-600 text-blue-600 bg-blue-50/40 rounded-t-lg'
-                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                ? 'border-blue-600 bg-blue-50/40 rounded-t-lg'
+                : 'border-transparent hover:border-slate-300'
             }`}
           >
             <Truck size={17} />
@@ -412,10 +412,10 @@ export default function AssetsHirePage() {
 
           <button
             onClick={() => setActiveTab('it')}
-            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-semibold text-sm transition-all ${
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${
               activeTab === 'it'
-                ? 'border-blue-600 text-blue-600 bg-blue-50/40 rounded-t-lg'
-                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                ? 'border-blue-600 bg-blue-50/40 rounded-t-lg'
+                : 'border-transparent hover:border-slate-300'
             }`}
           >
             <Sparkles size={17} />
@@ -468,11 +468,12 @@ export default function AssetsHirePage() {
             {/* Vehicles Table */}
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-600">
-                  <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold text-[10px] border-b border-slate-200">
+                <table className="w-full text-left text-sm font-normal text-slate-600">
+                  <thead className="bg-slate-50 text-slate-600 font-normal text-sm border-b border-slate-200">
                     <tr>
                       <th className="px-4 py-3.5">Registration & Plate</th>
                       <th className="px-4 py-3.5">Make & Model</th>
+                      <th className="px-4 py-3.5">Mileage</th>
                       <th className="px-4 py-3.5">Type & Colour</th>
                       <th className="px-4 py-3.5">Assigned To</th>
                       <th className="px-4 py-3.5">MOT Expiry</th>
@@ -485,14 +486,14 @@ export default function AssetsHirePage() {
                   <tbody className="divide-y divide-slate-100">
                     {loading ? (
                       <tr>
-                        <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
+                        <td colSpan={10} className="px-4 py-12 text-center text-slate-400">
                           <RefreshCw size={20} className="animate-spin mx-auto mb-2 text-blue-600" />
                           <span>Loading fleet vehicle register…</span>
                         </td>
                       </tr>
                     ) : filteredVehicles.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
+                        <td colSpan={10} className="px-4 py-12 text-center text-slate-400">
                           <Truck size={28} className="mx-auto mb-2 text-slate-300" />
                           <p className="font-semibold text-slate-700 text-sm">No vehicles found</p>
                           <p className="text-xs text-slate-400 mt-1">
@@ -504,20 +505,23 @@ export default function AssetsHirePage() {
                       filteredVehicles.map(v => (
                         <tr key={v.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="px-4 py-3">
-                            <div className="font-bold text-slate-900 text-sm">{v.registration_number}</div>
+                            <div className="text-slate-800">{v.registration_number}</div>
                             {v.number_plate && v.number_plate !== v.registration_number && (
-                              <div className="text-[11px] text-slate-400 font-mono">Plate: {v.number_plate}</div>
+                              <div className="text-sm text-slate-600 font-normal">Plate: {v.number_plate}</div>
                             )}
                           </td>
                           <td className="px-4 py-3">
-                            <div className="font-semibold text-slate-800">{v.make} {v.model}</div>
+                            <div className="text-slate-800">{v.make} {v.model}</div>
                             {v.year_of_manufacture && (
-                              <div className="text-[11px] text-slate-400">Year: {v.year_of_manufacture}</div>
+                              <div className="text-sm text-slate-600">Year: {v.year_of_manufacture}</div>
                             )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="text-slate-800">{v.mileage != null ? `${v.mileage.toLocaleString()} miles` : '—'}</div>
                           </td>
                           <td className="px-4 py-3">
                             <div className="text-slate-800">{v.vehicle_type || '—'}</div>
-                            {v.colour && <div className="text-[11px] text-slate-400">{v.colour}</div>}
+                            {v.colour && <div className="text-sm text-slate-600">{v.colour}</div>}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1.5 text-slate-800">
@@ -913,7 +917,7 @@ function ComplianceBadge({
   defaultDate: string | null | undefined;
 }) {
   if (!defaultDate) {
-    return <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-500 border border-slate-200">Not Set</span>;
+    return <span className="inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-md text-xs font-normal bg-slate-100 text-slate-500 border border-slate-200">Not Set</span>;
   }
 
   const status = compliance?.status || 'compliant';
@@ -922,11 +926,11 @@ function ComplianceBadge({
   if (status === 'overdue') {
     return (
       <div>
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+        <span className="inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-md text-xs font-normal bg-rose-50 text-rose-700 border border-rose-200">
           <ShieldAlert size={11} className="text-rose-600" />
           {fmtDate(defaultDate)}
         </span>
-        <div className="text-[10px] text-rose-600 font-semibold mt-0.5">
+        <div className="whitespace-nowrap text-xs text-rose-600 font-normal mt-0.5">
           {days !== null && days !== undefined ? `${Math.abs(days)}d OVERDUE` : 'EXPIRED'}
         </div>
       </div>
@@ -936,11 +940,11 @@ function ComplianceBadge({
   if (status === 'due_soon') {
     return (
       <div>
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+        <span className="inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-md text-xs font-normal bg-amber-50 text-amber-700 border border-amber-200">
           <AlertTriangle size={11} className="text-amber-600" />
           {fmtDate(defaultDate)}
         </span>
-        <div className="text-[10px] text-amber-700 font-semibold mt-0.5">
+        <div className="whitespace-nowrap text-xs text-amber-700 font-normal mt-0.5">
           {days !== null && days !== undefined ? `${days}d remaining` : 'Due soon'}
         </div>
       </div>
@@ -949,12 +953,12 @@ function ComplianceBadge({
 
   return (
     <div>
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+      <span className="inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-md text-xs font-normal bg-emerald-50 text-emerald-700 border border-emerald-200">
         <CheckCircle2 size={11} className="text-emerald-600" />
         {fmtDate(defaultDate)}
       </span>
       {days !== null && days !== undefined && (
-        <div className="text-[10px] text-slate-400 mt-0.5">
+        <div className="whitespace-nowrap text-xs text-slate-600 mt-0.5">
           {days}d remaining
         </div>
       )}
@@ -967,7 +971,7 @@ function ComplianceBadge({
 function OverallStatusBadge({ status }: { status?: string }) {
   if (status === 'overdue') {
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-normal bg-rose-50 text-rose-700 border border-rose-200">
         <ShieldAlert size={12} className="text-rose-600" />
         Overdue Action
       </span>
@@ -975,7 +979,7 @@ function OverallStatusBadge({ status }: { status?: string }) {
   }
   if (status === 'due_soon') {
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-normal bg-amber-50 text-amber-700 border border-amber-200">
         <AlertTriangle size={12} className="text-amber-600" />
         Deadline Due
       </span>
@@ -1009,6 +1013,7 @@ function VehicleFormModal({
   const [make, setMake] = useState(vehicle?.make || '');
   const [model, setModel] = useState(vehicle?.model || '');
   const [year, setYear] = useState<string>(vehicle?.year_of_manufacture?.toString() || '');
+  const [mileage, setMileage] = useState<string>(vehicle?.mileage?.toString() || '');
   const [numberPlate, setNumberPlate] = useState(vehicle?.number_plate || '');
   const [colour, setColour] = useState(vehicle?.colour || '');
   const [vehicleType, setVehicleType] = useState(vehicle?.vehicle_type || 'Van');
@@ -1018,11 +1023,16 @@ function VehicleFormModal({
   const [motDate, setMotDate] = useState(vehicle?.mot_expiry_date || '');
   const [insDate, setInsDate] = useState(vehicle?.insurance_renewal_date || '');
   const [taxDate, setTaxDate] = useState(vehicle?.tax_renewal_date || '');
+  const [taxDirectDebit, setTaxDirectDebit] = useState(vehicle?.tax_direct_debit ?? false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!regNumber.trim() || !make.trim() || !model.trim()) {
       showToast('error', 'Registration number, make, and model are required');
+      return;
+    }
+    if (mileage && (!/^\d+$/.test(mileage) || Number(mileage) < 0)) {
+      showToast('error', 'Mileage must be a non-negative whole number');
       return;
     }
 
@@ -1033,6 +1043,7 @@ function VehicleFormModal({
         make: make.trim(),
         model: model.trim(),
         year_of_manufacture: year ? parseInt(year, 10) : undefined,
+        mileage: mileage ? parseInt(mileage, 10) : null,
         number_plate: (numberPlate || regNumber).trim().toUpperCase(),
         colour: colour.trim() || undefined,
         vehicle_type: vehicleType.trim() || undefined,
@@ -1041,6 +1052,7 @@ function VehicleFormModal({
         mot_expiry_date: motDate || undefined,
         insurance_renewal_date: insDate || undefined,
         tax_renewal_date: taxDate || undefined,
+        tax_direct_debit: taxDirectDebit,
       };
 
       if (isEdit && vehicle) {
@@ -1145,6 +1157,18 @@ function VehicleFormModal({
                   />
                 </div>
                 <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Mileage</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="e.g. 45000"
+                    value={mileage}
+                    onChange={e => setMileage(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
                   <label className="block text-slate-700 font-semibold mb-1">Colour</label>
                   <input
                     type="text"
@@ -1240,6 +1264,15 @@ function VehicleFormModal({
                     onChange={e => setTaxDate(e.target.value)}
                     className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  <label className="flex items-center gap-2 text-slate-600 pt-1">
+                    <input
+                      type="checkbox"
+                      checked={taxDirectDebit}
+                      onChange={e => setTaxDirectDebit(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Paid by direct debit</span>
+                  </label>
                 </div>
               </div>
             </div>
