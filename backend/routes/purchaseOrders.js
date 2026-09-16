@@ -26,6 +26,7 @@ router.post('/:id/issue',                requireRole(...ALL_ROLES), ctrl.issuePO
 router.post('/:id/submit',               requireRole(...ALL_ROLES), ctrl.submitPO);
 router.post('/:id/attach-invoice',       upload.single('invoice'), requireRole(...ALL_ROLES), ctrl.attachInvoice);
 router.post('/:id/attach-confirmation',  upload.single('confirmation'), requireRole(...ALL_ROLES), ctrl.attachConfirmation);
+router.get('/:id/confirmation/download',   ctrl.downloadConfirmation);
 router.get('/:id/invoice/download',      ctrl.downloadInvoice);
 router.delete('/:id/invoice',            requireRole(...ALL_ROLES), ctrl.deleteInvoice);
 router.post('/:id/approve',              requireRole(...ALL_ROLES), ctrl.approvePO);

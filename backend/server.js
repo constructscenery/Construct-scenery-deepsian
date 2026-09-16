@@ -94,6 +94,7 @@ app.use('/api/auth', require('./routes/auth'));
 
 // ─── PUBLIC CREW REGISTRATION (public — no auth required) ───────────────────
 app.use('/api/public/crew', require('./routes/publicCrew'));
+app.use('/api/public/safety-health', require('./routes/publicSafetyHealth'));
 
 // ─── GLOBAL MIDDLEWARE (applied to every route BELOW this line) ───────────────
 // 1. Verify JWT access token → populates req.user
@@ -110,6 +111,8 @@ app.use('/api/pay-runs',       require('./routes/payRuns'));
 app.use('/api/cost-reports',   require('./routes/costReports'));
 app.use('/api/forecasting',         require('./routes/forecasting'));
 app.use('/api/materials-catalogue', require('./routes/materialsCatalogue'));
+app.use('/api/materials-inventory', require('./routes/materialsInventory'));
+app.use('/api/safety-health', require('./routes/safetyHealth'));
 app.use('/api/suppliers',           require('./routes/suppliers'));
 app.use('/api/percentometer',       require('./routes/percentometer'));
 app.use('/api/dashboard',           require('./routes/dashboard'));

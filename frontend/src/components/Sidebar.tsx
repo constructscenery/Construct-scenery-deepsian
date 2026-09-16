@@ -6,6 +6,7 @@ import {
   LayoutDashboard, Clapperboard, ShoppingCart, Users, ClipboardList,
   BarChart2, ChevronRight, LogOut, CreditCard,
   Banknote, BookOpen, Upload, ShieldCheck, Truck,
+  HeartPulse,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -23,6 +24,7 @@ const NAV_GROUPS = [
       { href: '/overview',    label: 'Overview',    icon: LayoutDashboard, roles: ALL_ROLES },
       { href: '/productions', label: 'Productions', icon: Clapperboard,    roles: ALL_ROLES },
       { href: '/assets-hire', label: 'Assets & Hire', icon: Truck,          roles: ALL_ROLES },
+      { href: '/safety-health', label: 'Safety & Health', icon: HeartPulse, roles: ALL_ROLES },
     ],
   },
   {

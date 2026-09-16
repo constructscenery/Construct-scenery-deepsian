@@ -125,6 +125,7 @@ const DEPARTMENTS = [
 
 type NewPOForm = {
   title: string;
+  supplier_id: string;
   supplier_name: string;
   supplier_email: string;
   street_name: string;
@@ -146,6 +147,7 @@ type NewPOForm = {
 
 const EMPTY_FORM: NewPOForm = {
   title: '',
+  supplier_id: '',
   supplier_name: '',
   supplier_email: '',
   street_name: '',
@@ -244,7 +246,7 @@ export default function PurchaseOrdersPage() {
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [invoiceError, setInvoiceError] = useState('');
 
-  const [confirmationModal, setConfirmationModal] = useState<{ id: string; poNumber: string } | null>(null);
+  const [confirmationModal, setConfirmationModal] = useState<PurchaseOrder | null>(null);
   const [confirmationFile, setConfirmationFile] = useState<File | null>(null);
   const [newConfirmationFile, setNewConfirmationFile] = useState<File | null>(null);
   const [confirmationError, setConfirmationError] = useState('');
@@ -634,6 +636,7 @@ export default function PurchaseOrdersPage() {
     setEditForm({
       title:          po.title ?? '',
       supplier_name:  po.supplier_name,
+      supplier_id:    po.supplier_id ?? '',
       supplier_email: po.supplier_email ?? '',
       street_name:    (po as unknown as Record<string, string>).street_name ?? '',
       zip_code:       (po as unknown as Record<string, string>).zip_code ?? '',
@@ -667,6 +670,7 @@ export default function PurchaseOrdersPage() {
     try {
       await purchaseOrdersApi.update(editPO.id, {
         title:          editForm.title,
+        supplier_id:    editForm.supplier_id || null,
         supplier_name:  editForm.supplier_name,
         supplier_email: editForm.supplier_email || null,
         street_name:    editForm.street_name    || null,
@@ -728,6 +732,7 @@ export default function PurchaseOrdersPage() {
     try {
       const created = await purchaseOrdersApi.create({
         title:          newForm.title,
+        supplier_id:    newForm.supplier_id || null,
         supplier_name:  newForm.supplier_name,
         supplier_email: newForm.supplier_email  || null,
         street_name:    newForm.street_name     || null,
@@ -857,6 +862,8 @@ export default function PurchaseOrdersPage() {
     setNewForm((f) => {
       const updated = { ...f, [field]: value };
       if (field === 'supplier_name') {
+        const selectedSupplier = suppliersList.find(s => s.name.toLowerCase() === value.trim().toLowerCase());
+        updated.supplier_id = selectedSupplier?.id || '';
         if (!value) {
           updated.supplier_email = '';
           updated.street_name = '';
@@ -1427,14 +1434,14 @@ export default function PurchaseOrdersPage() {
                               <button
                                 disabled={!!busy}
                                 onClick={() => {
-                                  setConfirmationModal({ id: po.id, poNumber: po.po_number });
+                                  setConfirmationModal(po);
                                   setConfirmationFile(null);
                                   setConfirmationError('');
                                 }}
                                 className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-medium disabled:opacity-50"
                               >
                                 <Upload size={11} />
-                                Confirm
+                                {po.confirmation_attachment_url ? 'View Confirmation' : 'Confirm'}
                               </button>
                             )}
                             {/* Attach Invoice: Coordinator + Accountant, any status except draft */}
@@ -2172,7 +2179,7 @@ export default function PurchaseOrdersPage() {
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div>
                 <h2 className="text-slate-900 font-semibold text-base">Attach Order Confirmation</h2>
-                <p className="text-slate-400 text-xs mt-0.5">{confirmationModal.poNumber}</p>
+                <p className="text-slate-400 text-xs mt-0.5">{confirmationModal.po_number}</p>
               </div>
               <button
                 onClick={() => setConfirmationModal(null)}
@@ -2182,10 +2189,25 @@ export default function PurchaseOrdersPage() {
               </button>
             </div>
             <div className="px-6 py-5 space-y-4">
+              {confirmationModal.confirmation_attachment_url && (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-emerald-800">Confirmation already attached</p>
+                    <p className="text-xs text-emerald-700 truncate">{confirmationModal.confirmation_attachment_name || 'Order confirmation'}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => purchaseOrdersApi.downloadConfirmation(confirmationModal.id, confirmationModal.confirmation_attachment_name || 'order-confirmation')}
+                    className="flex-shrink-0 text-xs font-medium text-emerald-700 hover:text-emerald-900"
+                  >
+                    Download
+                  </button>
+                </div>
+              )}
               <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-colors">
                 <Upload size={22} className="text-slate-400 mb-2" />
                 <span className="text-slate-500 text-sm font-medium">
-                  {confirmationFile ? confirmationFile.name : 'Click to upload confirmation'}
+                  {confirmationFile ? confirmationFile.name : confirmationModal.confirmation_attachment_url ? 'Click to replace confirmation' : 'Click to upload confirmation'}
                 </span>
                 <input type="file" className="hidden" onChange={e => { setConfirmationFile(e.target.files?.[0] || null); setConfirmationError(''); }} />
               </label>
@@ -2213,7 +2235,7 @@ export default function PurchaseOrdersPage() {
                   className="flex items-center gap-2 px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
                 >
                   {actionLoading === confirmationModal.id + ':attach-confirm' ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                  Upload Confirmation
+                  {confirmationModal.confirmation_attachment_url ? 'Replace Confirmation' : 'Upload Confirmation'}
                 </button>
               </div>
             </div>
@@ -2252,8 +2274,10 @@ export default function PurchaseOrdersPage() {
                       onChange={e => {
                         const val = e.target.value;
                         const data = getSupplierData(val);
+                        const supplierRecord = suppliersList.find(s => s.name.toLowerCase() === val.trim().toLowerCase());
                         setEditForm(f => ({
                           ...f,
+                          supplier_id: supplierRecord?.id || '',
                           supplier_name: val,
                           supplier_email: data?.email ? data.email : f.supplier_email,
                           street_name: data?.street_name ? data.street_name : f.street_name,

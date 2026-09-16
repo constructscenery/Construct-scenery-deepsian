@@ -2,6 +2,10 @@
 
 These rules apply to EVERY task in this project. Read and follow all of them before writing any code.
 
+## Access Policy
+
+All authenticated application roles have full access to every application module and feature. When adding a route or UI action, add the corresponding policy entry for `managing_director`, `construction_accountant`, and `construction_coordinator`. Do not introduce role-specific restrictions unless explicitly requested.
+
 ---
 
 ## 1. Sensitive Data Must Always Be Encrypted

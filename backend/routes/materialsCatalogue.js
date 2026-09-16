@@ -7,6 +7,7 @@ const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 
 
 // Specific paths before /:id
 router.get('/template',     ctrl.getTemplate);       // downloadable blank CSV template
+router.get('/suppliers',    ctrl.getCatalogueSuppliers);
 
 router.get('/',             ctrl.getCatalogue);
 router.post('/',            ctrl.createEntry);

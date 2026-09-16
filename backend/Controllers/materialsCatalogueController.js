@@ -1,8 +1,11 @@
 const db  = require('../config/db');
 const csv = require('csv-parse/sync');
 
-const REQUIRED_COLS = ['Supplier Name', 'Product Description', 'Unit of Measure', 'Unit Price'];
-const TEMPLATE_HEADER = 'Supplier Name,Product Description,Unit of Measure,Unit Price,Notes\r\n';
+const TEMPLATE_HEADER = 'Material Name,Description,Category,Supplier Name,Unit of Measure,Current Unit Price,Price Updated Date,Notes\r\n';
+
+const selectColumns = `id, material_name, description, category, supplier_name,
+  product_description, unit_of_measure, unit_price, price_updated_date, notes,
+  created_at, updated_at`;
 
 // ─── GET /api/materials-catalogue ─────────────────────────────────────────────
 // ?supplier=  ?search=
@@ -13,22 +16,32 @@ const getCatalogue = async (req, res) => {
     let   i      = 1;
 
     if (req.query.supplier) { conds.push(`supplier_name ILIKE $${i++}`); params.push(`%${req.query.supplier}%`); }
+    if (req.query.category) { conds.push(`category ILIKE $${i++}`); params.push(`%${req.query.category}%`); }
     if (req.query.search) {
-      conds.push(`(supplier_name ILIKE $${i} OR product_description ILIKE $${i})`);
+      conds.push(`(material_name ILIKE $${i} OR description ILIKE $${i} OR product_description ILIKE $${i} OR category ILIKE $${i})`);
       params.push(`%${req.query.search}%`);
       i++;
     }
 
     const { rows } = await db.query(
-      `SELECT id, supplier_name, product_description, unit_of_measure, unit_price, notes, created_at, updated_at
+      `SELECT ${selectColumns}
        FROM materials_catalogue
        WHERE ${conds.join(' AND ')}
-       ORDER BY supplier_name, product_description`,
+       ORDER BY material_name NULLS LAST, supplier_name, product_description`,
       params
     );
     res.json(rows);
   } catch (err) {
     console.error('getCatalogue:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+const getCatalogueSuppliers = async (_req, res) => {
+  try {
+    const { rows } = await db.query('SELECT DISTINCT supplier_name FROM materials_catalogue WHERE supplier_name IS NOT NULL AND supplier_name != \'\' ORDER BY supplier_name');
+    res.json(rows.map(row => row.supplier_name));
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
@@ -43,17 +56,20 @@ const getTemplate = (_req, res) => {
 
 // ─── POST /api/materials-catalogue ────────────────────────────────────────────
 const createEntry = async (req, res) => {
-  const { supplier_name, product_description, unit_of_measure, unit_price, notes } = req.body;
-  if (!supplier_name || !product_description || !unit_of_measure || !unit_price)
-    return res.status(400).json({ error: 'supplier_name, product_description, unit_of_measure and unit_price are required' });
+  const { material_name, description, category, supplier_name, product_description, unit_of_measure, unit_price, price_updated_date, notes } = req.body;
+  const resolvedName = (material_name || product_description || '').trim();
+  const resolvedDescription = (description || product_description || '').trim();
+  const numericPrice = Number(unit_price);
+  if (!resolvedName || !resolvedDescription || !supplier_name || !unit_of_measure || unit_price === undefined || unit_price === null || unit_price === '' || !Number.isFinite(numericPrice) || numericPrice < 0)
+    return res.status(400).json({ error: 'material_name, description, supplier_name, unit_of_measure and unit_price are required' });
 
   try {
     const { rows: [row] } = await db.query(
       `INSERT INTO materials_catalogue
-         (supplier_name, product_description, unit_of_measure, unit_price, notes)
-       VALUES ($1,$2,$3,$4,$5)
-       RETURNING id, supplier_name, product_description, unit_of_measure, unit_price, notes, created_at, updated_at`,
-      [supplier_name.trim(), product_description.trim(), unit_of_measure.trim(), parseFloat(unit_price), notes || null]
+         (material_name, description, category, supplier_name, product_description, unit_of_measure, unit_price, price_updated_date, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       RETURNING ${selectColumns}`,
+      [resolvedName, resolvedDescription, category?.trim() || null, supplier_name?.trim() || null, resolvedDescription, unit_of_measure.trim(), numericPrice, price_updated_date || null, notes?.trim() || null]
     );
     res.status(201).json(row);
   } catch (err) {
@@ -64,13 +80,21 @@ const createEntry = async (req, res) => {
 
 // ─── PATCH /api/materials-catalogue/:id ───────────────────────────────────────
 const updateEntry = async (req, res) => {
-  const allowed = ['supplier_name', 'product_description', 'unit_of_measure', 'unit_price', 'notes'];
+  const allowed = ['material_name', 'description', 'category', 'supplier_name', 'product_description', 'unit_of_measure', 'unit_price', 'price_updated_date', 'notes'];
   const updates = {};
   allowed.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
 
   if (!Object.keys(updates).length)
     return res.status(400).json({ error: 'No updatable fields provided' });
 
+  if (updates.unit_price !== undefined) {
+    const numericPrice = Number(updates.unit_price);
+    if (!Number.isFinite(numericPrice) || numericPrice < 0) return res.status(400).json({ error: 'unit_price must be a non-negative number' });
+    updates.unit_price = numericPrice;
+  }
+  for (const field of ['material_name', 'description', 'supplier_name', 'unit_of_measure']) {
+    if (updates[field] !== undefined && !String(updates[field]).trim()) return res.status(400).json({ error: `${field} cannot be empty` });
+  }
   const fields    = Object.keys(updates);
   const values    = Object.values(updates);
   const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
@@ -80,7 +104,7 @@ const updateEntry = async (req, res) => {
       `UPDATE materials_catalogue
        SET ${setClause}, updated_at = NOW()
        WHERE id = $${fields.length + 1} AND deleted_at IS NULL
-       RETURNING id, supplier_name, product_description, unit_of_measure, unit_price, notes, updated_at`,
+       RETURNING ${selectColumns}`,
       [...values, req.params.id]
     );
     if (!row) return res.status(404).json({ error: 'Catalogue entry not found' });
@@ -141,22 +165,26 @@ const importCSV = async (req, res) => {
   const errors = [];
   const parsedRows = records.map((row, idx) => {
     const rowNum = idx + 2; // +2 because row 1 is header
-    const supplier_name = getCol(row, ['Supplier Name', 'supplier_name', 'Supplier', 'Vendor']).trim();
-    const product_description = getCol(row, ['Product Description', 'product_description', 'Description', 'Product', 'Item']).trim();
+    const material_name = getCol(row, ['Material Name', 'material_name', 'Product', 'Item', 'Product Description', 'product_description']).trim();
+    const description = getCol(row, ['Description', 'description', 'Product Description', 'product_description', 'Product', 'Item']).trim() || material_name;
+    const category = getCol(row, ['Category', 'category', 'Material Type', 'Type']).trim();
+    const supplier_name = getCol(row, ['Supplier', 'Supplier Name', 'supplier_name', 'Vendor']).trim();
     const unit_of_measure = getCol(row, ['Unit of Measure', 'unit_of_measure', 'Unit', 'UOM', 'Measure']).trim();
     const priceRaw = getCol(row, ['Unit Price', 'unit_price', 'Price', 'Cost', 'Rate']).trim();
+    const price_updated_date = getCol(row, ['Price Updated Date', 'price_updated_date', 'Date Price Last Updated', 'Updated Date']).trim();
     const notes = getCol(row, ['Notes', 'notes', 'Note', 'Comments', 'Comment']).trim();
 
+    if (!material_name)       errors.push({ row: rowNum, field: 'Material Name',       message: 'required' });
+    if (!description)         errors.push({ row: rowNum, field: 'Description',         message: 'required' });
     if (!supplier_name)       errors.push({ row: rowNum, field: 'Supplier Name',       message: 'required' });
-    if (!product_description) errors.push({ row: rowNum, field: 'Product Description', message: 'required' });
     if (!unit_of_measure)     errors.push({ row: rowNum, field: 'Unit of Measure',     message: 'required' });
     const price = parseFloat(priceRaw);
     if (!priceRaw || isNaN(price) || price < 0) errors.push({ row: rowNum, field: 'Unit Price', message: 'must be a non-negative number' });
 
-    return { supplier_name, product_description, unit_of_measure, unit_price: price, notes: notes || null };
+    return { material_name, description, category: category || null, supplier_name, unit_of_measure, unit_price: price, price_updated_date: price_updated_date || null, notes: notes || null };
   });
 
-  if (errors.length) return res.status(422).json({ errors });
+  if (errors.length) return res.status(400).json({ errors });
 
   const client = await db.connect();
   try {
@@ -164,9 +192,9 @@ const importCSV = async (req, res) => {
     for (const r of parsedRows) {
       await client.query(
         `INSERT INTO materials_catalogue
-           (supplier_name, product_description, unit_of_measure, unit_price, notes)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [r.supplier_name, r.product_description, r.unit_of_measure, r.unit_price, r.notes]
+           (material_name, description, category, supplier_name, product_description, unit_of_measure, unit_price, price_updated_date, notes)
+         VALUES ($1,$2,$3,$4,$2,$5,$6,$7,$8)`,
+        [r.material_name, r.description, r.category, r.supplier_name, r.unit_of_measure, r.unit_price, r.price_updated_date, r.notes]
       );
     }
     await client.query('COMMIT');
@@ -180,4 +208,4 @@ const importCSV = async (req, res) => {
   }
 };
 
-module.exports = { getCatalogue, getTemplate, createEntry, updateEntry, deleteEntry, importCSV };
+module.exports = { getCatalogue, getCatalogueSuppliers, getTemplate, createEntry, updateEntry, deleteEntry, importCSV };

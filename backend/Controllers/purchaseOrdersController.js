@@ -198,14 +198,15 @@ const exportPDFList = async (req, res) => {
 // ─── POST /api/purchase-orders ────────────────────────────────────────────────
 const createPO = async (req, res) => {
   const {
+    supplier_id,
     supplier_name, supplier_email, supplier_address,
     street_name, zip_code, city, county,
     date_of_po, production_id,
     set_code, account_code, description, department, net_amount, vat, gross_amount, paid_from, title,
   } = req.body;
 
-  if (!supplier_name || !production_id || !net_amount || !title)
-    return res.status(400).json({ error: 'supplier_name, production_id, title, and net_amount are required' });
+  if (!supplier_name || !production_id || !net_amount)
+    return res.status(400).json({ error: 'supplier_name, production_id, and net_amount are required' });
 
   try {
     // Block POs on complete or archived productions
@@ -220,21 +221,23 @@ const createPO = async (req, res) => {
 
     const po_number = await generatePoNumber();
     const net = parseFloat(net_amount);
+    if (!Number.isFinite(net) || net < 0) return res.status(400).json({ error: 'net_amount must be a non-negative number' });
     // Auto-calculate VAT at 20% if not provided; auto-calculate gross if not provided
     const vatAmount   = vat          !== undefined ? parseFloat(vat)          : Math.round(net * 0.20 * 100) / 100;
     const grossAmount = gross_amount !== undefined ? parseFloat(gross_amount) : Math.round((net + vatAmount) * 100) / 100;
+    if (!Number.isFinite(vatAmount) || vatAmount < 0 || !Number.isFinite(grossAmount) || grossAmount < 0) return res.status(400).json({ error: 'vat and gross_amount must be non-negative numbers' });
 
     const { rows } = await db.query(
       `INSERT INTO purchase_orders
-         (po_number, supplier_name, supplier_email, supplier_address,
+         (po_number, supplier_id, supplier_name, supplier_email, supplier_address,
           street_name, zip_code, city, county,
           date_of_po, production_id,
           set_code, account_code, description, department, net_amount, vat, gross_amount, paid_from,
           status, created_by, title)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'draft',$19,$20)
+      VALUES ($1,COALESCE($2, (SELECT id FROM suppliers WHERE LOWER(BTRIM(name)) = LOWER(BTRIM($3)) LIMIT 1)),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'draft',$20,$21)
        RETURNING *`,
       [
-        po_number, supplier_name, supplier_email || null,
+        po_number, supplier_id || null, supplier_name.trim(), supplier_email || null,
         supplier_address || null,
         street_name || null, zip_code || null, city || null, county || null,
         date_of_po || new Date().toISOString().split('T')[0],
@@ -245,7 +248,7 @@ const createPO = async (req, res) => {
         title
       ]
     );
-    res.status(201).json(rows[0]);
+    res.status(201).json({ ...rows[0], message: 'Purchase order created successfully', purchase_order: rows[0] });
   } catch (err) {
     console.error('createPO:', err);
     res.status(500).json({ error: err.message });
@@ -272,6 +275,7 @@ const getPOById = async (req, res) => {
 // ─── PUT / PATCH /api/purchase-orders/:id ────────────────────────────────────
 const updatePO = async (req, res) => {
   const allowed = [
+    'supplier_id',
     'supplier_name', 'supplier_email', 'supplier_address',
     'street_name', 'zip_code', 'city', 'county',
     'date_of_po', 'production_id',
@@ -587,6 +591,21 @@ const attachConfirmation = async (req, res) => {
   }
 };
 
+const downloadConfirmation = async (req, res) => {
+  try {
+    const { rows: [po] } = await db.query(
+      'SELECT confirmation_attachment_url, confirmation_attachment_name FROM purchase_orders WHERE id = $1',
+      [req.params.id]
+    );
+    if (!po) return res.status(404).json({ error: 'Purchase order not found' });
+    if (!po.confirmation_attachment_url) return res.status(404).json({ error: 'No order confirmation attached' });
+    await fileStorage.streamToResponse(po.confirmation_attachment_url, res, po.confirmation_attachment_name || 'order-confirmation');
+  } catch (err) {
+    console.error('downloadConfirmation:', err);
+    res.status(500).json({ error: 'Unable to download order confirmation' });
+  }
+};
+
 // ─── GET /api/purchase-orders/:id/pdf ─────────────────────────────────────────
 const downloadPdf = async (req, res) => {
   try {
@@ -614,7 +633,7 @@ module.exports = {
   createPO,
   issuePO, submitPO,
   attachInvoice, downloadInvoice, deleteInvoice,
-  attachConfirmation,
+  attachConfirmation, downloadConfirmation,
   approvePO, deletePO,
   exportCSV, exportPDFList, downloadPdf,
 };

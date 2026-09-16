@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 import { PurchaseOrderStatus, PaidFrom } from '../enums';
 import { Production } from './Production';
 import { User } from './User';
+import { Supplier } from './Supplier';
 
 @Entity('purchase_orders')
 @Index('idx_purchase_orders_production', ['productionId'])
@@ -19,6 +20,13 @@ export class PurchaseOrder {
 
   @Column({ type: 'text', name: 'supplier_name' })
   supplierName: string;
+
+  @Column({ type: 'uuid', name: 'supplier_id', nullable: true })
+  supplierId: string | null;
+
+  @ManyToOne(() => Supplier, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'supplier_id' })
+  supplier: Supplier | null;
 
   @Column({ type: 'text', name: 'supplier_email', nullable: true })
   supplierEmail: string | null;

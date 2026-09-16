@@ -462,6 +462,7 @@ export type PurchaseOrder = {
   po_number: string;
   title: string | null;
   supplier_name: string;
+  supplier_id: string | null;
   supplier_email: string | null;
   supplier_address: string | null;
   street_name: string | null;
@@ -481,6 +482,8 @@ export type PurchaseOrder = {
   paid_from: string;
   invoice_attachment_url: string | null;
   invoice_attachment_name: string | null;
+  confirmation_attachment_url: string | null;
+  confirmation_attachment_name: string | null;
   approved_by: string | null;
   approved_at: string | null;
   created_by: string;
@@ -502,11 +505,11 @@ export const purchaseOrdersApi = {
   update: (id: string, data: Partial<PurchaseOrder>) =>
     request<{ message: string; purchase_order: PurchaseOrder }>(`/api/purchase-orders/${id}`, { method: 'PUT', body: data }),
   submit: (id: string) =>
-    request<{ message: string; po: PurchaseOrder }>(`/api/purchase-orders/${id}/submit`, {
+    request<{ message: string; purchase_order: PurchaseOrder }>(`/api/purchase-orders/${id}/submit`, {
       method: 'POST', body: {},
     }),
   approve: (id: string) =>
-    request<{ message: string; po: PurchaseOrder }>(`/api/purchase-orders/${id}/approve`, {
+    request<{ message: string; purchase_order: PurchaseOrder }>(`/api/purchase-orders/${id}/approve`, {
       method: 'POST', body: {},
     }),
   downloadPdf: async (id: string, po_number: string) => {
@@ -557,6 +560,20 @@ export const purchaseOrdersApi = {
       }
       return r.json() as Promise<{ message: string; purchase_order: PurchaseOrder }>;
     }),
+  downloadConfirmation: async (id: string, filename: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cs_token') : null;
+    const res = await fetch(`/api/purchase-orders/${id}/confirmation/download`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) throw new Error('Failed to download order confirmation');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'order-confirmation';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
   delete: (id: string) =>
     request<{ message: string }>(`/api/purchase-orders/${id}`, { method: 'DELETE' }),
   import: (formData: FormData) =>
@@ -1000,10 +1017,14 @@ export const payRunsApi = {
 // ─── Materials Catalogue types & API ───────────────────────────────────────────
 export type MaterialsCatalogueItem = {
   id: string;
-  supplier_name: string;
+  material_name: string | null;
+  description: string | null;
+  category: string | null;
+  supplier_name: string | null;
   product_description: string;
-  unit_of_measure: string;
+  unit_of_measure: string | null;
   unit_price: number;
+  price_updated_date: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -1027,16 +1048,62 @@ export const materialsCatalogueApi = {
     }).then(async r => { if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as { error?: string }).error ?? r.statusText); } return r.json() as Promise<{ imported: number }>; }),
 };
 
+export type MaterialsInventoryItem = {
+  id: string;
+  material_id: string;
+  material_name: string;
+  description: string | null;
+  category: string | null;
+  quantity: number;
+  quantity_purchased: number;
+  unit_of_measure: string;
+  production_id: string | null;
+  production_name: string | null;
+  location: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MaterialsInventorySummaryItem = {
+  material_id: string;
+  material_name: string;
+  unit_of_measure: string;
+  production_id: string | null;
+  production_name: string | null;
+  total_bought: number;
+  remaining_stock: number;
+};
+
+export const materialsInventoryApi = {
+  list: () => request<MaterialsInventoryItem[]>('/api/materials-inventory'),
+  summary: () => request<MaterialsInventorySummaryItem[]>('/api/materials-inventory/summary'),
+  create: (data: Partial<MaterialsInventoryItem>) =>
+    request<MaterialsInventoryItem>('/api/materials-inventory', { method: 'POST', body: data }),
+  update: (id: string, data: Partial<MaterialsInventoryItem>) =>
+    request<MaterialsInventoryItem>(`/api/materials-inventory/${id}`, { method: 'PUT', body: data }),
+  restock: (id: string, quantity: number) =>
+    request<MaterialsInventoryItem>(`/api/materials-inventory/${id}/restock`, { method: 'POST', body: { quantity } }),
+  delete: (id: string) =>
+    request<{ message: string }>(`/api/materials-inventory/${id}`, { method: 'DELETE' }),
+};
+
 // ─── Suppliers Database API ────────────────────────────────────────────────────
 export type Supplier = {
   id: string;
   name: string;
+  category: string | null;
+  primary_contact_name: string | null;
   email: string | null;
   street_name: string | null;
   city: string | null;
   county: string | null;
   zip_code: string | null;
   phone: string | null;
+  account_number: string | null;
+  credit_terms: string | null;
+  payment_terms: string | null;
+  lead_times: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -1052,8 +1119,27 @@ export const supplierApi = {
     request<Supplier>(`/api/suppliers/${id}`, { method: 'PUT', body: data }),
   delete: (id: string) =>
     request<{ message: string }>(`/api/suppliers/${id}`, { method: 'DELETE' }),
+  getHistory: (id: string) => request<SupplierPurchaseOrder[]>(`/api/suppliers/${id}/history`),
+  getAllHistory: () => request<SupplierPurchaseOrder[]>('/api/suppliers/history'),
 };
 export const suppliersApi = supplierApi;
+
+export type SupplierPurchaseOrder = {
+  id: string;
+  po_number: string;
+  title: string | null;
+  date_of_po: string;
+  status: string;
+  net_amount: number;
+  vat: number;
+  gross_amount: number;
+  supplier_name: string;
+  supplier_category: string | null;
+  supplier_location: string | null;
+  production_id: string;
+  production_name: string;
+  production_status: string;
+};
 
 // ─── Percentometer new API (versioned ratios + actuals) ────────────────────────
 export type PercentometerActualsRow = {
@@ -1394,4 +1480,61 @@ export const itResourcesApi = {
 };
 
 export default request;
+
+export type SafetyHealthDocumentType = 'risk_template' | 'risk_assessment' | 'coshh' | 'insurance';
+export type SafetyHealthDocumentStatus = 'active' | 'pending_alteration';
+export type SafetyHealthDocument = {
+  id: string;
+  document_type: SafetyHealthDocumentType;
+  file_name: string;
+  file_size: number | null;
+  file_mime_type: string | null;
+  assessment_date: string | null;
+  location: string | null;
+  production_id: string | null;
+  production_name?: string | null;
+  production_ids?: string[];
+  productions?: Array<{ id: string; name: string }>;
+  tags: string[];
+  status: SafetyHealthDocumentStatus;
+  public_token: string | null;
+  uploaded_by: string | null;
+  uploaded_at: string;
+};
+
+export const safetyHealthApi = {
+  list: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<SafetyHealthDocument[]>(`/api/safety-health${qs}`);
+  },
+  upload: (formData: FormData) => fetch('/api/safety-health/upload', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('cs_token') ?? '' : ''}` },
+    body: formData,
+  }).then(async response => {
+    if (!response.ok) { const error = await response.json().catch(() => ({})); throw new Error(error.error ?? response.statusText); }
+    return response.json() as Promise<SafetyHealthDocument>;
+  }),
+  replace: (id: string, formData: FormData) => fetch(`/api/safety-health/${id}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('cs_token') ?? '' : ''}` },
+    body: formData,
+  }).then(async response => {
+    if (!response.ok) { const error = await response.json().catch(() => ({})); throw new Error(error.error ?? response.statusText); }
+    return response.json() as Promise<SafetyHealthDocument>;
+  }),
+  delete: (id: string) => request<{ message: string }>(`/api/safety-health/${id}`, { method: 'DELETE' }),
+  download: async (id: string, filename: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cs_token') : null;
+    const response = await fetch(`/api/safety-health/${id}/download`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!response.ok) throw new Error('Unable to download document');
+    const url = URL.createObjectURL(await response.blob());
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; anchor.click(); URL.revokeObjectURL(url);
+  },
+  publicUrl: (token: string) => `${window.location.origin}/api/public/safety-health/${token}`,
+  publicList: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<SafetyHealthDocument[]>(`/api/public/safety-health${qs}`, { skipAuth: true, cache: 'no-store' });
+  },
+};
 

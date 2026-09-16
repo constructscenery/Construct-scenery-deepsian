@@ -6,7 +6,16 @@ export class MaterialsCatalogue {
   id: string;
 
   @Column({ type: 'text', name: 'supplier_name' })
-  supplierName: string;
+  supplierName: string | null;
+
+  @Column({ type: 'text', name: 'material_name', nullable: true })
+  materialName: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  description: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  category: string | null;
 
   @Column({ type: 'text', name: 'product_description' })
   productDescription: string;
@@ -16,6 +25,9 @@ export class MaterialsCatalogue {
 
   @Column({ type: 'decimal', precision: 10, scale: 2, name: 'unit_price' })
   unitPrice: number;
+
+  @Column({ type: 'date', name: 'price_updated_date', nullable: true })
+  priceUpdatedDate: string | null;
 
   @Column({ type: 'text', nullable: true })
   notes: string | null;

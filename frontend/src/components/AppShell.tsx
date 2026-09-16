@@ -7,7 +7,7 @@ import BottomNav from './BottomNav';
 import { useAuth } from '@/contexts/AuthContext';
 
 const AUTH_PATHS = ['/login', '/forgot-password', '/verify-otp', '/reset-password'];
-const PUBLIC_PORTAL_PATHS = ['/crew-registration'];
+const PUBLIC_PORTAL_PATHS = ['/crew-registration', '/public/safety-health'];
 
 // Land on Dashboard for all authenticated roles.
 const homeRouteFor = (_role: string) => '/dashboard';

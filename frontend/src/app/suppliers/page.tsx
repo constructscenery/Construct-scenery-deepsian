@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import { useAuth } from '@/contexts/AuthContext';
-import { supplierApi, type Supplier } from '@/lib/api';
+import { supplierApi, type Supplier, type SupplierPurchaseOrder } from '@/lib/api';
 import {
   Plus,
   Search,
@@ -20,23 +21,35 @@ const inputCls =
 
 type FormData = {
   name: string;
+  category: string;
+  primary_contact_name: string;
   email: string;
   street_name: string;
   city: string;
   county: string;
   zip_code: string;
   phone: string;
+  account_number: string;
+  credit_terms: string;
+  payment_terms: string;
+  lead_times: string;
   notes: string;
 };
 
 const EMPTY_FORM: FormData = {
   name: '',
+  category: '',
+  primary_contact_name: '',
   email: '',
   street_name: '',
   city: '',
   county: '',
   zip_code: '',
   phone: '',
+  account_number: '',
+  credit_terms: '',
+  payment_terms: '',
+  lead_times: '',
   notes: '',
 };
 
@@ -77,6 +90,15 @@ export default function SuppliersPage() {
   const [items, setItems] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
+  const [activeTab, setActiveTab] = useState<'suppliers' | 'history'>('suppliers');
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [history, setHistory] = useState<SupplierPurchaseOrder[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyCategory, setHistoryCategory] = useState('');
+  const [historyLocation, setHistoryLocation] = useState('');
 
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<Supplier | null>(null);
@@ -89,15 +111,23 @@ export default function SuppliersPage() {
 
   const [toast, setToast] = useState<string | null>(null);
 
+  async function openHistory(item: Supplier) {
+    setSelectedSupplier(item);
+    setActiveTab('history');
+  }
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const itemList = await supplierApi.list();
+      setHistoryLoading(true);
+      const [itemList, historyList] = await Promise.all([supplierApi.list(), supplierApi.getAllHistory()]);
       setItems(itemList);
+      setHistory(historyList);
     } catch {
       // silently fail
     } finally {
       setLoading(false);
+      setHistoryLoading(false);
     }
   }, []);
 
@@ -108,9 +138,47 @@ export default function SuppliersPage() {
   const filtered = items
     .filter((item) => {
       const q = search.toLowerCase();
-      return !q || item.name.toLowerCase().includes(q) || (item.city ?? '').toLowerCase().includes(q) || (item.email ?? '').toLowerCase().includes(q);
+          const searchableText = [
+            item.name,
+            item.email,
+            item.phone,
+            item.category,
+            item.primary_contact_name,
+            item.street_name,
+            item.city,
+            item.county,
+            item.zip_code,
+          ].filter(Boolean).join(' ').toLowerCase();
+          const matchesSearch = !q || searchableText.includes(q);
+      const matchesCategory = !categoryFilter || item.category === categoryFilter;
+      const location = [item.street_name, item.city, item.county, item.zip_code].filter(Boolean).join(' ').toLowerCase();
+      const matchesLocation = !locationFilter || location.includes(locationFilter.toLowerCase());
+      return matchesSearch && matchesCategory && matchesLocation;
     })
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  const supplierCategories = Array.from(new Set(items.map(item => item.category).filter((value): value is string => !!value))).sort();
+  const supplierLocations = Array.from(new Set(items
+    .map(item => [item.city, item.county].filter(Boolean).join(', '))
+    .filter(Boolean))).sort();
+
+  const hasSupplierFilters = Boolean(search || categoryFilter || locationFilter);
+
+  function clearSupplierFilters() {
+    setSearch('');
+    setCategoryFilter('');
+    setLocationFilter('');
+  }
+
+  const historyCategories = Array.from(new Set(history.map(row => row.supplier_category).filter((value): value is string => !!value))).sort();
+  const historyRows = history.filter(row => {
+    const q = historySearch.toLowerCase();
+    const matchesSearch = !q || [row.supplier_name, row.po_number, row.title || '', row.production_name].some(value => value.toLowerCase().includes(q));
+    const matchesCategory = !historyCategory || row.supplier_category === historyCategory;
+    const matchesLocation = !historyLocation || (row.supplier_location || '').toLowerCase().includes(historyLocation.toLowerCase());
+    const matchesSupplier = !selectedSupplier || row.supplier_name.toLowerCase() === selectedSupplier.name.toLowerCase();
+    return matchesSearch && matchesCategory && matchesLocation && matchesSupplier;
+  });
 
   function openAdd() {
     setEditItem(null);
@@ -123,12 +191,18 @@ export default function SuppliersPage() {
     setEditItem(item);
     setForm({
       name: item.name,
+      category: item.category ?? '',
+      primary_contact_name: item.primary_contact_name ?? '',
       email: item.email ?? '',
       street_name: item.street_name ?? '',
       city: item.city ?? '',
       county: item.county ?? '',
       zip_code: item.zip_code ?? '',
       phone: item.phone ?? '',
+      account_number: item.account_number ?? '',
+      credit_terms: item.credit_terms ?? '',
+      payment_terms: item.payment_terms ?? '',
+      lead_times: item.lead_times ?? '',
       notes: item.notes ?? '',
     });
     setFormError('');
@@ -143,12 +217,18 @@ export default function SuppliersPage() {
     try {
       const payload: Partial<Supplier> = {
         name: form.name.trim(),
+        category: form.category.trim() || null,
+        primary_contact_name: form.primary_contact_name.trim() || null,
         email: form.email.trim() || null,
         street_name: form.street_name.trim() || null,
         city: form.city.trim() || null,
         county: form.county.trim() || null,
         zip_code: form.zip_code.trim() || null,
         phone: form.phone.trim() || null,
+        account_number: form.account_number.trim() || null,
+        credit_terms: form.credit_terms.trim() || null,
+        payment_terms: form.payment_terms.trim() || null,
+        lead_times: form.lead_times.trim() || null,
         notes: form.notes.trim() || null,
       };
 
@@ -198,17 +278,39 @@ export default function SuppliersPage() {
 
       <main className="flex-1 p-4 md:p-6 space-y-4">
         {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+
+        <div className="flex items-center gap-1 border-b border-slate-200">
+          <button onClick={() => setActiveTab('suppliers')} className={`px-4 py-2.5 text-sm font-normal border-b-2 ${activeTab === 'suppliers' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600'}`}>5.3 Supplier Database</button>
+          <button onClick={() => setActiveTab('history')} className={`px-4 py-2.5 text-sm font-normal border-b-2 ${activeTab === 'history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600'}`}>PO History & Production Links</button>
+        </div>
+
+        {activeTab === 'history' ? (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div><h2 className="text-slate-800 font-semibold text-base">PO History & Production Links</h2><p className="text-slate-400 text-xs mt-0.5">All purchase orders connected to suppliers and productions{selectedSupplier ? ` — filtered to ${selectedSupplier.name}` : ''}.</p></div>
+              {selectedSupplier && <button onClick={() => setSelectedSupplier(null)} className="text-sm text-blue-600 hover:text-blue-800">Show all suppliers</button>}
+            </div>
+            <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap gap-2">
+              <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 w-full sm:w-64"><Search size={14} className="text-slate-400" /><input value={historySearch} onChange={e => setHistorySearch(e.target.value)} placeholder="Search supplier, PO, production..." className="bg-transparent text-sm outline-none w-full" /></div>
+              <select value={historyCategory} onChange={e => setHistoryCategory(e.target.value)} className={inputCls + ' sm:w-48'}><option value="">All categories</option>{historyCategories.map(category => <option key={category} value={category}>{category}</option>)}</select>
+              <input value={historyLocation} onChange={e => setHistoryLocation(e.target.value)} placeholder="Filter location" className={inputCls + ' sm:w-48'} />
+            </div>
+            {historyLoading ? <div className="px-5 py-12 text-center text-slate-400">Loading PO history…</div> : historyRows.length === 0 ? <div className="px-5 py-12 text-center text-slate-500">No purchase order connections match these filters.</div> : (
+              <div className="overflow-x-auto"><table className="w-full text-sm min-w-[1000px]"><thead><tr className="bg-slate-50 text-left border-b border-slate-100">{['Supplier', 'Category', 'Location', 'PO Number', 'Title', 'Production', 'Date', 'Status', 'Net', 'Gross'].map(h => <th key={h} className="px-4 py-3 text-xs font-semibold text-slate-500">{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{historyRows.map(po => <tr key={po.id}><td className="px-4 py-3 text-slate-800 font-medium">{po.supplier_name}</td><td className="px-4 py-3 text-slate-600">{po.supplier_category || '—'}</td><td className="px-4 py-3 text-slate-600">{po.supplier_location || '—'}</td><td className="px-4 py-3 text-slate-800 font-medium">{po.po_number}</td><td className="px-4 py-3 text-slate-600">{po.title || '—'}</td><td className="px-4 py-3 text-slate-700"><Link href={`/productions/${po.production_id}`} className="text-blue-600 hover:underline">{po.production_name}</Link><div className="text-xs text-slate-400">{po.production_status}</div></td><td className="px-4 py-3 text-slate-600">{new Date(po.date_of_po).toLocaleDateString('en-GB')}</td><td className="px-4 py-3 text-slate-600 capitalize">{po.status.replace(/_/g, ' ')}</td><td className="px-4 py-3 text-slate-700">£{Number(po.net_amount).toFixed(2)}</td><td className="px-4 py-3 text-slate-700">£{Number(po.gross_amount).toFixed(2)}</td></tr>)}</tbody></table></div>
+            )}
+          </div>
+        ) : <>
         
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between px-5 py-4 gap-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 w-full sm:w-64">
+          <div className="px-5 py-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(260px,1fr)_220px_220px_auto] items-center gap-3">
+              <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 min-w-0">
                 <Search size={14} className="text-slate-400 flex-shrink-0" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search suppliers…"
+                  placeholder="Search name, email…"
                   className="bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none w-full"
                 />
                 {search && (
@@ -217,13 +319,38 @@ export default function SuppliersPage() {
                   </button>
                 )}
               </div>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All categories</option>
+                {supplierCategories.map(category => <option key={category} value={category}>{category}</option>)}
+              </select>
+              <select
+                value={locationFilter}
+                onChange={(e) => setLocationFilter(e.target.value)}
+                className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All locations</option>
+                {supplierLocations.map(location => <option key={location} value={location}>{location}</option>)}
+              </select>
+              {hasSupplierFilters && (
+                <button
+                  type="button"
+                  onClick={clearSupplierFilters}
+                  className="text-sm text-blue-600 hover:text-blue-800 px-2 py-2 whitespace-nowrap"
+                >
+                  Clear filters
+                </button>
+              )}
             </div>
 
             {canWrite && (
-              <div className="flex items-center gap-2">
+              <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
                 <button
                   onClick={openAdd}
-                  className="flex items-center justify-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-4 py-2 hover:bg-blue-700 transition-colors font-medium whitespace-nowrap"
+                  className="flex items-center justify-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-5 py-2.5 hover:bg-blue-700 transition-colors font-medium whitespace-nowrap"
                 >
                   <Plus size={14} />
                   Add Supplier
@@ -239,6 +366,7 @@ export default function SuppliersPage() {
               <thead>
                 <tr className="bg-slate-50 text-left border-b border-slate-100">
                   <th className="px-5 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Supplier Name</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Category</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500">Contact</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500">Address</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500">Notes</th>
@@ -253,7 +381,7 @@ export default function SuppliersPage() {
                   : filtered.length === 0
                   ? (
                     <tr>
-                      <td colSpan={canWrite ? 5 : 4} className="px-5 py-16 text-center">
+                      <td colSpan={canWrite ? 6 : 5} className="px-5 py-16 text-center">
                         <FileText size={32} className="text-slate-300 mx-auto mb-3" />
                         <p className="text-slate-500 font-medium text-sm">
                           {items.length === 0
@@ -268,6 +396,7 @@ export default function SuppliersPage() {
                       <td className="px-5 py-3.5">
                         <p className="text-slate-800 font-semibold text-sm">{item.name}</p>
                       </td>
+                      <td className="px-4 py-3.5 text-slate-600 text-sm">{item.category || '—'}</td>
                       <td className="px-4 py-3.5 text-slate-700 text-sm">
                         {item.email && <div className="text-blue-600">{item.email}</div>}
                         {item.phone && <div className="text-slate-500 text-xs">{item.phone}</div>}
@@ -282,6 +411,12 @@ export default function SuppliersPage() {
                       {canWrite && (
                         <td className="px-4 py-3.5">
                           <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => openHistory(item)}
+                              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors font-medium border border-blue-100"
+                            >
+                              PO History
+                            </button>
                             <button
                               onClick={() => openEdit(item)}
                               className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors font-medium border border-slate-200"
@@ -303,6 +438,7 @@ export default function SuppliersPage() {
             </table>
           </div>
         </div>
+        </>}
       </main>
 
       {/* ── Add / Edit Modal ─────────────────────────────────────────────────── */}
@@ -348,6 +484,11 @@ export default function SuppliersPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">Category</label><input type="text" value={form.category} onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))} className={inputCls} placeholder="e.g. timber merchant" /></div>
+                <div><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">Primary Contact</label><input type="text" value={form.primary_contact_name} onChange={(e) => setForm(f => ({ ...f, primary_contact_name: e.target.value }))} className={inputCls} placeholder="Contact name" /></div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">
                     Email
@@ -372,6 +513,15 @@ export default function SuppliersPage() {
                     placeholder="020 1234 5678"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">Account Number</label><input type="text" value={form.account_number} onChange={(e) => setForm(f => ({ ...f, account_number: e.target.value }))} className={inputCls} /></div>
+                <div><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">Lead Times</label><input type="text" value={form.lead_times} onChange={(e) => setForm(f => ({ ...f, lead_times: e.target.value }))} className={inputCls} placeholder="e.g. 3–5 working days" /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">Credit Terms</label><input type="text" value={form.credit_terms} onChange={(e) => setForm(f => ({ ...f, credit_terms: e.target.value }))} className={inputCls} placeholder="e.g. 30 days" /></div>
+                <div><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">Payment Terms</label><input type="text" value={form.payment_terms} onChange={(e) => setForm(f => ({ ...f, payment_terms: e.target.value }))} className={inputCls} /></div>
               </div>
 
               <div>
