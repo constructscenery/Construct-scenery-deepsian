@@ -127,12 +127,27 @@ const replaceDocument = async (req, res) => {
     if (productionIds) await validateProductionIds(productionIds);
     const stored = req.file ? await fileStorage.store(req.file) : null;
     try {
+      const updates = [];
+      const values = [];
+      const addUpdate = (column, value) => { updates.push(`${column} = $${values.length + 1}`); values.push(value); };
+      if (stored) {
+        addUpdate('file_url', stored.url);
+        addUpdate('file_key', stored.key);
+        addUpdate('file_name', req.file.originalname);
+        addUpdate('file_size', req.file.size);
+        addUpdate('file_mime_type', req.file.mimetype);
+      }
+      if (Object.prototype.hasOwnProperty.call(req.body, 'assessment_date')) addUpdate('assessment_date', req.body.assessment_date || null);
+      if (Object.prototype.hasOwnProperty.call(req.body, 'location')) addUpdate('location', req.body.location?.trim() || null);
+      if (Object.prototype.hasOwnProperty.call(req.body, 'tags')) addUpdate('tags', String(req.body.tags).split(',').map(tag => tag.trim()).filter(Boolean));
+      if (Object.prototype.hasOwnProperty.call(req.body, 'status')) addUpdate('status', req.body.status || 'active');
+      values.push(req.params.id);
       const { rows: [updated] } = await db.query(`
         UPDATE safety_health_documents
-        SET file_url = COALESCE($1, file_url), file_key = COALESCE($2, file_key), file_name = COALESCE($3, file_name), file_size = COALESCE($4, file_size), file_mime_type = COALESCE($5, file_mime_type), assessment_date = COALESCE($6, assessment_date), location = COALESCE($7, location), tags = COALESCE($8, tags), status = COALESCE($9, status)
-        WHERE id = $10
+        SET ${updates.join(', ')}
+        WHERE id = $${values.length}
         RETURNING id, document_type, file_name, file_size, file_mime_type, assessment_date, location, production_id, tags, status, public_token, uploaded_by, uploaded_at
-      `, [stored?.url || null, stored?.key || null, req.file?.originalname || null, req.file?.size || null, req.file?.mimetype || null, req.body.assessment_date || null, req.body.location || null, req.body.tags !== undefined ? String(req.body.tags).split(',').map(tag => tag.trim()).filter(Boolean) : null, req.body.status || null, req.params.id]);
+      `, values);
       if (productionIds) await syncProductionLinks(req.params.id, productionIds);
       if (stored) await fileStorage.deleteFile(existing.file_key || keyFromUrl(existing.file_url));
       res.json(updated);
