@@ -80,7 +80,8 @@ const deleteFreelancer = async (req, res) => {
     const { rowCount } = await db.query('DELETE FROM freelancer_contacts WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Freelancer not found' });
     res.status(204).end();
-  } catch {
+  } catch (err) {
+    if (err.code === '23503') return res.status(409).json({ error: 'Delete attached documents before deleting this freelancer' });
     res.status(500).json({ error: 'Unable to delete freelancer' });
   }
 };

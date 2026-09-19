@@ -143,6 +143,7 @@ const deleteBuilding = async (req, res) => {
     if (!rowCount) return res.status(404).json({ error: 'Building not found' });
     res.json({ message: 'Building deleted successfully' });
   } catch (err) {
+    if (err.code === '23503') return res.status(409).json({ error: 'Delete attached documents before deleting this building' });
     console.error('deleteBuilding error:', err);
     res.status(500).json({ error: err.message });
   }

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Clapperboard, ShoppingCart, Users,
-  ClipboardList, BarChart2, TrendingUp, MoreHorizontal, X, LogOut, Upload,
+  ClipboardList, BarChart2, TrendingUp, MoreHorizontal, X, LogOut, Upload, Archive,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -36,6 +36,7 @@ const FULL_NAV_ITEMS: NavItem[] = [
   { href: '/productions',     label: 'Productions',        icon: Clapperboard },
   { href: '/purchase-orders', label: 'Purchase Orders',    icon: ShoppingCart },
   { href: '/cost-report',     label: 'Cost Report',        icon: BarChart2 },
+  { href: '/historical-cost-reports', label: 'Finance', icon: Archive },
   { href: '/forecasting',     label: 'Forecasting',        icon: TrendingUp },
   { href: '/crew',            label: 'Crew',               icon: Users },
   { href: '/crew/import',     label: 'Crew Import',        icon: Upload },

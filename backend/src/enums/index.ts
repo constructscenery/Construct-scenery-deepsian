@@ -35,6 +35,16 @@ export enum ContractType {
   COST_PLUS = 'cost_plus',
 }
 
+export enum HistoricalCostReportType {
+  TYPE_1 = 'type1',
+  TYPE_2 = 'type2',
+}
+
+export enum HistoricalCostReportSource {
+  AUTOMATIC = 'automatic',
+  MANUAL_UPLOAD = 'manual_upload',
+}
+
 export enum SetCompletionStatus {
   NOT_STARTED = 'not_started',
   IN_PROGRESS = 'in_progress',

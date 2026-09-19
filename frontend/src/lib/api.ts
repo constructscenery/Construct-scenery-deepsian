@@ -316,6 +316,7 @@ export type DashboardData = {
 
 // ─── Productions API ───────────────────────────────────────────────────────────
 export const productionsApi = {
+  delete: (id: string) => request<void>(`/api/productions/${id}`, { method: 'DELETE' }),
   list: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return request<Production[]>(`/api/productions${qs}`);
@@ -1480,6 +1481,60 @@ export const itResourcesApi = {
 };
 
 export default request;
+
+export type HistoricalCostReportType = 'type1' | 'type2';
+export type HistoricalCostReport = {
+  id: string;
+  production_id: string | null;
+  production_name: string;
+  report_type: HistoricalCostReportType;
+  source: 'automatic' | 'manual_upload';
+  is_legacy: boolean;
+  report_date: string;
+  file_name: string;
+  file_size: number | string;
+  created_at: string;
+};
+
+export const historicalCostReportsApi = {
+  delete: (id: string) => request<void>(`/api/cost-reports/historical/${id}`, { method: 'DELETE' }),
+  list: (filters: Record<string, string> = {}) => request<HistoricalCostReport[]>(`/api/cost-reports/historical?${new URLSearchParams(filters)}`, { cache: 'no-store' }),
+  upload: async (body: FormData): Promise<HistoricalCostReport> => (await documentFetch('/api/cost-reports/historical/upload', { method: 'POST', body })).json(),
+  view: async (id: string) => (await documentFetch(`/api/cost-reports/historical/${id}/view`)).blob(),
+};
+
+export type AttachedDocument = {
+  id: string;
+  file_name: string;
+  file_size: number | string;
+  file_mime_type: string;
+  uploaded_by: string | null;
+  uploaded_at: string;
+};
+
+export type DocumentOwner = 'buildings' | 'freelancers';
+const documentPath = (owner: DocumentOwner, id: string) => `${owner === 'buildings' ? '/api/buildings' : '/api/crew/freelancers'}/${id}/documents`;
+
+async function documentFetch(path: string, options: RequestInit = {}) {
+  const token = localStorage.getItem('cs_token');
+  const response = await fetch(path, { ...options, cache: 'no-store', headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || (response.status === 413 ? 'File is too large. Maximum size is 25 MB.' : 'Unable to access document'));
+  }
+  return response;
+}
+
+export const attachedDocumentsApi = {
+  list: (owner: DocumentOwner, id: string) => request<AttachedDocument[]>(documentPath(owner, id), { cache: 'no-store' }),
+  upload: async (owner: DocumentOwner, id: string, file: File): Promise<AttachedDocument> => {
+    const body = new FormData();
+    body.append('file', file);
+    return (await documentFetch(documentPath(owner, id), { method: 'POST', body })).json();
+  },
+  view: async (owner: DocumentOwner, id: string, docId: string) => (await documentFetch(`${documentPath(owner, id)}/${docId}/view`)).blob(),
+  delete: (owner: DocumentOwner, id: string, docId: string) => request<void>(`${documentPath(owner, id)}/${docId}`, { method: 'DELETE' }),
+};
 
 export type FreelancerCallPriority = 'first_call' | 'backup' | 'never_call';
 

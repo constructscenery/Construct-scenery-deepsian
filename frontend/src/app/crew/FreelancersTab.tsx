@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Mail, Pencil, Phone, PhoneCall, PhoneOff, Plus, Search, Star, Trash2, X } from 'lucide-react';
+import { FileText, Loader2, Mail, Pencil, Phone, PhoneCall, PhoneOff, Plus, Search, Star, Trash2, X } from 'lucide-react';
+import AttachedDocuments from '@/components/AttachedDocuments';
 import { freelancersApi, type FreelancerCallPriority, type FreelancerContact, type FreelancerInput } from '@/lib/api';
 
 const PRIORITIES = [
@@ -82,6 +83,7 @@ export default function FreelancersTab() {
   const [priorityFilter, setPriorityFilter] = useState<FreelancerCallPriority | ''>('');
   const [favouritesOnly, setFavouritesOnly] = useState(false);
   const [editor, setEditor] = useState<{ contact: FreelancerContact | null } | null>(null);
+  const [documentContact, setDocumentContact] = useState<FreelancerContact | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -151,6 +153,7 @@ export default function FreelancersTab() {
               <td className="px-4 py-4 min-w-44 max-w-72"><p className="whitespace-pre-wrap break-words text-xs text-slate-600">{contact.notes || '-'}</p></td>
               <td className="px-4 py-4"><CallPriority value={contact.call_priority} disabled={disabled} onChange={call_priority => updateContact(contact, { call_priority })} /><p className={`flex items-center gap-1 mt-2 text-xs ${neverCall ? 'text-red-700' : 'text-slate-500'}`}><PriorityIcon size={12} />{neverCall ? 'Contact disabled' : 'Contact enabled'}{busyId === contact.id && <Loader2 size={12} className="animate-spin" />}</p></td>
               <td className="px-4 py-4"><div className="flex items-center gap-1">
+                <button type="button" title="Documents" aria-label={`Documents for ${contact.full_name}`} disabled={disabled} onClick={() => setDocumentContact(contact)} className="p-2 text-blue-600 hover:bg-blue-50 rounded disabled:opacity-50"><FileText size={16} /></button>
                 {neverCall || !contact.phone ? <button type="button" disabled title={neverCall ? 'Never call: calling disabled' : 'No phone number'} aria-label={`Call ${contact.full_name}`} className="p-2 text-slate-300"><Phone size={16} /></button> : <a href={`tel:${contact.phone.replace(/[^+\d]/g, '')}`} title={`Call ${contact.full_name}`} aria-label={`Call ${contact.full_name}`} className="p-2 text-blue-600 hover:bg-blue-50 rounded"><Phone size={16} /></a>}
                 {neverCall || !contact.email ? <button type="button" disabled title={neverCall ? 'Never call: email disabled' : 'No email address'} aria-label={`Email ${contact.full_name}`} className="p-2 text-slate-300"><Mail size={16} /></button> : <a href={`mailto:${encodeURIComponent(contact.email)}`} title={`Email ${contact.full_name}`} aria-label={`Email ${contact.full_name}`} className="p-2 text-blue-600 hover:bg-blue-50 rounded"><Mail size={16} /></a>}
                 <button type="button" title="Edit freelancer" aria-label={`Edit ${contact.full_name}`} disabled={disabled} onClick={() => setEditor({ contact })} className="p-2 text-slate-500 hover:bg-slate-100 rounded disabled:opacity-50"><Pencil size={16} /></button>
@@ -163,5 +166,6 @@ export default function FreelancersTab() {
     </div>
     <p className="px-5 py-3 border-t border-slate-100 text-xs text-slate-500">{visible.length} freelancer{visible.length === 1 ? '' : 's'}</p>
     {editor && <ContactEditor contact={editor.contact} onClose={() => setEditor(null)} onSave={saveContact} />}
+    {documentContact && <AttachedDocuments owner="freelancers" ownerId={documentContact.id} name={documentContact.full_name} onClose={() => setDocumentContact(null)} />}
   </section>;
 }

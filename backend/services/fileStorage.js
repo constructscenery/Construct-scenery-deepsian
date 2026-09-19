@@ -63,13 +63,14 @@ async function store(multerFile) {
  * Delete a file from S3 by its key.
  * @param {string} key  - S3 object key (e.g. "uploads/1234-foo.pdf")
  */
-async function deleteFile(key) {
+async function deleteFile(key, { strict = false } = {}) {
   if (!key) return;
   try {
     await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
     console.log(`🗑  S3 deleted: ${key}`);
   } catch (err) {
     console.error('fileStorage.deleteFile failed:', err.message);
+    if (strict) throw err;
   }
 }
 

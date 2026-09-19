@@ -958,6 +958,23 @@ const exportCostReportCSV = async (req, res) => {
   }
 };
 
+const buildFinalCostReportPdf = async (productionId, client = db) => {
+  const { rows: [production] } = await client.query('SELECT * FROM productions WHERE id = $1', [productionId]);
+  if (!production) throw Object.assign(new Error('Production not found'), { status: 404 });
+  // ContractType.COST_PLUS / ContractType.ON_A_PRICE
+  if (production.contract_type === 'cost_plus') {
+    const data = await _buildType2Data(productionId, {}, client);
+    return generateCostReportType2Pdf(data);
+  }
+  if (production.contract_type !== 'on_a_price') throw new Error('Unsupported cost report contract type');
+  const [supplierEntries, labourEntries, metrics] = await Promise.all([
+    CRS.getSupplierCosts(productionId, {}, client),
+    CRS.getLabourCosts(productionId, {}, client),
+    CRS.getSummaryMetrics(productionId, client),
+  ]);
+  return generateCostReportPdf({ production, supplierEntries, labourEntries, metrics });
+};
+
 // ─── GET /api/cost-reports/:productionId/export/pdf ──────────────────────────
 // report_type=cost_plus → 9-chapter Cost Plus PDF
 // (default) → Type 1 supplier/labour summary PDF
@@ -1072,4 +1089,5 @@ module.exports = {
   updateMarginsReference, upsertWeeklyPL,
   getNextInvoiceNumber,
   exportCostReportCSV, exportCostReportPDF,
+  buildFinalCostReportPdf,
 };

@@ -4,6 +4,7 @@ const multer     = require('multer');
 const ctrl         = require('../Controllers/crewController');
 const requestsCtrl = require('../Controllers/crewRequestsController');
 const freelancersCtrl = require('../Controllers/freelancersController');
+const freelancerDocuments = require('../Controllers/attachedDocumentsController').freelancers;
 const { upload }   = require('../Middleware/upload');
 const { requireRole } = require('../Middleware/requireRole');
 
@@ -12,6 +13,10 @@ const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 
 const ALL_ROLES = ['managing_director', 'construction_accountant', 'construction_coordinator'];
 
 router.get('/freelancers', requireRole(...ALL_ROLES), freelancersCtrl.listFreelancers);
+router.get('/freelancers/:id/documents', requireRole(...ALL_ROLES), freelancerDocuments.list);
+router.post('/freelancers/:id/documents', requireRole(...ALL_ROLES), upload.single('file'), freelancerDocuments.upload);
+router.get('/freelancers/:id/documents/:docId/view', requireRole(...ALL_ROLES), freelancerDocuments.view);
+router.delete('/freelancers/:id/documents/:docId', requireRole(...ALL_ROLES), freelancerDocuments.delete);
 router.post('/freelancers', requireRole(...ALL_ROLES), freelancersCtrl.createFreelancer);
 router.patch('/freelancers/:id', requireRole(...ALL_ROLES), freelancersCtrl.updateFreelancer);
 router.delete('/freelancers/:id', requireRole(...ALL_ROLES), freelancersCtrl.deleteFreelancer);

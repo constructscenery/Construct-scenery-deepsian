@@ -29,6 +29,97 @@ npm run migration:show
 
 ## STEP 1 — POSTMAN ENVIRONMENT SETUP
 
+### Finance: Historical Cost Reports
+
+All three authenticated roles can list, upload, view, and soft-delete stored reports.
+Every request requires the normal Bearer token.
+
+| Method | Route | Request / response |
+|---|---|---|
+| GET | `/api/cost-reports/historical` | Array of report metadata; optional `search` (production name), `report_type`, `date_from`, `date_to` filters |
+| POST | `/api/cost-reports/historical/upload` | Multipart: `production_id` OR `production_name`, `report_date` (YYYY-MM-DD), `report_type`, optional `is_legacy` (`true`/`false`), `file` (PDF, maximum 25 MB); returns metadata (201) |
+| GET | `/api/cost-reports/historical/:reportId/view` | Authenticated inline PDF stream, with private/no-store caching |
+| DELETE | `/api/cost-reports/historical/:reportId` | Remove report from Finance (204); retain its metadata and PDF |
+| DELETE | `/api/productions/:id` | Remove an archived production (204); retain all linked business records and files |
+
+Report types: `type1` = On a Price; `type2` = Cost Plus. Both manual and
+automatic reports always specify one of these types. Sources are `automatic`
+and `manual_upload`. Date filters are inclusive; invalid dates/types return 400.
+
+Metadata: `id`, `production_id` (null when a name is entered manually), `production_name`,
+`report_type`, `source`, `is_legacy`, `report_date` (YYYY-MM-DD), `file_name`, `file_size`,
+`file_mime_type`, `created_at`. Storage URLs and keys are not returned.
+
+Uploads can select an existing active or archived production, or enter a name
+manually. A selected `production_id` must be a valid UUID for an undeleted
+production; the server snapshots its current name and ignores any supplied name.
+Missing/deleted selections return 404. Without an ID, a nonblank name of at most
+200 characters is required. `is_legacy` is independent of report type and source;
+it defaults to false, accepts only true/false, and is displayed as a Legacy label.
+Existing reports and automatic captures default to non-legacy; no historical
+classification is inferred from report dates or upload source.
+
+The existing production completion and archive endpoints now store a final,
+unfiltered PDF using the production's contract type. Status, audit entry, and
+report metadata commit together; PDF generation/storage failure rolls back the
+status change. Archiving after completion reuses the existing automatic report.
+Concurrent transaction conflicts return 409; refresh before retrying. If the
+database connection fails during COMMIT and the outcome cannot be confirmed,
+the API returns 503 and preserves the PDF rather than risking deletion of a
+committed report. Refresh both the production and Finance archive before retrying.
+The server logs the production ID and storage key for reconciliation; an
+uncommitted upload may remain in storage in this exceptional case.
+New productions accept only `pre_production` (default) or `active_build` as
+their initial status. Other initial statuses return 400; use the lifecycle
+actions to complete or archive a production and capture its report.
+Rollback/recompletion also preserves that first stored report without replacing it.
+Report PDFs and production names are intentional immutable snapshots, not live
+views of the production. There are no edit or replace endpoints.
+
+Deletion sets `deleted_at`; it does not erase database rows or S3 files. Deleted
+reports are excluded from Finance searches and return 404 on view/repeat delete.
+Deleted productions are excluded from production lists (including archived lists)
+and their production routes return 404. Active productions cannot be deleted (409).
+The production and report delete controls are independent: deleting a production
+leaves its Finance reports visible; deleting a report leaves its production intact.
+Deleted automatic reports continue to count for deduplication and are not recreated
+by completion/archive. There is no in-app restore action. Rolling back the
+soft-deletion migration removes deletion markers and makes retained records visible.
+
+Test both contract types: complete a strike-stage production with
+`checklist_confirmed: true`, verify its historical report, then archive and verify
+the same report ID remains. Manual uploads do not require a registered production.
+Automatic capture applies to completion/archive actions after deployment;
+previously archived productions are not regenerated or backfilled automatically.
+
+### Building and Freelancer Documents
+
+All three authenticated roles can manage attachments. Save the building or
+freelancer first, then use its Documents button. Files supported: PDF, JPEG,
+and PNG, up to 25 MB per file. Multiple attachments may be added individually.
+
+Use either base path:
+- `/api/buildings/:id/documents`
+- `/api/crew/freelancers/:id/documents`
+
+| Method | Path | Request / response |
+|---|---|---|
+| GET | Base path | Array of document metadata |
+| POST | Base path | Multipart form-data with `file`; returns metadata (201) |
+| GET | Base path + `/:docId/view` | Authenticated inline file stream |
+| DELETE | Base path + `/:docId` | Deletes stored file and metadata (204) |
+
+Metadata fields: `id`, `file_name`, `file_size` (bytes), `file_mime_type`,
+`uploaded_by`, and `uploaded_at`. Storage keys and public URLs are not exposed.
+Viewing requires a Bearer token; the UI fetches a private blob for preview and
+download. Deleting a document always scopes it to its parent record. Missing
+records/documents return 404; malformed UUIDs and invalid files return 400.
+
+If storage deletion fails, metadata remains available for retry. Deleting a
+building or freelancer with attachments returns 409: delete its documents first.
+The file preview, download, and delete actions remain available for freelancers
+whose call priority is Never call; only call/email actions are disabled.
+
 ### Crew Database: Freelancers
 
 Freelancers are a separate contact directory, not payroll crew records. All three

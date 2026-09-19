@@ -1,4 +1,5 @@
 const db          = require('../config/db');
+const { withFinalCostReport } = require('../services/historicalCostReportService');
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 const calcSetCountdown = (sets = []) => {
@@ -25,7 +26,7 @@ const calcSetCountdown = (sets = []) => {
 // GET /api/productions
 const getAllProductions = async (req, res) => {
   try {
-    const conditions = [];
+    const conditions = ['p.deleted_at IS NULL'];
     const params     = [];
     let   i          = 1;
 
@@ -67,6 +68,15 @@ const getAllProductions = async (req, res) => {
 };
 
 // POST /api/productions
+const deleteProduction = async (req, res) => {
+  try {
+    // ProductionStatus.ARCHIVED
+    const { rows } = await db.query("UPDATE productions SET deleted_at = NOW() WHERE id = $1 AND status = 'archived' AND deleted_at IS NULL RETURNING id", [req.params.id]);
+    if (!rows.length) return res.status(409).json({ error: 'Only an archived, undeleted production can be deleted. Refresh and try again.' });
+    res.status(204).end();
+  } catch { res.status(500).json({ error: 'Unable to delete production' }); }
+};
+
 const createProduction = async (req, res) => {
   const {
     name, production_company, production_designer, production_type,
@@ -75,6 +85,11 @@ const createProduction = async (req, res) => {
 
   if (!name || !contract_type)
     return res.status(400).json({ error: 'name and contract_type are required' });
+
+  // ProductionStatus.PRE_PRODUCTION / ProductionStatus.ACTIVE_BUILD
+  const initialStatus = status ?? 'pre_production';
+  if (!['pre_production', 'active_build'].includes(initialStatus))
+    return res.status(400).json({ error: 'Initial status must be pre_production or active_build. Use the transition and archive actions for later statuses.' });
 
   try {
     const { rows } = await db.query(
@@ -86,7 +101,7 @@ const createProduction = async (req, res) => {
       [
         name, production_company, production_designer, production_type,
         start_date, end_date, contract_type,
-        status || 'pre_production',
+        initialStatus,
         req.user.id,
       ]
     );
@@ -258,15 +273,21 @@ const transitionStatus = async (req, res) => {
         return res.status(400).json({ error: 'Strike → Complete requires checklist confirmation' });
     }
 
-    const { rows: [updated] } = await db.query(
-      `UPDATE productions SET status = $1, rollback_notice = NULL WHERE id = $2 RETURNING *`,
-      [to_status, req.params.id]
-    );
-
-    await db.query(
-      `INSERT INTO audit_log (user_id, production_id, action, metadata) VALUES ($1, $2, 'status_transition', $3)`,
-      [req.user.id, req.params.id, JSON.stringify({ from_status: production.status, to_status, is_rollback: false })]
-    );
+    const advance = async client => {
+      const { rows: [updated] } = await client.query(
+        `UPDATE productions SET status = $1, rollback_notice = NULL WHERE id = $2 RETURNING *`,
+        [to_status, req.params.id]
+      );
+      await client.query(
+        `INSERT INTO audit_log (user_id, production_id, action, metadata) VALUES ($1, $2, 'status_transition', $3)`,
+        [req.user.id, req.params.id, JSON.stringify({ from_status: production.status, to_status, is_rollback: false })]
+      );
+      return updated;
+    };
+    // ProductionStatus.COMPLETE
+    const updated = to_status === 'complete'
+      ? await withFinalCostReport(req.params.id, req.user.id, production.status, advance)
+      : await advance(db);
 
     // Trigger Percentometer when moving to Complete
     if (to_status === 'complete') {
@@ -276,7 +297,7 @@ const transitionStatus = async (req, res) => {
     return res.json({ message: `Status advanced to ${to_status}`, production: updated });
   } catch (err) {
     console.error('transitionStatus:', err);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 };
 
@@ -435,19 +456,21 @@ const archiveProduction = async (req, res) => {
     if (existing.status !== 'complete')
       return res.status(400).json({ error: 'Only complete productions can be archived' });
 
-    const { rows: [production] } = await db.query(
-      `UPDATE productions
-         SET status = 'archived', archived_at = NOW(), archived_by = $2
-       WHERE id = $1
-       RETURNING *`,
-      [req.params.id, req.user.id]
-    );
-
-    await db.query(
-      `INSERT INTO audit_log (user_id, production_id, action, metadata)
-       VALUES ($1, $2, 'archived', $3)`,
-      [req.user.id, req.params.id, JSON.stringify({ production_name: existing.name })]
-    );
+    const production = await withFinalCostReport(req.params.id, req.user.id, existing.status, async client => {
+      const { rows: [archived] } = await client.query(
+        `UPDATE productions
+           SET status = 'archived', archived_at = NOW(), archived_by = $2
+         WHERE id = $1
+         RETURNING *`,
+        [req.params.id, req.user.id]
+      );
+      await client.query(
+        `INSERT INTO audit_log (user_id, production_id, action, metadata)
+         VALUES ($1, $2, 'archived', $3)`,
+        [req.user.id, req.params.id, JSON.stringify({ production_name: existing.name })]
+      );
+      return archived;
+    });
 
     // Fire Percentometer review asynchronously — does not block response
     setImmediate(() => runPostProductionPercentometer(req.params.id));
@@ -455,7 +478,7 @@ const archiveProduction = async (req, res) => {
     res.json({ message: 'Production archived successfully', production });
   } catch (err) {
     console.error('archiveProduction:', err);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 };
 
@@ -476,11 +499,12 @@ const unarchiveProduction = async (req, res) => {
     const { rows: [production] } = await db.query(
       `UPDATE productions
          SET status = 'complete', archived_at = NULL
-       WHERE id = $1
+       WHERE id = $1 AND deleted_at IS NULL AND status = 'archived'
        RETURNING *`,
       [req.params.id]
     );
 
+    if (!production) return res.status(409).json({ error: 'Production changed or was deleted. Refresh and try again.' });
     await db.query(
       `INSERT INTO audit_log (user_id, production_id, action, metadata)
        VALUES ($1, $2, 'unarchived', $3)`,
@@ -872,6 +896,7 @@ const downloadDocument = async (req, res) => {
 };
 
 module.exports = {
+  deleteProduction,
   getAllProductions, createProduction, getProductionById, updateProduction,
   transitionStatus,
   getArchivePreview, archiveProduction, unarchiveProduction, getAuditLog,

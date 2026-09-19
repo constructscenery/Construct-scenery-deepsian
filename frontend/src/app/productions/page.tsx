@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
 import {
   Plus, Search, Calendar, CheckCircle2, Clock, AlertTriangle,
-  ChevronRight, X, Loader2, Archive, ArchiveRestore,
+  ChevronRight, X, Loader2, Archive, ArchiveRestore, Trash2,
 } from 'lucide-react';
 import { productionsApi, Production, ProductionStatus, ContractType } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -310,6 +310,19 @@ export default function ProductionsPage() {
   const [archiveLoading, setArchiveLoading]   = useState(false);
   const [archiveError, setArchiveError]       = useState('');
   const [unarchiveLoading, setUnarchiveLoading] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleDelete = async (production: Production) => {
+    if (!confirm(`Delete "${production.name}" from archived productions? Linked business records and files will be retained. Its Finance reports will remain unless deleted separately.`)) return;
+    setDeletingId(production.id);
+    setDeleteError('');
+    try {
+      await productionsApi.delete(production.id);
+      setArchived(current => current.filter(item => item.id !== production.id));
+    } catch (err) { setDeleteError(err instanceof Error ? err.message : 'Unable to delete production.'); }
+    finally { setDeletingId(null); }
+  };
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -586,7 +599,8 @@ export default function ProductionsPage() {
           </button>
 
           {showArchived && (
-            <div className="border-t border-slate-100">
+            <div className="overflow-x-auto border-t border-slate-100">
+              {deleteError && <p role="alert" className="m-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{deleteError}</p>}
               {archived.length === 0 ? (
                 <p className="px-5 py-8 text-center text-slate-400 text-sm">No archived productions.</p>
               ) : (
@@ -633,7 +647,7 @@ export default function ProductionsPage() {
                             {isCoordinator && (
                               <button
                                 onClick={e => handleUnarchive(e, p.id)}
-                                disabled={unarchiveLoading === p.id}
+                                disabled={unarchiveLoading === p.id || deletingId === p.id}
                                 className="flex items-center gap-1 px-2 py-1 text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors font-medium disabled:opacity-50"
                                 title="Unarchive production"
                               >
@@ -643,6 +657,15 @@ export default function ProductionsPage() {
                                 Unarchive
                               </button>
                             )}
+                            <button
+                              onClick={() => handleDelete(p)}
+                              disabled={deletingId !== null || unarchiveLoading === p.id}
+                              title={`Delete ${p.name}`}
+                              aria-label={`Delete ${p.name}`}
+                              className="rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              {deletingId === p.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                            </button>
                           </div>
                         </td>
                       </tr>

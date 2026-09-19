@@ -5,6 +5,16 @@ const { upload, documentUpload } = require('../Middleware/upload');
 const { requireRole } = require('../Middleware/requireRole');
 
 const ALL_ROLES = ['managing_director', 'construction_accountant', 'construction_coordinator'];
+const db = require('../config/db');
+
+router.param('id', async (req, res, next, id) => {
+	if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return res.status(400).json({ error: 'Invalid production ID' });
+	try {
+		const { rows } = await db.query('SELECT id FROM productions WHERE id = $1 AND deleted_at IS NULL', [id]);
+		if (!rows.length) return res.status(404).json({ error: 'Production not found' });
+		next();
+	} catch { res.status(500).json({ error: 'Unable to access production' }); }
+});
 
 // Static routes before /:id to avoid route conflict
 router.get('/audit-log',                ctrl.getAuditLog);
@@ -13,6 +23,7 @@ router.post('/handover-alerts',         requireRole(...ALL_ROLES), ctrl.sendHand
 // Productions
 router.get('/',                         ctrl.getAllProductions);
 router.post('/',                        requireRole(...ALL_ROLES), ctrl.createProduction);
+router.delete('/:id',                   requireRole(...ALL_ROLES), ctrl.deleteProduction);
 router.get('/:id',                      ctrl.getProductionById);
 router.put('/:id',                      requireRole(...ALL_ROLES), ctrl.updateProduction);
 router.post('/:id/transition',          requireRole(...ALL_ROLES), ctrl.transitionStatus);

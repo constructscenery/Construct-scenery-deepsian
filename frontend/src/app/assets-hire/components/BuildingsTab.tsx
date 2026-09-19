@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Building2, Plus, Pencil, Trash2, MapPin, Search, X, Calendar, Key, User, FileText, AlertCircle } from 'lucide-react';
 import { buildingsApi, Building } from '@/lib/api';
+import AttachedDocuments from '@/components/AttachedDocuments';
 
 const fmtDate = (d: string | null | undefined) =>
   d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -9,6 +10,7 @@ export default function BuildingsTab({ isCoordinatorOrMD }: { isCoordinatorOrMD:
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [documentBuilding, setDocumentBuilding] = useState<Building | null>(null);
 
   // Modal states
   const [showModal, setShowModal] = useState(false);
@@ -115,7 +117,7 @@ export default function BuildingsTab({ isCoordinatorOrMD }: { isCoordinatorOrMD:
       await loadData();
     } catch (err) {
       console.error('Error deleting building:', err);
-      alert('Failed to delete building.');
+      alert(err instanceof Error ? err.message : 'Failed to delete building.');
     } finally {
       setDeleting(false);
     }
@@ -162,19 +164,20 @@ export default function BuildingsTab({ isCoordinatorOrMD }: { isCoordinatorOrMD:
                 <th className="px-4 py-3.5">Lease Expiry</th>
                 <th className="px-4 py-3.5">Key Contact / Landlord</th>
                 <th className="px-4 py-3.5">Access Codes</th>
+                <th className="px-4 py-3.5">Documents</th>
                 {isCoordinatorOrMD && <th className="px-4 py-3.5 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
                     Loading buildings...
                   </td>
                 </tr>
               ) : filteredBuildings.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                  <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
                     <Building2 size={28} className="mx-auto mb-2 text-slate-300" />
                     <p className="font-semibold text-slate-700 text-sm">No buildings found</p>
                     {isCoordinatorOrMD && (
@@ -212,6 +215,7 @@ export default function BuildingsTab({ isCoordinatorOrMD }: { isCoordinatorOrMD:
                     <td className="px-4 py-3 font-mono text-slate-500">
                       {b.access_code || '—'}
                     </td>
+                    <td className="px-4 py-3"><button type="button" onClick={() => setDocumentBuilding(b)} className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800"><FileText size={15} /> Documents</button></td>
                     {isCoordinatorOrMD && (
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
@@ -241,6 +245,7 @@ export default function BuildingsTab({ isCoordinatorOrMD }: { isCoordinatorOrMD:
       </div>
 
       {/* Add / Edit Building Modal */}
+      {documentBuilding && <AttachedDocuments owner="buildings" ownerId={documentBuilding.id} name={documentBuilding.name} onClose={() => setDocumentBuilding(null)} />}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 my-8">

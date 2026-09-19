@@ -1,6 +1,8 @@
 const express = require('express');
 const router  = express.Router();
 const ctrl    = require('../Controllers/costReportsController');
+const historical = require('../Controllers/historicalCostReportsController');
+const { upload } = require('../Middleware/upload');
 const { requireRole } = require('../Middleware/requireRole');
 
 // Cost Report: full read/write = MD + Accountant. Coordinator has none
@@ -26,6 +28,10 @@ const exportRateLimit = (req, res, next) => {
 
 // ── Specific paths before /:productionId ──────────────────────────────────────
 router.get('/entries', ctrl.getCostReportEntries);
+router.get('/historical', historical.listReports);
+router.post('/historical/upload', upload.single('file'), historical.uploadReport);
+router.get('/historical/:reportId/view', historical.viewReport);
+router.delete('/historical/:reportId', historical.deleteReport);
 
 // ── Per-production report endpoints ──────────────────────────────────────────
 router.get('/:productionId/type1',                              ctrl.getType1Report);
