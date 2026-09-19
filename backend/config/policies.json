@@ -2,6 +2,10 @@
   "managing_director": {
     "description": "Full access across all modules. Sole role permitted to create and manage user accounts.",
     "routes": [
+      "GET /api/crew/freelancers",
+      "POST /api/crew/freelancers",
+      "PATCH /api/crew/freelancers/:id",
+      "DELETE /api/crew/freelancers/:id",
       "GET /api/safety-health",
       "GET /api/safety-health/:id/download",
       "POST /api/safety-health/upload",
@@ -205,6 +209,10 @@
   "construction_accountant": {
     "description": "Full access across all modules. Excludes user account creation and management.",
     "routes": [
+      "GET /api/crew/freelancers",
+      "POST /api/crew/freelancers",
+      "PATCH /api/crew/freelancers/:id",
+      "DELETE /api/crew/freelancers/:id",
       "GET /api/safety-health",
       "GET /api/safety-health/:id/download",
       "POST /api/safety-health/upload",
@@ -406,6 +414,10 @@
   "construction_coordinator": {
     "description": "Full access across all modules. Excludes user account creation and management.",
     "routes": [
+      "GET /api/crew/freelancers",
+      "POST /api/crew/freelancers",
+      "PATCH /api/crew/freelancers/:id",
+      "DELETE /api/crew/freelancers/:id",
       "GET /api/safety-health",
       "GET /api/safety-health/:id/download",
       "POST /api/safety-health/upload",

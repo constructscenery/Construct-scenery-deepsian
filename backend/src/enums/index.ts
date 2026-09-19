@@ -4,6 +4,24 @@ export enum UserRole {
   CONSTRUCTION_COORDINATOR = 'construction_coordinator',
 }
 
+export enum FreelancerCallPriority {
+  FIRST_CALL = 'first_call',
+  BACKUP = 'backup',
+  NEVER_CALL = 'never_call',
+}
+
+export enum SafetyHealthDocumentType {
+  RISK_TEMPLATE = 'risk_template',
+  RISK_ASSESSMENT = 'risk_assessment',
+  COSHH = 'coshh',
+  INSURANCE = 'insurance',
+}
+
+export enum SafetyHealthDocumentStatus {
+  ACTIVE = 'active',
+  PENDING_ALTERATION = 'pending_alteration',
+}
+
 export enum ProductionStatus {
   PRE_PRODUCTION = 'pre_production',
   ACTIVE_BUILD = 'active_build',

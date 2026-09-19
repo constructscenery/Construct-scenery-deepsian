@@ -54,6 +54,15 @@ const sendEmail = async ({ to, subject, html, text, from, replyTo, attachments }
 
 const templates = {
 
+  insuranceCertificateExpiryAlert: (document, daysRemaining) => {
+    const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
+    const timing = daysRemaining < 0 ? `expired ${Math.abs(daysRemaining)} days ago` : daysRemaining === 0 ? 'expires today' : `expires in ${daysRemaining} days`;
+    return {
+      subject: `Insurance Expiry Alert: ${document.file_name} (${timing})`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><h2>Health &amp; Safety</h2><h3>Insurance Expiry Notice</h3><p><strong>${escapeHtml(document.file_name)}</strong> ${timing}.</p><p>Expiry date: <strong>${escapeHtml(document.expiry_date)}</strong></p><p>Please renew the policy and update its certificate and expiry date in Health &amp; Safety.</p></div>`,
+    };
+  },
+
   /**
    * PO issued to supplier (triggered by POST /api/purchase-orders/:id/issue)
    */

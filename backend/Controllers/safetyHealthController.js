@@ -2,10 +2,23 @@ const crypto = require('crypto');
 const db = require('../config/db');
 const fileStorage = require('../services/fileStorage');
 
+// SafetyHealthDocumentType
 const TYPES = new Set(['risk_template', 'risk_assessment', 'coshh', 'insurance']);
 const selectColumns = `d.id, d.document_type, d.file_name, d.file_size, d.file_mime_type,
-  d.assessment_date, d.location, d.production_id, p.name AS production_name,
+  d.assessment_date, d.expiry_date, d.reminder_enabled, d.reminder_days, d.location, d.production_id, p.name AS production_name,
   d.tags, d.status, d.public_token, d.uploaded_by, d.uploaded_at`;
+
+const validateInsuranceSettings = (body) => {
+  if (body.expiry_date) {
+    const date = new Date(body.expiry_date);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(body.expiry_date) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== body.expiry_date) {
+      return 'Expiry date must be a valid YYYY-MM-DD date';
+    }
+  }
+  if (body.reminder_enabled !== undefined && ![true, false, 'true', 'false'].includes(body.reminder_enabled)) return 'Email alert must be true or false';
+  if (body.reminder_days !== undefined && (String(body.reminder_days).trim() === '' || !Number.isInteger(Number(body.reminder_days)) || Number(body.reminder_days) < 0 || Number(body.reminder_days) > 365)) return 'Reminder days must be an integer between 0 and 365';
+  return null;
+};
 
 const isPdf = (file) => file?.mimetype === 'application/pdf';
 const isWord = (file) => file?.mimetype === 'application/msword' || file?.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -78,7 +91,7 @@ const listPublicDocuments = async (req, res) => {
     }
     const { rows } = await db.query(`
       SELECT d.id, d.document_type, d.file_name, d.file_size, d.file_mime_type,
-             d.assessment_date, d.location, d.tags, d.public_token,
+             d.assessment_date, d.expiry_date, d.location, d.tags, d.public_token,
              COALESCE((SELECT json_agg(json_build_object('id', p2.id, 'name', p2.name) ORDER BY p2.name)
                        FROM safety_health_document_productions link
                        JOIN productions p2 ON p2.id = link.production_id
@@ -97,16 +110,18 @@ const listPublicDocuments = async (req, res) => {
 
 const uploadDocument = async (req, res) => {
   const type = req.body.document_type;
-  if (!TYPES.has(type)) return res.status(400).json({ error: 'Invalid Safety & Health document type' });
+  if (!TYPES.has(type)) return res.status(400).json({ error: 'Invalid Health & Safety document type' });
   const fileError = validateDocumentFile(type, req.file);
   if (fileError) return res.status(400).json({ error: fileError });
+  const settingsError = validateInsuranceSettings(req.body);
+  if (settingsError) return res.status(400).json({ error: settingsError });
   try {
     const stored = await fileStorage.store(req.file);
     const tags = String(req.body.tags || '').split(',').map(tag => tag.trim()).filter(Boolean);
     const token = type === 'coshh' || type === 'insurance' ? crypto.randomBytes(24).toString('hex') : null;
     const status = req.body.status === 'pending_alteration' ? 'pending_alteration' : 'active';
     const productionIds = await validateProductionIds(parseProductionIds(req.body.production_ids || req.body.production_id));
-    const { rows: [row] } = await db.query(`INSERT INTO safety_health_documents (document_type, file_url, file_key, file_name, file_size, file_mime_type, assessment_date, location, production_id, tags, status, public_token, uploaded_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id, document_type, file_name, file_size, file_mime_type, assessment_date, location, production_id, tags, status, public_token, uploaded_by, uploaded_at`, [type, stored.url, stored.key, req.file.originalname, req.file.size, req.file.mimetype, req.body.assessment_date || null, req.body.location || null, productionIds[0] || null, tags, status, token, req.user.id]);
+    const { rows: [row] } = await db.query(`INSERT INTO safety_health_documents (document_type, file_url, file_key, file_name, file_size, file_mime_type, assessment_date, location, production_id, tags, status, public_token, uploaded_by, expiry_date, reminder_enabled, reminder_days) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id, document_type, file_name, file_size, file_mime_type, assessment_date, location, production_id, tags, status, public_token, uploaded_by, uploaded_at, expiry_date, reminder_enabled, reminder_days`, [type, stored.url, stored.key, req.file.originalname, req.file.size, req.file.mimetype, req.body.assessment_date || null, req.body.location || null, productionIds[0] || null, tags, status, token, req.user.id, type === 'insurance' ? req.body.expiry_date || null : null, ![false, 'false'].includes(req.body.reminder_enabled), Number(req.body.reminder_days ?? 30)]);
     await syncProductionLinks(row.id, productionIds);
     res.status(201).json(row);
   } catch (err) { console.error('uploadSafetyHealth:', err); res.status(err.status || 500).json({ error: err.message }); }
@@ -116,6 +131,8 @@ const replaceDocument = async (req, res) => {
   try {
     const { rows: [existing] } = await db.query('SELECT * FROM safety_health_documents WHERE id = $1', [req.params.id]);
     if (!existing) return res.status(404).json({ error: 'Document not found' });
+    const settingsError = validateInsuranceSettings(req.body);
+    if (settingsError) return res.status(400).json({ error: settingsError });
     if (req.file) {
       const fileError = validateDocumentFile(existing.document_type, req.file);
       if (fileError) return res.status(400).json({ error: fileError });
@@ -138,6 +155,11 @@ const replaceDocument = async (req, res) => {
         addUpdate('file_mime_type', req.file.mimetype);
       }
       if (Object.prototype.hasOwnProperty.call(req.body, 'assessment_date')) addUpdate('assessment_date', req.body.assessment_date || null);
+      if (existing.document_type === 'insurance') {
+        if (Object.prototype.hasOwnProperty.call(req.body, 'expiry_date')) addUpdate('expiry_date', req.body.expiry_date || null);
+        if (Object.prototype.hasOwnProperty.call(req.body, 'reminder_enabled')) addUpdate('reminder_enabled', ![false, 'false'].includes(req.body.reminder_enabled));
+        if (Object.prototype.hasOwnProperty.call(req.body, 'reminder_days')) addUpdate('reminder_days', Number(req.body.reminder_days));
+      }
       if (Object.prototype.hasOwnProperty.call(req.body, 'location')) addUpdate('location', req.body.location?.trim() || null);
       if (Object.prototype.hasOwnProperty.call(req.body, 'tags')) addUpdate('tags', String(req.body.tags).split(',').map(tag => tag.trim()).filter(Boolean));
       if (Object.prototype.hasOwnProperty.call(req.body, 'status')) addUpdate('status', req.body.status || 'active');
@@ -146,7 +168,7 @@ const replaceDocument = async (req, res) => {
         UPDATE safety_health_documents
         SET ${updates.join(', ')}
         WHERE id = $${values.length}
-        RETURNING id, document_type, file_name, file_size, file_mime_type, assessment_date, location, production_id, tags, status, public_token, uploaded_by, uploaded_at
+        RETURNING id, document_type, file_name, file_size, file_mime_type, assessment_date, location, production_id, tags, status, public_token, uploaded_by, uploaded_at, expiry_date, reminder_enabled, reminder_days
       `, values);
       if (productionIds) await syncProductionLinks(req.params.id, productionIds);
       if (stored) await fileStorage.deleteFile(existing.file_key || keyFromUrl(existing.file_url));

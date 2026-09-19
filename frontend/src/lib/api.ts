@@ -1481,6 +1481,30 @@ export const itResourcesApi = {
 
 export default request;
 
+export type FreelancerCallPriority = 'first_call' | 'backup' | 'never_call';
+
+export type FreelancerContact = {
+  id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  skills: string | null;
+  notes: string | null;
+  is_favourite: boolean;
+  call_priority: FreelancerCallPriority;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FreelancerInput = Omit<FreelancerContact, 'id' | 'created_at' | 'updated_at'>;
+
+export const freelancersApi = {
+  list: () => request<FreelancerContact[]>('/api/crew/freelancers'),
+  create: (body: FreelancerInput) => request<FreelancerContact>('/api/crew/freelancers', { method: 'POST', body }),
+  update: (id: string, body: Partial<FreelancerInput>) => request<FreelancerContact>(`/api/crew/freelancers/${id}`, { method: 'PATCH', body }),
+  delete: (id: string) => request<void>(`/api/crew/freelancers/${id}`, { method: 'DELETE' }),
+};
+
 export type SafetyHealthDocumentType = 'risk_template' | 'risk_assessment' | 'coshh' | 'insurance';
 export type SafetyHealthDocumentStatus = 'active' | 'pending_alteration';
 export type SafetyHealthDocument = {
@@ -1490,6 +1514,9 @@ export type SafetyHealthDocument = {
   file_size: number | null;
   file_mime_type: string | null;
   assessment_date: string | null;
+  expiry_date: string | null;
+  reminder_enabled: boolean;
+  reminder_days: number;
   location: string | null;
   production_id: string | null;
   production_name?: string | null;

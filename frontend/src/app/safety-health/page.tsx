@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import TopBar from '@/components/TopBar';
+import PublicQr from '@/components/PublicQr';
 import { useAuth } from '@/contexts/AuthContext';
 import { productionsApi, safetyHealthApi, type Production, type SafetyHealthDocument, type SafetyHealthDocumentType } from '@/lib/api';
 import { Check, Copy, Download, ExternalLink, FileText, HeartPulse, Pencil, QrCode, Search, Upload, X } from 'lucide-react';
-import QRCode from 'qrcode';
 
 const tabs: Array<{ type: SafetyHealthDocumentType; label: string; description: string }> = [
   { type: 'risk_template', label: '6.1 Risk Assessment Template', description: 'The standard Word template available for download and completion.' },
@@ -14,18 +14,13 @@ const tabs: Array<{ type: SafetyHealthDocumentType; label: string; description: 
   { type: 'insurance', label: '6.4 Insurance Certificates', description: 'Tagged certificates with public QR access.' },
 ];
 
-function PublicQr({ token, filename = 'certificate-qr.png', size = 96 }: { token: string; filename?: string; size?: number }) {
-  const [src, setSrc] = useState('');
-  useEffect(() => {
-    QRCode.toDataURL(`${window.location.origin}/api/public/safety-health/${token}`, { width: size, margin: 1 })
-      .then(setSrc)
-      .catch(() => setSrc(''));
-  }, [token]);
-  return src ? (
-    <a href={src} download={filename} title="Download shareable QR code">
-      <img src={src} alt="Public certificate QR code" style={{ width: size, height: size }} />
-    </a>
-  ) : null;
+function InsuranceStatus({ expiryDate }: { expiryDate: string | null }) {
+  if (!expiryDate) return <span className="text-xs text-slate-500">N/A</span>;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((new Date(`${expiryDate}T00:00:00`).getTime() - today.getTime()) / 86400000);
+  const label = days < 0 ? 'Non-compliant' : days <= 30 ? 'Due soon' : 'Compliant';
+  return <span className={`inline-flex whitespace-nowrap rounded px-2 py-1 text-xs ${days < 0 ? 'bg-red-50 text-red-700' : days <= 30 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{label}</span>;
 }
 
 export default function SafetyHealthPage() {
@@ -40,12 +35,15 @@ export default function SafetyHealthPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [date, setDate] = useState('');
+  const [expiryDate, setExpiryDate] = useState('');
+  const [reminderEnabled, setReminderEnabled] = useState(true);
+  const [reminderDays, setReminderDays] = useState('30');
   const [location, setLocation] = useState('');
   const [productionIds, setProductionIds] = useState<string[]>([]);
   const [tags, setTags] = useState('');
   const [saving, setSaving] = useState(false);
   const [editingDocument, setEditingDocument] = useState<SafetyHealthDocument | null>(null);
-  const [qrDocument, setQrDocument] = useState<SafetyHealthDocument | null>(null);
+  const [qrTarget, setQrTarget] = useState<{ url: string; label: string; filename: string } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -71,14 +69,23 @@ export default function SafetyHealthPage() {
 
   function openUpload(documentToReplace: SafetyHealthDocument | null = null) {
     setEditingDocument(documentToReplace);
+    setExpiryDate(documentToReplace?.expiry_date || '');
+    setReminderEnabled(documentToReplace?.reminder_enabled ?? true);
+    setReminderDays(String(documentToReplace?.reminder_days ?? 30));
     setFile(null); setDate(documentToReplace?.assessment_date || ''); setLocation(documentToReplace?.location || ''); setProductionIds(documentToReplace?.production_ids || (documentToReplace?.production_id ? [documentToReplace.production_id] : [])); setTags(documentToReplace?.tags.join(', ') || ''); setError(''); setShowUpload(true);
   }
 
   async function handleUpload() {
     if (!editingDocument && !file) { setError('Choose a document first.'); return; }
+    if (activeType === 'insurance' && (reminderDays.trim() === '' || !Number.isInteger(Number(reminderDays)) || Number(reminderDays) < 0 || Number(reminderDays) > 365)) { setError('Reminder days must be an integer between 0 and 365.'); return; }
     setSaving(true); setError('');
     try {
       const data = new FormData();
+      if (activeType === 'insurance') {
+        data.append('expiry_date', expiryDate);
+        data.append('reminder_enabled', String(reminderEnabled));
+        data.append('reminder_days', reminderDays);
+      }
       if (file) data.append('file', file); data.append('document_type', activeType); data.append('status', activeType === 'coshh' ? coshhStatus : 'active'); data.append('assessment_date', date); data.append('location', location); data.append('production_ids', JSON.stringify(productionIds)); data.append('tags', tags);
       if (editingDocument) await safetyHealthApi.replace(editingDocument.id, data);
       else await safetyHealthApi.upload(data);
@@ -103,13 +110,15 @@ export default function SafetyHealthPage() {
   const publicDirectoryUrl = typeof window !== 'undefined' ? `${window.location.origin}/public/safety-health` : '/public/safety-health';
 
   async function copyPublicDirectoryLink() {
-    await navigator.clipboard.writeText(publicDirectoryUrl);
-    setLinkCopied(true);
-    window.setTimeout(() => setLinkCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(publicDirectoryUrl);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2000);
+    } catch { setError('Unable to copy the public link.'); }
   }
 
   return <>
-    <TopBar title="Safety & Health" subtitle="Controlled safety documents and certificates" />
+    <TopBar title="Health & Safety" subtitle="Controlled safety documents and certificates" />
     <main className="flex-1 p-4 md:p-6 space-y-4">
       <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-200">
         {tabs.map(tab => <button key={tab.type} onClick={() => setActiveType(tab.type)} className={`whitespace-nowrap px-4 py-3 text-sm font-normal border-b-2 ${activeType === tab.type ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600'}`}>{tab.label}</button>)}
@@ -121,10 +130,13 @@ export default function SafetyHealthPage() {
             <p className="text-xs text-blue-700 mt-0.5">Share this link with users who need to view current COSHH and insurance certificates. No login is required.</p>
             <p className="text-xs text-blue-800 mt-2 break-all">{publicDirectoryUrl}</p>
           </div>
+          <div className="flex flex-wrap gap-2 flex-shrink-0">
+          <button onClick={() => setQrTarget({ url: publicDirectoryUrl, label: 'COSHH & Insurance Certificate Directory', filename: 'health-and-safety-directory-qr.png' })} className="flex items-center justify-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"><QrCode size={14} /> View QR</button>
           <button onClick={copyPublicDirectoryLink} className="flex items-center justify-center gap-2 flex-shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
             {linkCopied ? <Check size={14} /> : <Copy size={14} />}
             {linkCopied ? 'Copied' : 'Copy link'}
           </button>
+          </div>
         </div>
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div className="flex items-start gap-3"><div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><HeartPulse size={18} /></div><div><h2 className="text-slate-800 font-semibold">{currentTab.label}</h2><p className="text-slate-500 text-sm mt-1">{currentTab.description}</p></div></div>
@@ -137,12 +149,17 @@ export default function SafetyHealthPage() {
           {error && <p className="mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-sm min-w-[900px]">
-              <thead><tr className="bg-slate-50 text-left">{['Document', 'Date', 'Location', 'Production', 'Tags', 'Access', 'Actions'].map(header => <th key={header} className="px-3 py-3 text-xs font-semibold text-slate-500">{header}</th>)}</tr></thead>
+              <thead><tr className="bg-slate-50 text-left">{['Document', 'Date', ...(activeType === 'insurance' ? ['Expiry Date', 'Compliance', 'Email Alert'] : []), 'Location', 'Production', 'Tags', 'Access', 'Actions'].map(header => <th key={header} className="px-3 py-3 text-xs font-semibold text-slate-500">{header}</th>)}</tr></thead>
               <tbody className="divide-y divide-slate-100">
-                {loading ? <tr><td colSpan={7} className="px-3 py-10 text-center text-slate-400">Loading documents…</td></tr> : filtered.length === 0 ? <tr><td colSpan={7} className="px-3 py-10 text-center text-slate-400">No documents found.</td></tr> : filtered.map(doc => (
+                {loading ? <tr><td colSpan={activeType === 'insurance' ? 10 : 7} className="px-3 py-10 text-center text-slate-400">Loading documents…</td></tr> : filtered.length === 0 ? <tr><td colSpan={activeType === 'insurance' ? 10 : 7} className="px-3 py-10 text-center text-slate-400">No documents found.</td></tr> : filtered.map(doc => (
                   <tr key={doc.id}>
                     <td className="px-3 py-3 text-slate-800 font-medium">{doc.file_name}</td>
                     <td className="px-3 py-3 text-slate-600">{doc.assessment_date || '—'}</td>
+                    {activeType === 'insurance' && <>
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.expiry_date || 'Not Set'}</td>
+                      <td className="px-3 py-3"><InsuranceStatus expiryDate={doc.expiry_date} /></td>
+                      <td className="px-3 py-3 text-xs text-slate-600">{!doc.expiry_date ? 'N/A' : doc.reminder_enabled ? `${doc.reminder_days} days before` : 'Off'}</td>
+                    </>}
                     <td className="px-3 py-3 text-slate-600">{doc.location || '—'}</td>
                     <td className="px-3 py-3 text-slate-600">{doc.production_name || '—'}</td>
                     <td className="px-3 py-3"><div className="flex flex-wrap gap-1">{doc.tags.map(tag => <span key={tag} className="text-xs bg-slate-100 text-slate-600 rounded px-2 py-1">{tag}</span>)}</div></td>
@@ -151,7 +168,7 @@ export default function SafetyHealthPage() {
                       <button onClick={() => safetyHealthApi.download(doc.id, doc.file_name)} className="flex items-center gap-1 text-blue-600 text-xs"><Download size={13} /> Download</button>
                       <button onClick={() => openUpload(doc)} className="flex items-center gap-1 text-amber-700 text-xs mt-1"><Pencil size={13} /> Edit</button>
                       <button onClick={() => handleDelete(doc)} className="flex items-center gap-1 text-red-600 text-xs mt-1"><X size={13} /> Delete</button>
-                      {doc.public_token && <><button onClick={() => setQrDocument(doc)} className="flex items-center gap-1 text-emerald-700 text-xs mt-1"><QrCode size={13} /> View QR</button><a href={safetyHealthApi.publicUrl(doc.public_token)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-emerald-700 text-xs mt-1"><ExternalLink size={13} /> Public link</a></>}
+                      {doc.public_token && <><button onClick={() => setQrTarget({ url: safetyHealthApi.publicUrl(doc.public_token!), label: doc.file_name, filename: `${doc.file_name}-qr.png` })} className="flex items-center gap-1 text-emerald-700 text-xs mt-1"><QrCode size={13} /> View QR</button><a href={safetyHealthApi.publicUrl(doc.public_token)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-emerald-700 text-xs mt-1"><ExternalLink size={13} /> Public link</a></>}
                     </td>
                   </tr>
                 ))}
@@ -163,11 +180,11 @@ export default function SafetyHealthPage() {
       {showUpload && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => !saving && setShowUpload(false)} />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg p-6 space-y-5">
+          <div role="dialog" aria-modal="true" aria-label="Insurance and safety document" className="relative bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90dvh] overflow-y-auto p-6 space-y-5">
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="font-semibold text-slate-800">{editingDocument ? `Edit ${currentTab.label}` : `Upload ${currentTab.label}`}</h2>
-                <p className="text-xs text-slate-500 mt-1">Choose a file from your computer, then upload it to the Safety & Health document store.</p>
+                <p className="text-xs text-slate-500 mt-1">Choose a file from your computer, then upload it to the Health & Safety document store.</p>
               </div>
               <button onClick={() => setShowUpload(false)} className="p-1 text-slate-400 hover:text-slate-700" aria-label="Close upload modal"><X size={18} /></button>
             </div>
@@ -193,6 +210,12 @@ export default function SafetyHealthPage() {
             </label>}
 
             {(activeType !== 'risk_template' || editingDocument) && <>
+              {activeType === 'insurance' && <div className="space-y-3">
+                <label className="block text-xs font-medium text-slate-600">Expiry date<input type="date" value={expiryDate} onChange={event => setExpiryDate(event.target.value)} className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" /></label>
+                {expiryDate && <button type="button" onClick={() => setExpiryDate('')} className="text-xs text-slate-500 hover:text-red-600">Clear expiry date</button>}
+                <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={reminderEnabled} onChange={event => setReminderEnabled(event.target.checked)} /> Email expiry alert</label>
+                {reminderEnabled && <label className="block text-xs font-medium text-slate-600">Days before expiry<input type="number" min={0} max={365} step={1} value={reminderDays} onChange={event => setReminderDays(event.target.value)} className="mt-1 w-full border rounded-lg px-3 py-2 text-sm" /></label>}
+              </div>}
               <div className="flex items-center gap-2"><input type="date" value={date} onChange={e => setDate(e.target.value)} className="flex-1 border rounded-lg px-3 py-2 text-sm" />{date && <button type="button" onClick={() => setDate('')} className="text-xs text-slate-500 hover:text-red-600 whitespace-nowrap">Clear date</button>}</div>
               <div className="flex items-center gap-2"><input value={location} onChange={e => setLocation(e.target.value)} placeholder="Location" className="flex-1 border rounded-lg px-3 py-2 text-sm" />{location && <button type="button" onClick={() => setLocation('')} className="text-xs text-slate-500 hover:text-red-600 whitespace-nowrap">Clear location</button>}</div>
               <div><div className="flex items-center justify-between mb-1"><label className="text-xs font-medium text-slate-600">Productions</label>{productionIds.length > 0 && <button type="button" onClick={() => setProductionIds([])} className="text-xs text-slate-500 hover:text-red-600">Clear selected productions</button>}</div><select multiple value={productionIds} onChange={e => setProductionIds(Array.from(e.target.selectedOptions, option => option.value))} className="w-full border rounded-lg px-3 py-2 text-sm min-h-24"><option value="" disabled>Select one or more productions</option>{productions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
@@ -203,14 +226,13 @@ export default function SafetyHealthPage() {
           </div>
         </div>
       )}
-      {qrDocument?.public_token && (
+      {qrTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setQrDocument(null)} />
-          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center space-y-4">
-            <div className="flex items-start justify-between text-left"><div><h2 className="font-semibold text-slate-800">Shareable QR Code</h2><p className="text-xs text-slate-500 mt-1 truncate max-w-64">{qrDocument.file_name}</p></div><button onClick={() => setQrDocument(null)} className="p-1 text-slate-400" aria-label="Close QR modal"><X size={18} /></button></div>
-            <div className="flex justify-center"><PublicQr token={qrDocument.public_token} filename={`${qrDocument.file_name}-qr.png`} size={280} /></div>
-            <p className="text-xs text-slate-500">Scan this code to open the public certificate PDF.</p>
-            <a href={safetyHealthApi.publicUrl(qrDocument.public_token)} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline">Open public link</a>
+          <div className="absolute inset-0 bg-black/40" onClick={() => setQrTarget(null)} />
+          <div role="dialog" aria-modal="true" aria-label="Shareable QR Code" className="relative bg-white rounded-lg shadow-xl w-full max-w-sm max-h-[90dvh] overflow-y-auto p-6 text-center space-y-4">
+            <div className="flex items-start justify-between gap-2 text-left"><div className="min-w-0"><h2 className="font-semibold text-slate-800">Shareable QR Code</h2><p className="text-xs text-slate-500 mt-1 break-words">{qrTarget.label}</p></div><button onClick={() => setQrTarget(null)} className="p-1 text-slate-400" aria-label="Close QR modal"><X size={18} /></button></div>
+            <PublicQr key={qrTarget.url} url={qrTarget.url} filename={qrTarget.filename} />
+            <a href={qrTarget.url} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline">Open public link</a>
           </div>
         </div>
       )}

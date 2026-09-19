@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
+import FreelancersTab from './FreelancersTab';
 import {
   Plus, Search, ChevronRight, X, Loader2, Users, UserCheck, Briefcase, Building2, Trash2,
   Share2, Copy, Check, Send, Mail, Inbox, AlertCircle, Eye, ShieldCheck, Sparkles, CheckCircle2,
@@ -20,12 +21,13 @@ const AVATAR_COLORS = [
   'bg-green-500', 'bg-indigo-500', 'bg-rose-500', 'bg-cyan-500', 'bg-amber-500',
 ];
 
-type FilterTab = 'all' | 'paye' | 'self_employed' | 'active' | 'inactive' | 'requests';
+type FilterTab = 'all' | 'paye' | 'self_employed' | 'active' | 'inactive' | 'requests' | 'freelancers';
 
 const FILTER_TABS: { value: FilterTab; label: string }[] = [
   { value: 'all',           label: 'All' },
   { value: 'paye',          label: 'PAYE' },
   { value: 'self_employed', label: 'Self-Employed' },
+  { value: 'freelancers',   label: 'Freelancers' },
   { value: 'active',        label: 'Active' },
   { value: 'inactive',      label: 'Inactive' },
   { value: 'requests',      label: 'Registration Requests' },
@@ -1008,7 +1010,7 @@ export default function CrewPage() {
   }, [activeTab, search, productionFilter, tradeFilter, rankFilter]);
 
   useEffect(() => {
-    if (activeTab !== 'requests') {
+    if (activeTab !== 'requests' && activeTab !== 'freelancers') {
       load();
     }
   }, [load, activeTab]);
@@ -1156,7 +1158,7 @@ export default function CrewPage() {
                   </button>
                 ))}
               </div>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+              {activeTab !== 'freelancers' && <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                 <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 w-full sm:w-52">
                   <Search size={13} className="text-slate-400 flex-shrink-0" />
                   <input
@@ -1189,11 +1191,11 @@ export default function CrewPage() {
                     </button>
                   </div>
                 )}
-              </div>
+              </div>}
             </div>
 
             {/* Secondary filter row */}
-            {activeTab === 'requests' ? (
+            {activeTab === 'freelancers' ? null : activeTab === 'requests' ? (
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-slate-500 font-medium">Status Filter:</span>
                 {(['all', 'pending', 'approved', 'rejected'] as const).map(st => (
@@ -1249,12 +1251,12 @@ export default function CrewPage() {
             )}
           </div>
 
-          {error && (
+          {error && activeTab !== 'freelancers' && (
             <div className="px-5 py-4 text-red-600 text-sm bg-red-50 border-b border-red-100">{error}</div>
           )}
 
           {/* Table content depending on activeTab */}
-          {activeTab === 'requests' ? (
+          {activeTab === 'freelancers' ? <FreelancersTab /> : activeTab === 'requests' ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[780px]">
                 <thead>
@@ -1483,7 +1485,7 @@ export default function CrewPage() {
             </div>
           )}
 
-          <div className="px-5 py-3 border-t border-slate-100 bg-slate-50">
+          {activeTab !== 'freelancers' && <div className="px-5 py-3 border-t border-slate-100 bg-slate-50">
             <span className="text-slate-400 text-xs">
               {activeTab === 'requests'
                 ? loadingRequests
@@ -1493,7 +1495,7 @@ export default function CrewPage() {
                 ? 'Loading…'
                 : `${crew.length} crew member${crew.length !== 1 ? 's' : ''} found`}
             </span>
-          </div>
+          </div>}
         </div>
       </main>
     </>

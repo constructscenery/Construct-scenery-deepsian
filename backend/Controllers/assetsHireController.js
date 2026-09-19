@@ -92,7 +92,7 @@ const getVehicles = async (req, res) => {
       const tax = calculateDeadline(v.tax_renewal_date);
 
       // Overall vehicle status: overdue > due_soon > compliant
-      let overallStatus = 'compliant';
+      let overallStatus = insurance.status === 'none' ? 'none' : 'compliant';
       if (mot.status === 'overdue' || insurance.status === 'overdue' || tax.status === 'overdue') {
         overallStatus = 'overdue';
       } else if (mot.status === 'due_soon' || insurance.status === 'due_soon' || tax.status === 'due_soon') {

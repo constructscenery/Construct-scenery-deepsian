@@ -969,6 +969,9 @@ function ComplianceBadge({
 // ─── Sub-Component: Overall Vehicle Status Badge ──────────────────────────────
 
 function OverallStatusBadge({ status }: { status?: string }) {
+  if (!status || status === 'none') {
+    return <span className="inline-flex whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">N/A</span>;
+  }
   if (status === 'overdue') {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-normal bg-rose-50 text-rose-700 border border-rose-200">

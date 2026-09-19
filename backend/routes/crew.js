@@ -3,12 +3,18 @@ const router     = express.Router();
 const multer     = require('multer');
 const ctrl         = require('../Controllers/crewController');
 const requestsCtrl = require('../Controllers/crewRequestsController');
+const freelancersCtrl = require('../Controllers/freelancersController');
 const { upload }   = require('../Middleware/upload');
 const { requireRole } = require('../Middleware/requireRole');
 
 const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 const ALL_ROLES = ['managing_director', 'construction_accountant', 'construction_coordinator'];
+
+router.get('/freelancers', requireRole(...ALL_ROLES), freelancersCtrl.listFreelancers);
+router.post('/freelancers', requireRole(...ALL_ROLES), freelancersCtrl.createFreelancer);
+router.patch('/freelancers/:id', requireRole(...ALL_ROLES), freelancersCtrl.updateFreelancer);
+router.delete('/freelancers/:id', requireRole(...ALL_ROLES), freelancersCtrl.deleteFreelancer);
 
 // ── Registration Requests & Invites (specific paths before /:id) ──────────────
 router.post('/send-invite',            requireRole(...ALL_ROLES), requestsCtrl.sendInvite);

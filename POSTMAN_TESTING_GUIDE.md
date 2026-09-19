@@ -29,6 +29,85 @@ npm run migration:show
 
 ## STEP 1 — POSTMAN ENVIRONMENT SETUP
 
+### Crew Database: Freelancers
+
+Freelancers are a separate contact directory, not payroll crew records. All three
+authenticated roles have full access to the following routes:
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/crew/freelancers` | List contacts |
+| POST | `/api/crew/freelancers` | Create a contact |
+| PATCH | `/api/crew/freelancers/:id` | Update only supplied fields |
+| DELETE | `/api/crew/freelancers/:id` | Permanently delete a contact (204) |
+
+Example JSON body:
+
+```json
+{
+  "full_name": "Alex Example",
+  "email": "alex@example.test",
+  "phone": "+44 7700 900123",
+  "skills": "Carpentry, scenic construction",
+  "notes": "Available next week",
+  "is_favourite": false,
+  "call_priority": "backup"
+}
+```
+
+Only `full_name` is required. Optional text fields may be cleared using `null`
+or an empty string. Phone and notes are AES-256-GCM encrypted at rest and
+decrypted in authenticated responses. Do not put private addresses or phone
+numbers in the unencrypted name, email, or skills fields.
+
+Call priorities: `first_call` (green), `backup` (amber, default), `never_call`
+(red). Never call keeps the contact but disables the directory's call and email
+actions. Changing back to First call or Backup re-enables them when the relevant
+contact detail is present. Favourite is an independent boolean, default `false`.
+
+List/create/update responses contain the contact fields plus `id`, `created_at`,
+and `updated_at`. Invalid fields or IDs return 400; missing update/delete targets
+return 404. Invalid priorities and non-boolean favourites are rejected.
+The UI provides search (including decrypted phone/notes), favourite filtering,
+priority filtering, editing, and confirmed deletion. Contacts do not appear in
+timesheets or payroll and do not send emails automatically.
+
+### Health & Safety: Insurance Expiry and Public Access
+
+All three authenticated roles can upload and edit insurance certificates.
+The existing `/api/safety-health` URLs are unchanged.
+
+- `POST {{baseUrl}}/api/safety-health/upload`: multipart form-data with `document_type=insurance` and a PDF `file`.
+- `PUT {{baseUrl}}/api/safety-health/:id`: multipart form-data; the file is optional when editing expiry or alert settings.
+
+| Field | Value | Default |
+|---|---|---|
+| `expiry_date` | Valid `YYYY-MM-DD`; empty string clears the date | `null` |
+| `reminder_enabled` | `true` or `false` | `true` |
+| `reminder_days` | Integer from 0 to 365 | `30` |
+
+Authenticated list, upload, and edit responses include these three fields.
+Public certificate listings also include `expiry_date`, but not email alert settings.
+Invalid dates, booleans, or reminder intervals return HTTP 400.
+
+Insurance with no expiry shows N/A; expired insurance shows Non-compliant;
+insurance expiring within 30 days shows Due soon, otherwise Compliant.
+Vehicle overall status is `none` (displayed as N/A) when insurance renewal is
+unset, unless a configured MOT or tax deadline requires an overdue/due-soon warning.
+
+The existing asset reminder job runs daily at 07:30 UTC and also checks active
+insurance certificates. It emails active managing directors and construction
+coordinators once per certificate expiry date when inside the chosen lead time
+(including overdue dates). Disabled alerts and missing dates are skipped.
+Changing the expiry date allows a new reminder for that renewal. The backend
+must remain running and AWS SES must be configured for delivery.
+
+Public directory: `/public/safety-health` on the frontend, without authentication.
+Public API: `GET {{baseUrl}}/api/public/safety-health`.
+Public PDF: `GET {{baseUrl}}/api/public/safety-health/:token`.
+Directory and certificate QR dialogs offer a 1024px PNG download, Copy link,
+and Share (native file/link sharing where supported, copy-link fallback otherwise).
+
 ### Create a new Environment called `CS HQ Local`
 
 | Variable | Initial Value | Description |

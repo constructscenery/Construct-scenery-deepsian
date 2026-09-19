@@ -149,6 +149,12 @@ const runAssetReminders = async () => {
     await processReminder('it_resource', it, 'renewal_date', 'renewal', templates.itRenewalAlert);
   }
 
+  // SafetyHealthDocumentType.INSURANCE, SafetyHealthDocumentStatus.ACTIVE
+  const { rows: insuranceDocuments } = await db.query("SELECT * FROM safety_health_documents WHERE document_type = 'insurance' AND status = 'active' AND expiry_date IS NOT NULL AND reminder_enabled = true");
+  for (const document of insuranceDocuments) {
+    await processReminder('insurance', document, 'expiry_date', 'renewal', templates.insuranceCertificateExpiryAlert);
+  }
+
   console.log(`[REMINDERS] Asset reminders scan complete. Sent: ${sentCount}`);
 };
 
