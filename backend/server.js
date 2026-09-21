@@ -125,6 +125,9 @@ app.use('/api/assets-hire',         require('./routes/assetsHire'));
 app.use('/api/buildings',           require('./routes/buildings'));
 app.use('/api/assets-plant',        require('./routes/assetsPlant'));
 app.use('/api/it-resources',        require('./routes/itResources'));
+app.use('/api/ladders',             require('./routes/ladders'));
+app.use('/api/audit-log',           require('./routes/auditLog'));
+app.use('/api/data-sync',           require('./routes/dataSync'));
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
@@ -255,6 +258,68 @@ async function start() {
     console.error('⚠️  Schema guard failed (module columns):', err.message);
   }
 
+  try {
+    await db.query(`
+      ALTER TABLE suppliers
+        ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL;
+
+      ALTER TABLE purchase_orders
+        ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL;
+
+      ALTER TABLE crew_members
+        ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL;
+    `);
+    console.log('✅ Schema guard: soft-delete/archive columns ensured for suppliers, purchase_orders, crew_members');
+  } catch (err) {
+    console.error('⚠️  Schema guard failed (soft-delete columns):', err.message);
+  }
+
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS ladders (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        barcode VARCHAR(100) NOT NULL,
+        ladder_type VARCHAR(100) DEFAULT 'Step Ladder',
+        inspection_date DATE NOT NULL,
+        condition VARCHAR(100) NOT NULL DEFAULT 'Good',
+        next_inspection_due DATE NOT NULL,
+        location VARCHAR(255),
+        inspector_name VARCHAR(255),
+        reminder_days INTEGER DEFAULT 14,
+        notes TEXT,
+        is_archived BOOLEAN NOT NULL DEFAULT false,
+        deleted_at TIMESTAMP NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `);
+    console.log('✅ Schema guard: ladders table ensured');
+  } catch (err) {
+    console.error('⚠️  Schema guard failed (ladders table):', err.message);
+  }
+
+  try {
+    await db.query(`
+      ALTER TABLE audit_log ALTER COLUMN user_id DROP NOT NULL;
+      ALTER TABLE audit_log 
+        ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'general',
+        ADD COLUMN IF NOT EXISTS entity_type VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS entity_id TEXT,
+        ADD COLUMN IF NOT EXISTS details TEXT,
+        ADD COLUMN IF NOT EXISTS user_name VARCHAR(255),
+        ADD COLUMN IF NOT EXISTS user_role VARCHAR(100);
+      CREATE INDEX IF NOT EXISTS idx_audit_log_category ON audit_log(category);
+      CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);
+    `);
+    console.log('✅ Schema guard: audit_log table enhanced');
+  } catch (err) {
+    console.error('⚠️  Schema guard failed (audit_log table):', err.message);
+  }
+
   // ── Daily handover alert cron — 07:00 UTC every day ──────────────────────────
   const { runHandoverAlerts } = require('./Controllers/productionsController');
   cron.schedule('0 7 * * *', async () => {
@@ -292,6 +357,23 @@ async function start() {
     }
   }, { timezone: 'UTC' });
   console.log('✅ Cron: asset reminders scheduled at 07:30 UTC daily');
+
+  // ── Weekly database S3 sync cron — 02:00 UTC every Sunday ──────────────────
+  const { executeDataSync } = require('./services/dataSyncService');
+  cron.schedule('0 2 * * 0', async () => {
+    console.log(`[CRON] Running weekly database S3 sync — ${new Date().toISOString()}`);
+    try {
+      const result = await executeDataSync({
+        triggeredByType: 'SCHEDULED',
+        userName: 'Weekly Cron Schedule',
+      });
+      console.log(`[CRON] Weekly S3 sync completed: ${result.filename} (${result.tables_synced} tables, ${result.total_records} records)`);
+    } catch (err) {
+      console.error('[CRON] Weekly S3 sync failed:', err.message);
+    }
+  }, { timezone: 'UTC' });
+  console.log('✅ Cron: weekly database S3 sync scheduled at 02:00 UTC every Sunday');
+
   return server;
 }
 

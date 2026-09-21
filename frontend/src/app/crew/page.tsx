@@ -4,15 +4,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
 import FreelancersTab from './FreelancersTab';
+import CrewImportTab from './CrewImportTab';
 import {
   Plus, Search, ChevronRight, X, Loader2, Users, UserCheck, Briefcase, Building2, Trash2,
   Share2, Copy, Check, Send, Mail, Inbox, AlertCircle, Eye, ShieldCheck, Sparkles, CheckCircle2,
+  Upload, Archive, RotateCcw,
 } from 'lucide-react';
 import {
   crewApi, productionsApi, crewRatesApi, settingsApi,
   CrewMember, CrewRate, EmploymentStatus, Production, CrewRegistrationRequest,
 } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { EmptyStateRow } from '@/components/EmptyState';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -21,7 +24,7 @@ const AVATAR_COLORS = [
   'bg-green-500', 'bg-indigo-500', 'bg-rose-500', 'bg-cyan-500', 'bg-amber-500',
 ];
 
-type FilterTab = 'all' | 'paye' | 'self_employed' | 'active' | 'inactive' | 'requests' | 'freelancers';
+type FilterTab = 'all' | 'paye' | 'self_employed' | 'active' | 'inactive' | 'archived' | 'requests' | 'freelancers' | 'import';
 
 const FILTER_TABS: { value: FilterTab; label: string }[] = [
   { value: 'all',           label: 'All' },
@@ -30,7 +33,9 @@ const FILTER_TABS: { value: FilterTab; label: string }[] = [
   { value: 'freelancers',   label: 'Freelancers' },
   { value: 'active',        label: 'Active' },
   { value: 'inactive',      label: 'Inactive' },
+  { value: 'archived',      label: 'Archived' },
   { value: 'requests',      label: 'Registration Requests' },
+  { value: 'import',        label: 'Import Crew' },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -929,7 +934,8 @@ export default function CrewPage() {
   const isMD = user?.role === 'managing_director';
   const isCoordinator = user?.role === 'construction_coordinator';
   const isAccountant = user?.role === 'construction_accountant';
-  const canWrite = true;
+  const isGuest = user?.role === 'guest';
+  const canWrite = !isGuest;
 
   const [crew, setCrew]               = useState<CrewMember[]>([]);
   const [loading, setLoading]         = useState(true);
@@ -939,6 +945,8 @@ export default function CrewPage() {
   const [showModal, setShowModal]     = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [deletingId, setDeletingId]   = useState<string | null>(null);
+  const [permanentDeleteCrew, setPermanentDeleteCrew] = useState<CrewMember | null>(null);
+  const [permanentDeletingCrew, setPermanentDeletingCrew] = useState(false);
 
   const [productions, setProductions]       = useState<Production[]>([]);
   const [productionFilter, setProductionFilter] = useState('');
@@ -995,6 +1003,7 @@ export default function CrewPage() {
       if (activeTab === 'self_employed') params.employment_status = 'self_employed';
       if (activeTab === 'active')        params.is_active = 'true';
       if (activeTab === 'inactive')      params.is_active = 'false';
+      if (activeTab === 'archived')      params.is_archived = 'true';
       if (search)           params.search       = search;
       if (productionFilter) params.production_id = productionFilter;
       if (tradeFilter)      params.crew_trade   = tradeFilter;
@@ -1010,25 +1019,53 @@ export default function CrewPage() {
   }, [activeTab, search, productionFilter, tradeFilter, rankFilter]);
 
   useEffect(() => {
-    if (activeTab !== 'requests' && activeTab !== 'freelancers') {
+    if (activeTab !== 'requests' && activeTab !== 'freelancers' && activeTab !== 'import') {
       load();
     }
   }, [load, activeTab]);
 
   const handleDelete = async (c: CrewMember, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`Delete ${c.first_name} ${c.last_name}? If linked records exist, they will be deactivated instead.`)) return;
+    if (!confirm(`Archive ${c.first_name} ${c.last_name}? They will be hidden from active rosters and timesheets, while historical payroll and timesheet records remain preserved.`)) return;
     setDeletingId(c.id);
     try {
       const result = await crewApi.delete(c.id);
-      if (result.soft_deleted) {
+      if (result.message) {
         alert(result.message);
       }
       await load();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Delete failed');
+      alert(err instanceof Error ? err.message : 'Archive failed');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleRestore = async (c: CrewMember, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const result = await crewApi.restore(c.id);
+      if (result.message) {
+        alert(result.message);
+      }
+      await load();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Restore failed');
+    }
+  };
+
+  const handlePermanentDeleteCrew = async () => {
+    if (!permanentDeleteCrew) return;
+    setPermanentDeletingCrew(true);
+    try {
+      const result = await crewApi.delete(permanentDeleteCrew.id, true);
+      alert(result.message || `${permanentDeleteCrew.first_name} ${permanentDeleteCrew.last_name} has been permanently deleted.`);
+      setPermanentDeleteCrew(null);
+      await load();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to permanently delete crew member');
+    } finally {
+      setPermanentDeletingCrew(false);
     }
   };
 
@@ -1158,7 +1195,7 @@ export default function CrewPage() {
                   </button>
                 ))}
               </div>
-              {activeTab !== 'freelancers' && <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+              {activeTab !== 'freelancers' && activeTab !== 'import' && <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                 <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 w-full sm:w-52">
                   <Search size={13} className="text-slate-400 flex-shrink-0" />
                   <input
@@ -1183,6 +1220,14 @@ export default function CrewPage() {
                       <span>Share Form Link</span>
                     </button>
                     <button
+                      type="button"
+                      onClick={() => setActiveTab('import')}
+                      className="flex items-center justify-center gap-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-sm rounded-lg px-3.5 py-2 transition-colors font-medium whitespace-nowrap shadow-sm"
+                    >
+                      <Upload size={14} className="text-slate-600" />
+                      <span>Import Crew</span>
+                    </button>
+                    <button
                       onClick={() => setShowModal(true)}
                       className="flex items-center justify-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-4 py-2 hover:bg-blue-700 transition-colors font-medium whitespace-nowrap shadow-sm"
                     >
@@ -1195,7 +1240,7 @@ export default function CrewPage() {
             </div>
 
             {/* Secondary filter row */}
-            {activeTab === 'freelancers' ? null : activeTab === 'requests' ? (
+            {activeTab === 'freelancers' || activeTab === 'import' ? null : activeTab === 'requests' ? (
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-slate-500 font-medium">Status Filter:</span>
                 {(['all', 'pending', 'approved', 'rejected'] as const).map(st => (
@@ -1251,12 +1296,16 @@ export default function CrewPage() {
             )}
           </div>
 
-          {error && activeTab !== 'freelancers' && (
+          {error && activeTab !== 'freelancers' && activeTab !== 'import' && (
             <div className="px-5 py-4 text-red-600 text-sm bg-red-50 border-b border-red-100">{error}</div>
           )}
 
           {/* Table content depending on activeTab */}
-          {activeTab === 'freelancers' ? <FreelancersTab /> : activeTab === 'requests' ? (
+          {activeTab === 'import' ? (
+            <CrewImportTab onComplete={() => { setActiveTab('all'); load(); }} />
+          ) : activeTab === 'freelancers' ? (
+            <FreelancersTab />
+          ) : activeTab === 'requests' ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[780px]">
                 <thead>
@@ -1406,11 +1455,49 @@ export default function CrewPage() {
                       </tr>
                     ))
                   ) : crew.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-5 py-10 text-center text-slate-400 text-sm">
-                        {search ? 'No crew members match your search.' : 'No crew members found.'}
-                      </td>
-                    </tr>
+                    activeTab === 'archived' ? (
+                      <EmptyStateRow
+                        colSpan={6}
+                        icon={Archive}
+                        title="No archived crew members"
+                        description="There are currently no archived crew members in the system."
+                        recommendation="Crew members who have moved on can be archived to keep your active roster uncluttered while retaining all historical payroll records."
+                        action={{
+                          label: 'View Active Crew',
+                          onClick: () => setActiveTab('all'),
+                        }}
+                      />
+                    ) : (search || productionFilter || tradeFilter || rankFilter) ? (
+                      <EmptyStateRow
+                        colSpan={6}
+                        icon={AlertCircle}
+                        title="No matching crew members"
+                        description="No crew members match your active search and filter criteria."
+                        recommendation="Try clearing your search term or resetting the production and trade filters."
+                        action={{
+                          label: 'Clear Filters',
+                          onClick: () => { setSearch(''); setProductionFilter(''); setTradeFilter(''); setRankFilter(''); },
+                          icon: X,
+                        }}
+                      />
+                    ) : (
+                      <EmptyStateRow
+                        colSpan={6}
+                        icon={Users}
+                        title="No crew members found"
+                        description="Your crew directory is currently empty."
+                        recommendation="Register your crew members or invite freelancers to join productions and submit timesheets."
+                        action={canWrite ? {
+                          label: 'Add Crew Member',
+                          onClick: () => setShowModal(true),
+                          icon: Plus,
+                        } : undefined}
+                        secondaryAction={canWrite ? {
+                          label: 'Import Crew',
+                          href: '/crew/import',
+                        } : undefined}
+                      />
+                    )
                   ) : (
                     crew.map((c, idx) => {
                       const colorClass = AVATAR_COLORS[idx % AVATAR_COLORS.length];
@@ -1452,8 +1539,14 @@ export default function CrewPage() {
                               : <span className="text-slate-300 text-xs">—</span>}
                           </td>
                           <td className="px-4 py-3.5">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                              {c.is_active ? 'Active' : 'Inactive'}
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              c.is_archived
+                                ? 'bg-amber-100 text-amber-800'
+                                : c.is_active
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-red-100 text-red-600'
+                            }`}>
+                              {c.is_archived ? 'Archived' : c.is_active ? 'Active' : 'Inactive'}
                             </span>
                           </td>
                           <td className="px-4 py-3.5">
@@ -1465,14 +1558,36 @@ export default function CrewPage() {
                                 <ChevronRight size={15} />
                               </button>
                               {canWrite && (
-                                <button
-                                  onClick={e => handleDelete(c, e)}
-                                  disabled={deletingId === c.id}
-                                  className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40"
-                                  title="Delete crew member"
-                                >
-                                  {deletingId === c.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={13} />}
-                                </button>
+                                c.is_archived ? (
+                                  <>
+                                    <button
+                                      onClick={e => handleRestore(c, e)}
+                                      className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                                      title="Restore crew member"
+                                    >
+                                      <RotateCcw size={13} />
+                                    </button>
+                                    <button
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        setPermanentDeleteCrew(c);
+                                      }}
+                                      className="p-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
+                                      title="Permanently delete crew member"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={e => handleDelete(c, e)}
+                                    disabled={deletingId === c.id}
+                                    className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors disabled:opacity-40"
+                                    title="Archive crew member"
+                                  >
+                                    {deletingId === c.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={13} />}
+                                  </button>
+                                )
                               )}
                             </div>
                           </td>
@@ -1498,6 +1613,50 @@ export default function CrewPage() {
           </div>}
         </div>
       </main>
+
+      {/* ─── PERMANENT DELETE CREW MODAL ────────────────────────────────────── */}
+      {permanentDeleteCrew && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-rose-200 shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2.5 bg-rose-100 rounded-xl border border-rose-200">
+                <AlertCircle size={22} />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">Permanently Delete Crew Member?</h3>
+                <p className="text-[11px] text-rose-600 font-medium">This action cannot be undone</p>
+              </div>
+            </div>
+            <div className="text-xs text-slate-600 space-y-2 leading-relaxed">
+              <p>
+                Are you sure you want to permanently delete <strong className="text-slate-900">{permanentDeleteCrew.first_name} {permanentDeleteCrew.last_name}</strong>?
+                This will wipe this record and all associated documents completely from the database.
+              </p>
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px]">
+                <strong>Integrity Safeguard:</strong> If this crew member has any timesheet or payroll records, the database will strictly prevent permanent deletion to preserve financial history.
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setPermanentDeleteCrew(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-slate-50 border border-slate-200 text-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handlePermanentDeleteCrew}
+                disabled={permanentDeletingCrew}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {permanentDeletingCrew && <Loader2 size={12} className="animate-spin" />}
+                <span>Permanently Delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -1,5 +1,6 @@
 const db            = require('../config/db');
 const { encrypt, decrypt } = require('../config/crypto');
+const { logAudit }         = require('../services/auditService');
 
 // Fields that are encrypted at rest in crew_members
 const ENCRYPTED_FIELDS = new Set([
@@ -69,6 +70,10 @@ const getAllCrew = async (req, res) => {
     const params     = [];
     let   i          = 1;
 
+    if (req.query.is_archived !== undefined) {
+      conditions.push(`(cm.is_archived = $${i++})`);
+      params.push(req.query.is_archived === 'true');
+    }
     if (req.query.is_active !== undefined) {
       conditions.push(`cm.is_active = $${i++}`);
       params.push(req.query.is_active === 'true');
@@ -102,7 +107,7 @@ const getAllCrew = async (req, res) => {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const { rows } = await db.query(
       `SELECT cm.id, cm.crew_number, cm.first_name, cm.last_name, cm.email, cm.employment_status,
-              cm.crew_trade, cm.crew_rank, cm.company_name, cm.is_active,
+              cm.crew_trade, cm.crew_rank, cm.company_name, cm.is_active, cm.is_archived,
               COALESCE(
                 (SELECT ARRAY_AGG(p.name ORDER BY p.name)
                  FROM production_crew pc
@@ -359,8 +364,9 @@ const linkToProduction = async (req, res) => {
   }
 };
 
-// ─── DELETE /api/crew/:id ─────────────────────────────────────────────────────
+// ─── DELETE /api/crew/:id (Soft-Delete / Archive OR Permanent Delete) ────────
 const deleteCrewMember = async (req, res) => {
+  const isPermanent = req.query.permanent === 'true';
   try {
     const { rows: [member] } = await db.query(
       'SELECT id, first_name, last_name, is_active FROM crew_members WHERE id = $1',
@@ -368,36 +374,84 @@ const deleteCrewMember = async (req, res) => {
     );
     if (!member) return res.status(404).json({ error: 'Crew member not found' });
 
-    // Hard-delete guard: check for timesheets, pay runs, cost reports, or production engagements
-    const { rows: [linked] } = await db.query(
-      `SELECT (
-         EXISTS(SELECT 1 FROM timesheets          WHERE crew_member_id = $1) OR
-         EXISTS(SELECT 1 FROM pay_run_items       WHERE crew_member_id = $1) OR
-         EXISTS(SELECT 1 FROM cost_report_entries WHERE crew_member_id = $1) OR
-         EXISTS(SELECT 1 FROM production_crew     WHERE crew_member_id = $1)
-       ) AS has_records`,
-      [req.params.id]
-    );
+    if (isPermanent) {
+      // Check if crew member has timesheets
+      const { rows: [{ tsCount }] } = await db.query(
+        'SELECT COUNT(*)::int AS "tsCount" FROM timesheets WHERE crew_member_id = $1',
+        [req.params.id]
+      );
+      if (tsCount > 0) {
+        return res.status(409).json({
+          error: `Cannot permanently delete ${member.first_name} ${member.last_name} because they have ${tsCount} associated timesheet(s). Please keep them archived to preserve payroll history.`
+        });
+      }
 
-    if (linked.has_records) {
-      // Soft delete — deactivate instead
-      await db.query('UPDATE crew_members SET is_active = false WHERE id = $1', [req.params.id]);
+      // Check if crew member has pay run items
+      const { rows: [{ payCount }] } = await db.query(
+        'SELECT COUNT(*)::int AS "payCount" FROM pay_run_items WHERE crew_member_id = $1',
+        [req.params.id]
+      );
+      if (payCount > 0) {
+        return res.status(409).json({
+          error: `Cannot permanently delete ${member.first_name} ${member.last_name} because they have ${payCount} associated pay run item(s).`
+        });
+      }
+
+      // Permanent deletion (crew_documents and production_crew cascade delete)
+      await db.query('DELETE FROM crew_members WHERE id = $1', [req.params.id]);
+
+      try {
+        await logAudit({
+          userId: req.user?.id,
+          userName: req.user?.full_name,
+          userRole: req.user?.role,
+          category: 'payroll',
+          action: 'crew_permanently_deleted',
+          entityType: 'crew_member',
+          entityId: req.params.id,
+          details: `Permanently deleted crew member ${member.first_name} ${member.last_name}`,
+          metadata: { member_id: req.params.id, first_name: member.first_name, last_name: member.last_name },
+        });
+      } catch (auditErr) {
+        console.error('Audit log failed for crew permanent delete:', auditErr);
+      }
+
       return res.json({
-        message: `${member.first_name} ${member.last_name} has been deactivated (linked records exist — hard delete prevented).`,
-        soft_deleted: true,
+        message: `${member.first_name} ${member.last_name} has been permanently deleted from the database.`,
+        permanently_deleted: true,
       });
     }
 
-    // Clear reference in crew_registration_requests if applicable
+    // Soft delete / archive
     await db.query(
-      'UPDATE crew_registration_requests SET created_crew_member_id = NULL WHERE created_crew_member_id = $1',
+      'UPDATE crew_members SET is_active = false, is_archived = true, deleted_at = NOW(), updated_at = NOW() WHERE id = $1',
       [req.params.id]
-    ).catch(() => {});
+    );
 
-    await db.query('DELETE FROM crew_members WHERE id = $1', [req.params.id]);
-    res.json({ message: `${member.first_name} ${member.last_name} has been permanently deleted.`, soft_deleted: false });
+    res.json({
+      message: `${member.first_name} ${member.last_name} has been archived successfully.`,
+      soft_deleted: true,
+    });
   } catch (err) {
     console.error('deleteCrewMember:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─── PATCH /api/crew/:id/restore ──────────────────────────────────────────────
+const restoreCrewMember = async (req, res) => {
+  try {
+    const { rows: [member] } = await db.query(
+      'UPDATE crew_members SET is_active = true, is_archived = false, deleted_at = NULL, updated_at = NOW() WHERE id = $1 RETURNING id, first_name, last_name',
+      [req.params.id]
+    );
+    if (!member) return res.status(404).json({ error: 'Crew member not found' });
+    res.json({
+      message: `${member.first_name} ${member.last_name} has been restored successfully.`,
+      member,
+    });
+  } catch (err) {
+    console.error('restoreCrewMember:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -600,6 +654,6 @@ const importCSV = async (req, res) => {
 
 module.exports = {
   getTrades, getAllCrew, createCrewMember, getCrewById, updateCrewMember,
-  deleteCrewMember, addDocument, deleteDocument, linkToProduction,
+  deleteCrewMember, restoreCrewMember, addDocument, deleteDocument, linkToProduction,
   getImportTemplate, previewImport, importCSV,
 };

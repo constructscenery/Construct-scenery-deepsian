@@ -31,7 +31,7 @@ type CalcResult = { cost_type: string; percentage: number; estimated_cost: numbe
 
 export default function ForecastingPage() {
   return (
-    <RequireRole roles={['managing_director', 'construction_accountant', 'construction_coordinator']}>
+    <RequireRole roles={['managing_director', 'construction_accountant', 'construction_coordinator', 'guest']}>
       <ForecastingContent />
     </RequireRole>
   );
@@ -39,8 +39,9 @@ export default function ForecastingPage() {
 
 function ForecastingContent() {
   const { user } = useAuth();
-  const isMD = true;
-  const isAccountant = true;
+  const isGuest = user?.role === 'guest';
+  const isMD = !isGuest;
+  const isAccountant = !isGuest;
 
   const [activeTab, setActiveTab] = useState<'percentometer' | 'catalogue' | 'scenarios'>('percentometer');
 

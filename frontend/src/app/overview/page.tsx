@@ -12,12 +12,13 @@ function OverviewContent() {
   if (user?.role === 'construction_accountant')  return <AccountantDashboard />;
   if (user?.role === 'construction_coordinator') return <CoordinatorDashboard />;
   if (user?.role === 'managing_director')        return <AccountantDashboard />;
+  if (user?.role === 'guest')                    return <AccountantDashboard />;
   return null;
 }
 
 export default function OverviewPage() {
   return (
-    <RequireRole roles={['managing_director', 'construction_accountant', 'construction_coordinator']}>
+    <RequireRole roles={['managing_director', 'construction_accountant', 'construction_coordinator', 'guest']}>
       <OverviewContent />
     </RequireRole>
   );

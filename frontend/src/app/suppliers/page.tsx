@@ -14,7 +14,11 @@ import {
   Trash2,
   CheckCircle2,
   AlertCircle,
+  Archive,
+  RotateCcw,
+  Building2,
 } from 'lucide-react';
+import { EmptyStateRow } from '@/components/EmptyState';
 
 const inputCls =
   'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -85,7 +89,8 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
 export default function SuppliersPage() {
   const { user } = useAuth();
   const role = user?.role ?? '';
-  const canWrite = true;
+  const isGuest = role === 'guest';
+  const canWrite = !isGuest;
 
   const [items, setItems] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,8 +113,12 @@ export default function SuppliersPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<Supplier | null>(null);
+  const [permanentDeleteLoading, setPermanentDeleteLoading] = useState(false);
 
   const [toast, setToast] = useState<string | null>(null);
+
+  const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
 
   async function openHistory(item: Supplier) {
     setSelectedSupplier(item);
@@ -120,7 +129,10 @@ export default function SuppliersPage() {
     setLoading(true);
     try {
       setHistoryLoading(true);
-      const [itemList, historyList] = await Promise.all([supplierApi.list(), supplierApi.getAllHistory()]);
+      const [itemList, historyList] = await Promise.all([
+        supplierApi.list({ include_archived: 'true' }),
+        supplierApi.getAllHistory()
+      ]);
       setItems(itemList);
       setHistory(historyList);
     } catch {
@@ -153,7 +165,13 @@ export default function SuppliersPage() {
       const matchesCategory = !categoryFilter || item.category === categoryFilter;
       const location = [item.street_name, item.city, item.county, item.zip_code].filter(Boolean).join(' ').toLowerCase();
       const matchesLocation = !locationFilter || location.includes(locationFilter.toLowerCase());
-      return matchesSearch && matchesCategory && matchesLocation;
+      const matchesArchive =
+        archiveFilter === 'all'
+          ? true
+          : archiveFilter === 'archived'
+          ? Boolean(item.is_archived)
+          : !item.is_archived;
+      return matchesSearch && matchesCategory && matchesLocation && matchesArchive;
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -162,12 +180,13 @@ export default function SuppliersPage() {
     .map(item => [item.city, item.county].filter(Boolean).join(', '))
     .filter(Boolean))).sort();
 
-  const hasSupplierFilters = Boolean(search || categoryFilter || locationFilter);
+  const hasSupplierFilters = Boolean(search || categoryFilter || locationFilter || archiveFilter !== 'active');
 
   function clearSupplierFilters() {
     setSearch('');
     setCategoryFilter('');
     setLocationFilter('');
+    setArchiveFilter('active');
   }
 
   const historyCategories = Array.from(new Set(history.map(row => row.supplier_category).filter((value): value is string => !!value))).sort();
@@ -255,13 +274,39 @@ export default function SuppliersPage() {
     try {
       await supplierApi.delete(deleteTarget.id);
       setDeleteTarget(null);
-      setToast('Supplier deleted.');
+      setToast('Supplier archived successfully.');
       await loadData();
     } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : 'Delete failed.');
+      setFormError(err instanceof Error ? err.message : 'Archive failed.');
       setDeleteTarget(null);
     } finally {
       setDeleteLoading(false);
+    }
+  }
+
+  async function handlePermanentDelete() {
+    if (!permanentDeleteTarget) return;
+    setPermanentDeleteLoading(true);
+    try {
+      const res = await supplierApi.delete(permanentDeleteTarget.id, true);
+      setToast(res.message || `Supplier "${permanentDeleteTarget.name}" permanently deleted.`);
+      setPermanentDeleteTarget(null);
+      await loadData();
+    } catch (err: unknown) {
+      setToast(err instanceof Error ? err.message : 'Permanent delete failed.');
+      setPermanentDeleteTarget(null);
+    } finally {
+      setPermanentDeleteLoading(false);
+    }
+  }
+
+  async function handleRestore(supplier: Supplier) {
+    try {
+      await supplierApi.restore(supplier.id);
+      setToast(`${supplier.name} has been restored successfully.`);
+      await loadData();
+    } catch (err: unknown) {
+      setToast(err instanceof Error ? err.message : 'Restore failed.');
     }
   }
 
@@ -335,13 +380,35 @@ export default function SuppliersPage() {
                 <option value="">All locations</option>
                 {supplierLocations.map(location => <option key={location} value={location}>{location}</option>)}
               </select>
-              {hasSupplierFilters && (
+              <div className="flex items-center rounded-lg border border-slate-200 p-0.5 bg-slate-100 text-xs">
                 <button
                   type="button"
-                  onClick={clearSupplierFilters}
-                  className="text-sm text-blue-600 hover:text-blue-800 px-2 py-2 whitespace-nowrap"
+                  onClick={() => setArchiveFilter('active')}
+                  className={`px-2.5 py-1.5 rounded-md font-medium transition-colors ${archiveFilter === 'active' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
                 >
-                  Clear filters
+                  Active
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setArchiveFilter('archived')}
+                  className={`px-2.5 py-1.5 rounded-md font-medium transition-colors ${archiveFilter === 'archived' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Archived
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setArchiveFilter('all')}
+                  className={`px-2.5 py-1.5 rounded-md font-medium transition-colors ${archiveFilter === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  All
+                </button>
+              </div>
+              {hasSupplierFilters && (
+                <button
+                  onClick={clearSupplierFilters}
+                  className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium px-2 py-2"
+                >
+                  <X size={12} /> Clear filters
                 </button>
               )}
             </div>
@@ -380,21 +447,49 @@ export default function SuppliersPage() {
                   ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
                   : filtered.length === 0
                   ? (
-                    <tr>
-                      <td colSpan={canWrite ? 6 : 5} className="px-5 py-16 text-center">
-                        <FileText size={32} className="text-slate-300 mx-auto mb-3" />
-                        <p className="text-slate-500 font-medium text-sm">
-                          {items.length === 0
-                            ? 'No suppliers in the database yet.'
-                            : 'No suppliers match your search.'}
-                        </p>
-                      </td>
-                    </tr>
+                    items.length === 0 ? (
+                      <EmptyStateRow
+                        colSpan={canWrite ? 6 : 5}
+                        icon={Building2}
+                        title="No suppliers registered"
+                        description="There are no suppliers currently in your database."
+                        recommendation="Register your key material suppliers, subcontractors, and trade vendors to link them directly to purchase orders."
+                        action={canWrite ? {
+                          label: 'Add First Supplier',
+                          onClick: openAdd,
+                          icon: Plus,
+                        } : undefined}
+                      />
+                    ) : (
+                      <EmptyStateRow
+                        colSpan={canWrite ? 6 : 5}
+                        icon={AlertCircle}
+                        title={archiveFilter === 'archived' ? 'No archived suppliers' : 'No matching suppliers'}
+                        description={
+                          archiveFilter === 'archived'
+                            ? 'No suppliers are currently marked as archived.'
+                            : 'No suppliers match your active search and filter criteria.'
+                        }
+                        recommendation="Try clearing your search query or switching your active filters."
+                        action={{
+                          label: 'Clear Filters',
+                          onClick: clearSupplierFilters,
+                          icon: X,
+                        }}
+                      />
+                    )
                   )
                   : filtered.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                    <tr key={item.id} className={`hover:bg-slate-50/50 transition-colors ${item.is_archived ? 'bg-slate-50/70 opacity-80' : ''}`}>
                       <td className="px-5 py-3.5">
-                        <p className="text-slate-800 font-semibold text-sm">{item.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-slate-800 font-semibold text-sm">{item.name}</p>
+                          {item.is_archived && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                              Archived
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3.5 text-slate-600 text-sm">{item.category || '—'}</td>
                       <td className="px-4 py-3.5 text-slate-700 text-sm">
@@ -423,12 +518,30 @@ export default function SuppliersPage() {
                             >
                               <Pencil size={11} /> Edit
                             </button>
-                            <button
-                              onClick={() => setDeleteTarget(item)}
-                              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-red-50 text-red-600 hover:bg-red-100 transition-colors font-medium border border-red-100"
-                            >
-                              <Trash2 size={11} /> Delete
-                            </button>
+                            {item.is_archived ? (
+                              <>
+                                <button
+                                  onClick={() => handleRestore(item)}
+                                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors font-medium border border-emerald-200"
+                                >
+                                  <RotateCcw size={11} /> Restore
+                                </button>
+                                <button
+                                  onClick={() => setPermanentDeleteTarget(item)}
+                                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors font-medium border border-rose-200"
+                                  title="Permanently Delete Supplier"
+                                >
+                                  <Trash2 size={11} /> Delete Permanently
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => setDeleteTarget(item)}
+                                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-medium border border-amber-200"
+                              >
+                                <Archive size={11} /> Archive
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}
@@ -597,10 +710,10 @@ export default function SuppliersPage() {
       {/* ── Delete Confirm Modal ──────────────────────────────────────────────── */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 relative">
-            <h3 className="text-lg font-semibold text-slate-800 mb-2">Delete Supplier?</h3>
-            <p className="text-slate-600 text-sm mb-6">
-              Are you sure you want to delete <strong>{deleteTarget.name}</strong>? This action cannot be undone.
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative">
+            <h3 className="text-lg font-semibold text-slate-800 mb-2">Archive Supplier?</h3>
+            <p className="text-slate-600 text-sm mb-6 leading-relaxed">
+              Are you sure you want to archive <strong>{deleteTarget.name}</strong>? The supplier will be hidden from active lists and new purchase orders, but historical transactions and accounting reports remain preserved. You can restore them anytime.
             </p>
             <div className="flex gap-2 justify-end">
               <button
@@ -613,10 +726,53 @@ export default function SuppliersPage() {
               <button
                 onClick={handleDelete}
                 disabled={deleteLoading}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
               >
                 {deleteLoading && <div className="animate-spin w-3 h-3 border-2 border-white/20 border-t-white rounded-full" />}
-                Yes, Delete
+                Archive Supplier
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Permanent Delete Confirm Modal ────────────────────────────────────── */}
+      {permanentDeleteTarget && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-rose-200 w-full max-w-md p-6 relative space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2.5 bg-rose-100 rounded-xl border border-rose-200">
+                <AlertCircle size={22} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Permanently Delete Supplier?</h3>
+                <p className="text-[11px] text-rose-600 font-medium">This action cannot be undone</p>
+              </div>
+            </div>
+            <div className="text-xs text-slate-600 space-y-2 leading-relaxed">
+              <p>
+                Are you sure you want to permanently delete <strong>{permanentDeleteTarget.name}</strong>?
+                This record will be completely erased from the database.
+              </p>
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px]">
+                <strong>Integrity Safeguard:</strong> If this supplier has any associated purchase orders, deletion will be blocked by the server to protect accounting integrity.
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                onClick={() => setPermanentDeleteTarget(null)}
+                disabled={permanentDeleteLoading}
+                className="px-4 py-2 text-xs font-semibold bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePermanentDelete}
+                disabled={permanentDeleteLoading}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50"
+              >
+                {permanentDeleteLoading && <div className="animate-spin w-3 h-3 border-2 border-white/20 border-t-white rounded-full" />}
+                Delete Permanently
               </button>
             </div>
           </div>

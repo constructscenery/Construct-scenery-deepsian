@@ -3,8 +3,9 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { UserRole } from '@/lib/api';
 
-type Role = 'managing_director' | 'construction_accountant' | 'construction_coordinator';
+type Role = UserRole;
 
 /**
  * Frontend route guard. Wrap any page's content with this to enforce that

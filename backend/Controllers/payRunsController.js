@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const { encrypt, decrypt } = require('../config/crypto');
 const { recordWeeklyLabour } = require('../services/labourCostService');
+const { logAudit } = require('../services/auditService');
 
 // Derive a short production code from the production name.
 // Takes the first letter of each word, uppercase, max 4 chars.
@@ -278,6 +279,19 @@ const createPayRun = async (req, res) => {
         total_net:      items.reduce((s, i) => s + i.net_amount,         0),
       },
     });
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      productionId: payRun.production_id,
+      category: 'payroll',
+      action: 'pay_run_created',
+      entityType: 'pay_run',
+      entityId: payRun.id,
+      details: `Created draft pay run for W/E ${payRun.week_ending_date} (${items.length} crew members, total £${items.reduce((s, i) => s + i.net_amount, 0).toFixed(2)})`,
+      metadata: { pay_run_id: payRun.id, week_ending_date: payRun.week_ending_date, crew_count: items.length },
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('createPayRun:', err);
@@ -344,6 +358,19 @@ const processPayRun = async (req, res) => {
 
     await client.query('COMMIT');
     res.json({ message: 'Pay run processed. Labour costs fed into Cost Report.', pay_run: pr });
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      productionId: pr.production_id,
+      category: 'payroll',
+      action: 'pay_run_processed',
+      entityType: 'pay_run',
+      entityId: pr.id,
+      details: `Processed pay run for W/E ${pr.week_ending_date}. Labour costs committed to live Cost Report.`,
+      metadata: { pay_run_id: pr.id, week_ending_date: pr.week_ending_date },
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('processPayRun:', err);
@@ -421,6 +448,19 @@ const syncLabourCosts = async (req, res) => {
     await recordWeeklyLabour(pr.week_ending_date, pr.production_id, client);
     await client.query('COMMIT');
     res.json({ message: 'Labour costs synced to cost report.' });
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      productionId: pr.production_id,
+      category: 'payroll',
+      action: 'pay_run_labour_synced',
+      entityType: 'pay_run',
+      entityId: pr.id,
+      details: `Synced finalised labour costs for pay run W/E ${pr.week_ending_date} to cost report`,
+      metadata: { pay_run_id: pr.id, week_ending_date: pr.week_ending_date },
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('syncLabourCosts:', err);

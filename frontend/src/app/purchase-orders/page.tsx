@@ -31,7 +31,10 @@ import {
   SlidersHorizontal,
   Download,
   Trash2,
+  Archive,
+  RotateCcw,
 } from 'lucide-react';
+import { EmptyStateRow } from '@/components/EmptyState';
 
 const PAGE_SIZE = 20;
 
@@ -56,7 +59,7 @@ const CSV_HEADERS = [
   'Status'
 ];
 
-type TabFilter = POStatus | 'all' | 'pending';
+type TabFilter = POStatus | 'all' | 'pending' | 'archived';
 const STATUS_TABS: { label: string; value: TabFilter }[] = [
   { label: 'All',               value: 'all' },
   { label: 'Pending Approvals', value: 'pending' },
@@ -64,6 +67,7 @@ const STATUS_TABS: { label: string; value: TabFilter }[] = [
   { label: 'Submitted',         value: 'submitted' },
   { label: 'Invoice Received',  value: 'invoice_received' },
   { label: 'Approved',          value: 'approved' },
+  { label: 'Archived',          value: 'archived' },
 ];
 
 const MAX_FILE_MB = 10;
@@ -183,9 +187,10 @@ export default function PurchaseOrdersPage() {
   const { user } = useAuth();
   const role = user?.role ?? '';
 
-  const isMD = false;
-  const isCoordinator = true;
-  const isAccountant = true;
+  const isGuest = role === 'guest';
+  const isMD = role === 'managing_director';
+  const isCoordinator = !isGuest && (role === 'construction_coordinator' || isMD || !role);
+  const isAccountant = !isGuest && (role === 'construction_accountant' || isMD || !role);
 
   const [pos, setPos] = useState<PurchaseOrder[]>([]);
   const [productions, setProductions] = useState<Production[]>([]);
@@ -209,6 +214,8 @@ export default function PurchaseOrdersPage() {
 
   const [statusFilter, setStatusFilter] = useState<TabFilter>(isMD ? 'approved' : 'all');
   const [actionError, setActionError] = useState<{ id: string; msg: string } | null>(null);
+  const [permanentDeletePO, setPermanentDeletePO] = useState<PurchaseOrder | null>(null);
+  const [permanentDeletingPO, setPermanentDeletingPO] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
@@ -532,6 +539,9 @@ export default function PurchaseOrdersPage() {
       if (poFilters.department)     params.department     = poFilters.department;
       if (poFilters.title)          params.title          = poFilters.title;
       if (poFilters.supplier_name)  params.supplier_name  = poFilters.supplier_name;
+      if (statusFilter === 'archived') {
+        params.archived_only = 'true';
+      }
 
       const [poList, prodList] = await Promise.all([
         purchaseOrdersApi.list(Object.keys(params).length ? params : undefined),
@@ -543,7 +553,7 @@ export default function PurchaseOrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [poFilters]);
+  }, [poFilters, statusFilter]);
 
   useEffect(() => {
     loadData();
@@ -553,6 +563,7 @@ export default function PurchaseOrdersPage() {
     if (isMD && po.status !== 'approved') return false;
     const matchStatus =
       statusFilter === 'all' ? true :
+      statusFilter === 'archived' ? Boolean(po.is_archived) :
       statusFilter === 'pending' ? (po.status === 'submitted' || po.status === 'invoice_received') :
       po.status === statusFilter;
     const q = search.toLowerCase();
@@ -616,16 +627,43 @@ export default function PurchaseOrdersPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this draft purchase order?')) return;
+    if (!confirm('Archive this purchase order? It will be archived and hidden from active lists, while preserving all financial and audit records.')) return;
     setActionLoading(id + ':delete');
     setActionError(null);
     try {
       await purchaseOrdersApi.delete(id);
       await loadData();
     } catch (err: unknown) {
-      setActionError({ id, msg: err instanceof Error ? err.message : 'Delete failed' });
+      setActionError({ id, msg: err instanceof Error ? err.message : 'Archive failed' });
     } finally {
       setActionLoading(null);
+    }
+  }
+
+  async function handleRestore(id: string) {
+    setActionLoading(id + ':restore');
+    setActionError(null);
+    try {
+      await purchaseOrdersApi.restore(id);
+      await loadData();
+    } catch (err: unknown) {
+      setActionError({ id, msg: err instanceof Error ? err.message : 'Restore failed' });
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handlePermanentDelete() {
+    if (!permanentDeletePO) return;
+    setPermanentDeletingPO(true);
+    try {
+      await purchaseOrdersApi.delete(permanentDeletePO.id, true);
+      setPermanentDeletePO(null);
+      await loadData();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Permanent delete failed');
+    } finally {
+      setPermanentDeletingPO(false);
     }
   }
 
@@ -1281,11 +1319,37 @@ export default function PurchaseOrdersPage() {
                   ? Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
                   : pagePos.length === 0
                   ? (
-                    <tr>
-                      <td colSpan={14} className="px-5 py-12 text-center text-slate-400 text-sm">
-                        No purchase orders found.
-                      </td>
-                    </tr>
+                    pos.length === 0 ? (
+                      <EmptyStateRow
+                        colSpan={14}
+                        icon={FileText}
+                        title="No purchase orders yet"
+                        description="No purchase orders have been raised in the database."
+                        recommendation="Select an active production and supplier to generate your first purchase order."
+                        action={!isGuest ? {
+                          label: 'Raise Purchase Order',
+                          onClick: () => setShowNewModal(true),
+                          icon: Plus,
+                        } : undefined}
+                      />
+                    ) : (
+                      <EmptyStateRow
+                        colSpan={14}
+                        icon={AlertCircle}
+                        title="No matching purchase orders"
+                        description="No purchase orders match your currently applied search criteria or filters."
+                        recommendation="Try clearing your search term or resetting the production and status filters."
+                        action={{
+                          label: 'Clear Filters',
+                          onClick: () => {
+                            setPoFilters({ production_id: '', date_from: '', date_to: '', net_amount_min: '', net_amount_max: '', gross_amount_min: '', gross_amount_max: '', set_code: '', account_code: '', paid_from: '', department: '', title: '', supplier_name: '' });
+                            setSearch('');
+                            setPage(1);
+                          },
+                          icon: X,
+                        }}
+                      />
+                    )
                   )
                   : pagePos.map((po) => {
                     const busy = actionLoading?.startsWith(po.id + ':');
@@ -1369,10 +1433,12 @@ export default function PurchaseOrdersPage() {
                             <button onClick={() => setViewFullPO(po)} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors font-medium">
                               <Search size={11} /> View
                             </button>
-                            {/* Copy PO: All roles */}
-                            <button onClick={() => handleCopyPO(po)} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors font-medium">
-                              <FileText size={11} /> Copy
-                            </button>
+                            {/* Copy PO: All roles except guest */}
+                            {!isGuest && (
+                              <button onClick={() => handleCopyPO(po)} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors font-medium">
+                                <FileText size={11} /> Copy
+                              </button>
+                            )}
                             {/* Download PDF: All roles */}
                             <button
                               disabled={!!busy}
@@ -1459,18 +1525,44 @@ export default function PurchaseOrdersPage() {
                                 Invoice
                               </button>
                             )}
-                            {/* Delete: Coordinator (James) only, draft only */}
-                            {isCoordinator && po.status === 'draft' && (
+                            {/* Archive: Coordinator or MD, draft only */}
+                            {(isCoordinator || isMD) && po.status === 'draft' && !po.is_archived && (
                               <button
                                 disabled={!!busy}
                                 onClick={() => handleDelete(po.id)}
-                                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-red-50 text-red-600 hover:bg-red-100 transition-colors font-medium disabled:opacity-50"
+                                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-medium disabled:opacity-50"
+                                title="Archive purchase order"
                               >
                                 {busy && actionLoading === po.id + ':delete'
                                   ? <Loader2 size={11} className="animate-spin" />
-                                  : <X size={11} />}
-                                Delete
+                                  : <Archive size={11} />}
+                                Archive
                               </button>
+                            )}
+                            {/* Restore and Permanent Delete for Archived POs */}
+                            {(isCoordinator || isMD) && po.is_archived && (
+                              <>
+                                <button
+                                  disabled={!!busy}
+                                  onClick={() => handleRestore(po.id)}
+                                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors font-medium border border-emerald-200 disabled:opacity-50"
+                                  title="Restore purchase order"
+                                >
+                                  {busy && actionLoading === po.id + ':restore'
+                                    ? <Loader2 size={11} className="animate-spin" />
+                                    : <RotateCcw size={11} />}
+                                  Restore
+                                </button>
+                                <button
+                                  disabled={!!busy}
+                                  onClick={() => setPermanentDeletePO(po)}
+                                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors font-medium border border-rose-200 disabled:opacity-50"
+                                  title="Permanently delete purchase order"
+                                >
+                                  <Trash2 size={11} />
+                                  Delete Permanently
+                                </button>
+                              </>
                             )}
                           </div>
                         </td>
@@ -2870,6 +2962,49 @@ export default function PurchaseOrdersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Permanent Delete PO Modal ────────────────────────────────────── */}
+      {permanentDeletePO && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-rose-200 w-full max-w-md p-6 relative space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2.5 bg-rose-100 rounded-xl border border-rose-200">
+                <AlertCircle size={22} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Permanently Delete Purchase Order?</h3>
+                <p className="text-[11px] text-rose-600 font-medium">This action cannot be undone</p>
+              </div>
+            </div>
+            <div className="text-xs text-slate-600 space-y-2 leading-relaxed">
+              <p>
+                Are you sure you want to permanently delete purchase order <strong className="font-mono text-slate-900">#{permanentDeletePO.po_number || permanentDeletePO.id}</strong> ({permanentDeletePO.supplier_name})?
+                This will completely remove the record and any associated files from the database.
+              </p>
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px]">
+                <strong>Financial Safeguard:</strong> Approved purchase orders that have posted to cost reports cannot be deleted.
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                onClick={() => setPermanentDeletePO(null)}
+                disabled={permanentDeletingPO}
+                className="px-4 py-2 text-xs font-semibold bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePermanentDelete}
+                disabled={permanentDeletingPO}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50"
+              >
+                {permanentDeletingPO && <Loader2 size={12} className="animate-spin" />}
+                Delete Permanently
+              </button>
+            </div>
           </div>
         </div>
       )}

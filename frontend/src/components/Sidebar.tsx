@@ -5,52 +5,59 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Clapperboard, ShoppingCart, Users, ClipboardList,
   BarChart2, ChevronRight, LogOut, CreditCard,
-  Banknote, BookOpen, Upload, ShieldCheck, Truck,
-  HeartPulse, Archive,
+  Banknote, Upload, ShieldCheck, Truck,
+  HeartPulse, Archive, Building2, Package, TrendingUp, History,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { UserRole } from '@/lib/api';
 
-const ALL_ROLES: ('managing_director' | 'construction_accountant' | 'construction_coordinator')[] = [
+const ALL_ROLES: UserRole[] = [
   'managing_director',
   'construction_accountant',
   'construction_coordinator',
+  'guest',
 ];
 
 const NAV_GROUPS = [
   {
-    label: 'Core',
+    label: 'Operations',
     items: [
-      { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard, roles: ALL_ROLES },
-      { href: '/overview',    label: 'Overview',    icon: LayoutDashboard, roles: ALL_ROLES },
-      { href: '/productions', label: 'Productions', icon: Clapperboard,    roles: ALL_ROLES },
-      { href: '/assets-hire', label: 'Assets & Hire', icon: Truck,          roles: ALL_ROLES },
+      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ALL_ROLES },
+      { href: '/productions', label: 'Productions', icon: Clapperboard, roles: ALL_ROLES },
+      { href: '/assets-hire', label: 'Assets & Hire', icon: Truck, roles: ALL_ROLES },
       { href: '/safety-health', label: 'Health & Safety', icon: HeartPulse, roles: ALL_ROLES },
     ],
   },
   {
-    label: 'Finance',
+    label: 'People & Payroll',
     items: [
-      { href: '/purchase-orders',    label: 'Purchase Orders',   icon: ShoppingCart, roles: ALL_ROLES },
-      { href: '/cost-report',        label: 'Cost Report',       icon: BarChart2,    roles: ALL_ROLES },
-      { href: '/historical-cost-reports', label: 'Finance', icon: Archive, roles: ALL_ROLES },
-      { href: '/pay-runs',           label: 'Pay Runs',          icon: Banknote,     roles: ALL_ROLES },
-      { href: '/materials-catalogue', label: 'Materials Catalogue',icon: BookOpen,     roles: ALL_ROLES },
-      { href: '/suppliers',          label: 'Supplier Database', icon: BookOpen,     roles: ALL_ROLES },
+      { href: '/crew', label: 'Crew', icon: Users, roles: ALL_ROLES },
+      { href: '/timesheets', label: 'Timesheets', icon: ClipboardList, roles: ALL_ROLES },
+      { href: '/pay-runs', label: 'Pay Runs', icon: Banknote, roles: ALL_ROLES },
     ],
   },
   {
-    label: 'People',
+    label: 'Purchasing',
     items: [
-      { href: '/crew',        label: 'Crew Database', icon: Users,        roles: ALL_ROLES },
-      { href: '/crew/import', label: 'Crew Import',   icon: Upload,       roles: ALL_ROLES },
-      { href: '/timesheets',  label: 'Timesheets',    icon: ClipboardList, roles: ALL_ROLES },
+      { href: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart, roles: ALL_ROLES },
+      { href: '/suppliers', label: 'Suppliers', icon: Building2, roles: ALL_ROLES },
+      { href: '/materials-catalogue', label: 'Materials & Stock', icon: Package, roles: ALL_ROLES },
     ],
   },
   {
-    label: 'Settings',
+    label: 'Planning & Finance',
     items: [
-      { href: '/settings/rate-card', label: 'Rate Card',        icon: CreditCard,   roles: ALL_ROLES },
-      { href: '/settings/users',     label: 'User Accounts',    icon: ShieldCheck,  roles: ['managing_director'] },
+      //    { href: '/forecasting',             label: 'Forecasting',      icon: TrendingUp, roles: ALL_ROLES },
+      { href: '/cost-report', label: 'Live Cost Report', icon: BarChart2, roles: ALL_ROLES },
+      { href: '/historical-cost-reports', label: 'Report Archive', icon: Archive, roles: ALL_ROLES },
+    ],
+  },
+  {
+    label: 'Administration',
+    items: [
+      { href: '/settings/rate-card', label: 'Rate Cards', icon: CreditCard, roles: ALL_ROLES },
+      { href: '/settings/users', label: 'Users & Roles', icon: ShieldCheck, roles: ['managing_director'] as UserRole[] },
+      { href: '/audit-log', label: 'Audit Log', icon: History, roles: ALL_ROLES },
     ],
   },
 ];
@@ -60,9 +67,10 @@ function getInitials(name: string) {
 }
 
 function getRoleLabel(role: string) {
-  if (role === 'managing_director')       return 'Managing Director';
+  if (role === 'managing_director') return 'Managing Director';
   if (role === 'construction_accountant') return 'Construction Accountant';
   if (role === 'construction_coordinator') return 'Construction Coordinator';
+  if (role === 'guest') return 'Guest (Read Only)';
   return role;
 }
 
@@ -107,11 +115,10 @@ export default function Sidebar() {
                   <Link
                     key={href}
                     href={href}
-                    className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
-                      active
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    }`}
+                    className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${active
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                      }`}
                   >
                     <Icon size={17} className="flex-shrink-0" />
                     <span className="flex-1 truncate">{label}</span>

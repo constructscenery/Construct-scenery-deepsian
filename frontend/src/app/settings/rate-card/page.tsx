@@ -355,7 +355,7 @@ export default function RateCardPage() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100">
             <h2 className="text-slate-900 font-semibold text-sm">Non-BECTU Roles</h2>
-            <p className="text-slate-400 text-xs mt-0.5">Directly agreed with Warren. Edit daily and OT rates below.</p>
+            <p className="text-slate-400 text-xs mt-0.5">Director-approved rates. Edit daily and OT rates below.</p>
           </div>
           <table className="w-full text-sm">
             <thead>

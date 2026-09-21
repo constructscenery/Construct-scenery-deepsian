@@ -1,5 +1,6 @@
 const db  = require('../config/db');
 const csv = require('csv-parse/sync');
+const { logAudit } = require('../services/auditService');
 
 const canManageRates = (role) =>
   ['managing_director', 'construction_accountant', 'construction_coordinator'].includes(role);
@@ -94,6 +95,23 @@ const updateRate = async (req, res) => {
       [...vals, req.params.id]
     );
     res.json(updated);
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      category: 'rate_card',
+      action: 'rate_updated',
+      entityType: 'bectu_rates',
+      entityId: `${existing.trade} - ${existing.rank}`,
+      details: `Updated rate card for ${existing.trade} (${existing.rank}): daily £${existing.daily_rate} → £${updated.daily_rate}, OT £${existing.overtime_rate} → £${updated.overtime_rate}`,
+      metadata: {
+        trade: existing.trade,
+        rank: existing.rank,
+        previous: { daily_rate: existing.daily_rate, overtime_rate: existing.overtime_rate, weekly_rate: existing.weekly_rate },
+        updated: { daily_rate: updated.daily_rate, overtime_rate: updated.overtime_rate, weekly_rate: updated.weekly_rate },
+      },
+    });
   } catch (err) {
     console.error('updateRate:', err);
     res.status(500).json({ error: err.message });
@@ -240,6 +258,18 @@ const importCSV = async (req, res) => {
 
     await client.query('COMMIT');
     res.json({ message: `${rate_year} rate card imported successfully`, rate_year, inserted, expired, effective_from });
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      category: 'rate_card',
+      action: 'rate_card_imported',
+      entityType: 'bectu_rates',
+      entityId: rate_year,
+      details: `Imported new BECTU rate card for ${rate_year} effective ${effective_from} (${inserted} rates updated/inserted, ${expired} previous rates retired)`,
+      metadata: { rate_year, effective_from, inserted, expired },
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('importCSV:', err);

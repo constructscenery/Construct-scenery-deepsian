@@ -14,6 +14,7 @@ import {
   Timesheet, TimesheetStatus, Production, GatewayError, CrewMember,
 } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { EmptyStateRow } from '@/components/EmptyState';
 
 // ─── Inline API helpers ───────────────────────────────────────────────────────
 
@@ -280,7 +281,8 @@ function NewTimesheetModal({ productions, weekEndingDate, onClose, onCreated }: 
 
 export default function TimesheetsPage() {
   const { user } = useAuth();
-  const canAct = true;
+  const isGuest = user?.role === 'guest';
+  const canAct = !isGuest;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -740,7 +742,7 @@ export default function TimesheetsPage() {
 
   const selectedProdName = productions.find(p => p.id === selectedProd)?.name ?? '';
 
-  const SortableHeader = ({ label, sortKey, align = 'left' }: { label: string; sortKey: SortKey; align?: 'left' | 'center' | 'right' }) => (
+  const SortableHeader = ({ label, sortKey, align = 'left', title, screenReaderLabel }: { label: React.ReactNode; sortKey: SortKey; align?: 'left' | 'center' | 'right'; title?: string; screenReaderLabel?: string }) => (
     <th 
       className={`px-3 py-3 text-xs font-semibold text-slate-500 cursor-pointer select-none hover:text-slate-700 transition-colors text-${align} whitespace-nowrap`}
       onClick={() => {
@@ -750,9 +752,11 @@ export default function TimesheetsPage() {
           return null;
         });
       }}
+      title={title}
     >
       <div className={`flex items-center gap-1 ${align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : ''}`}>
-        {label}
+        <span>{label}</span>
+        {screenReaderLabel && <span className="sr-only"> ({screenReaderLabel})</span>}
         {sortConfig?.key === sortKey && (
           <span className="text-slate-400">
             {sortConfig.direction === 'asc' ? '↑' : '↓'}
@@ -960,13 +964,13 @@ export default function TimesheetsPage() {
                   <SortableHeader label="Production" sortKey="production" />
                   <SortableHeader label="Trade / Rank" sortKey="trade_rank" />
                   <SortableHeader label="Total Days" sortKey="days_worked" align="center" />
-                  <SortableHeader label="M" sortKey="mon" align="center" />
-                  <SortableHeader label="T" sortKey="tue" align="center" />
-                  <SortableHeader label="W" sortKey="wed" align="center" />
-                  <SortableHeader label="T" sortKey="thu" align="center" />
-                  <SortableHeader label="F" sortKey="fri" align="center" />
-                  <SortableHeader label="S" sortKey="sat" align="center" />
-                  <SortableHeader label="S" sortKey="sun" align="center" />
+                  <SortableHeader label="Mon" screenReaderLabel="Monday" title="Monday" sortKey="mon" align="center" />
+                  <SortableHeader label="Tue" screenReaderLabel="Tuesday" title="Tuesday" sortKey="tue" align="center" />
+                  <SortableHeader label="Wed" screenReaderLabel="Wednesday" title="Wednesday" sortKey="wed" align="center" />
+                  <SortableHeader label="Thu" screenReaderLabel="Thursday" title="Thursday" sortKey="thu" align="center" />
+                  <SortableHeader label="Fri" screenReaderLabel="Friday" title="Friday" sortKey="fri" align="center" />
+                  <SortableHeader label="Sat" screenReaderLabel="Saturday" title="Saturday" sortKey="sat" align="center" />
+                  <SortableHeader label="Sun" screenReaderLabel="Sunday" title="Sunday" sortKey="sun" align="center" />
                   <SortableHeader label="OT Hrs" sortKey="ot_hours" align="right" />
                   <SortableHeader label="OT Amt" sortKey="ot_amount" align="right" />
                   <SortableHeader label="Net Amt" sortKey="net_amount" align="right" />
@@ -987,11 +991,41 @@ export default function TimesheetsPage() {
                     </tr>
                   ))
                 ) : sortedSheets.length === 0 ? (
-                  <tr>
-                    <td colSpan={canAct ? 18 : 17} className="px-5 py-10 text-center text-slate-400 text-sm">
-                      {sheets.length === 0 ? 'No timesheets found for this week and production.' : 'No timesheets match the current filters.'}
-                    </td>
-                  </tr>
+                  sheets.length === 0 ? (
+                    <EmptyStateRow
+                      colSpan={canAct ? 18 : 17}
+                      icon={FileText}
+                      title="No timesheets yet"
+                      description={
+                        selectedProd
+                          ? `No timesheets have been submitted or recorded for ${selectedProdName || 'this production'} in the selected week ending.`
+                          : 'No production is currently selected, or no timesheets have been recorded for this period.'
+                      }
+                      recommendation="Select a production and assign crew members before creating the first timesheet."
+                      action={canAct ? {
+                        label: 'Create First Timesheet',
+                        onClick: () => setShowNewTs(true),
+                        icon: Plus,
+                      } : undefined}
+                      secondaryAction={{
+                        label: 'View Crew Directory',
+                        href: '/crew',
+                      }}
+                    />
+                  ) : (
+                    <EmptyStateRow
+                      colSpan={canAct ? 18 : 17}
+                      icon={AlertCircle}
+                      title="No matching timesheets found"
+                      description="No timesheets match your currently applied search criteria or filters."
+                      recommendation="Try clearing active filters or resetting your search to see all timesheets for this week."
+                      action={{
+                        label: 'Clear Filters',
+                        onClick: () => { setStatusFilter('all'); setInvoiceFilter('all'); setTradeFilter(''); setCrewSearch(''); },
+                        icon: X,
+                      }}
+                    />
+                  )
                 ) : (
                   sortedSheets.map((ts, idx) => {
                     const colorClass = AVATAR_COLORS[idx % AVATAR_COLORS.length];

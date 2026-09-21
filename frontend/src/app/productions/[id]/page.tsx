@@ -749,9 +749,10 @@ export default function ProductionDetailPage() {
   const params  = useParams<{ id: string }>();
   const router  = useRouter();
   const { user } = useAuth();
-  const isCoordinator = true;
-  const canEdit      = true;
-  const canArchive   = true;
+  const isGuest       = user?.role === 'guest';
+  const isCoordinator = !isGuest;
+  const canEdit       = !isGuest;
+  const canArchive    = !isGuest;
   const id           = params.id;
 
   const [production, setProduction]   = useState<ProductionDetail | null>(null);

@@ -2,6 +2,7 @@ export enum UserRole {
   MANAGING_DIRECTOR = 'managing_director',
   CONSTRUCTION_ACCOUNTANT = 'construction_accountant',
   CONSTRUCTION_COORDINATOR = 'construction_coordinator',
+  GUEST = 'guest',
 }
 
 export enum FreelancerCallPriority {

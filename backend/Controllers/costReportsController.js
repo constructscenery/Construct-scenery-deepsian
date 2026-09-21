@@ -2,6 +2,7 @@ const db  = require('../config/db');
 const CRS = require('../services/costReportService');
 const { generateCostReportPdf }      = require('../services/costReportPdfService');
 const { generateCostReportType2Pdf } = require('../services/costReportType2PdfService');
+const { logAudit }                   = require('../services/auditService');
 
 // node-postgres returns `timestamp`/`timestamptz` columns as JS Date objects.
 // String(dateObj).split('T')[0] splits on the 'T' in "GMT" and produces garbage like
@@ -789,6 +790,19 @@ const updateMarginsReference = async (req, res) => {
       [productionId, Array.isArray(items) ? items : [], notes || null, req.user.id]
     );
     res.json(row);
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      productionId,
+      category: 'financial',
+      action: 'margin_reference_updated',
+      entityType: 'cost_report_margins',
+      entityId: productionId,
+      details: `Updated Margins Reference Sheet for production ID ${productionId}`,
+      metadata: { items_count: Array.isArray(items) ? items.length : 0, notes },
+    });
   } catch (err) {
     console.error('updateMarginsReference:', err);
     res.status(500).json({ error: err.message });
@@ -824,6 +838,19 @@ const upsertWeeklyPL = async (req, res) => {
       ]
     );
     res.json(row);
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      productionId,
+      category: 'financial',
+      action: 'weekly_pl_updated',
+      entityType: 'cost_report_weekly_pl',
+      entityId: `${productionId}_${weekEndingDate}`,
+      details: `Updated Weekly P&L for W/E ${weekEndingDate} on production ID ${productionId}`,
+      metadata: { weekEndingDate, warrens_salary, luton_uplift, box_rental_uplift, cs_invoice_number, po_reference },
+    });
   } catch (err) {
     console.error('upsertWeeklyPL:', err);
     res.status(500).json({ error: err.message });

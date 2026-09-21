@@ -17,7 +17,9 @@ import {
   CheckCircle2,
   Download,
   Package,
+  Boxes,
 } from 'lucide-react';
+import { EmptyStateRow } from '@/components/EmptyState';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const fmtGBP = (n: number | string | null | undefined) =>
@@ -100,9 +102,10 @@ export default function MaterialsCataloguePage() {
   const { user } = useAuth();
   const role = user?.role ?? '';
 
+  const isGuest = role === 'guest';
   const isCoordinator = role === 'construction_coordinator';
-  const canWrite = true; // Enabled for supplier catalogue management
-  const isReadOnly = false;
+  const canWrite = !isGuest;
+  const isReadOnly = isGuest;
 
   // ── Data state ──
   const [items, setItems] = useState<MaterialsCatalogueItem[]>([]);
@@ -512,33 +515,37 @@ export default function MaterialsCataloguePage() {
                   ? Array.from({ length: 7 }).map((_, i) => <SkeletonRow key={i} />)
                   : filtered.length === 0
                   ? (
-                    <tr>
-                      <td colSpan={canWrite ? 11 : 10} className="px-5 py-16 text-center">
-                        <FileText size={32} className="text-slate-300 mx-auto mb-3" />
-                        <p className="text-slate-500 font-medium text-sm">
-                          {items.length === 0
-                            ? 'No catalogue entries yet — import a CSV or add entries manually.'
-                            : 'No entries match your search or filter.'}
-                        </p>
-                        {canWrite && items.length === 0 && (
-                          <div className="flex items-center justify-center gap-2 mt-4">
-                            <button
-                              onClick={openAdd}
-                              className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium"
-                            >
-                              <Plus size={13} /> Add Entry
-                            </button>
-                            <span className="text-slate-300">or</span>
-                            <button
-                              onClick={() => setShowImport(true)}
-                              className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium"
-                            >
-                              <Upload size={13} /> Import CSV
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
+                    items.length === 0 ? (
+                      <EmptyStateRow
+                        colSpan={canWrite ? 11 : 10}
+                        icon={Package}
+                        title="No catalogue materials yet"
+                        description="The master materials price book is currently empty."
+                        recommendation="Add standard stock materials, sheet goods, timber, steel, or import a supplier price list via CSV."
+                        action={canWrite ? {
+                          label: 'Add Material',
+                          onClick: openAdd,
+                          icon: Plus,
+                        } : undefined}
+                        secondaryAction={canWrite ? {
+                          label: 'Import CSV',
+                          onClick: () => setShowImport(true),
+                        } : undefined}
+                      />
+                    ) : (
+                      <EmptyStateRow
+                        colSpan={canWrite ? 11 : 10}
+                        icon={AlertCircle}
+                        title="No matching materials"
+                        description="No materials match your current category, supplier, or text search."
+                        recommendation="Try clearing your search query or selecting 'All categories'."
+                        action={{
+                          label: 'Clear Filters',
+                          onClick: () => { setSearch(''); setSupplierFilter(''); setCategoryFilter(''); },
+                          icon: X,
+                        }}
+                      />
+                    )
                   )
                   : filtered.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
@@ -628,7 +635,20 @@ export default function MaterialsCataloguePage() {
                   {['Material', 'Description', 'Category', 'Total Bought', 'Remaining', 'Unit', 'Production', 'Location', 'Notes', 'Actions'].map(header => <th key={header} className="px-4 py-3 text-xs font-semibold text-slate-500">{header}</th>)}
                 </tr></thead>
                 <tbody className="divide-y divide-slate-100">
-                  {inventory.length === 0 ? <tr><td colSpan={10} className="px-5 py-16 text-center text-slate-500">No current stock records. Add held materials to begin tracking inventory.</td></tr> : inventory.map(item => (
+                  {inventory.length === 0 ? (
+                    <EmptyStateRow
+                      colSpan={10}
+                      icon={Boxes}
+                      title="No physical stock recorded"
+                      description="No inventory items are currently tracked in workshop storage."
+                      recommendation="Log stored timber, steel, hardware, or paints returned from builds to track asset valuation."
+                      action={canWrite ? {
+                        label: 'Add Stock Item',
+                        onClick: () => setShowInventoryModal(true),
+                        icon: Plus,
+                      } : undefined}
+                    />
+                  ) : inventory.map(item => (
                     <tr key={item.id} className="hover:bg-slate-50/50">
                       <td className="px-4 py-3 text-slate-800 font-medium">{item.material_name}</td>
                       <td className="px-4 py-3 text-slate-600">{item.description || '—'}</td>

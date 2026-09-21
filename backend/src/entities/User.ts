@@ -18,6 +18,9 @@ export class User {
   @Column({ type: 'text' })
   role: UserRole;
 
+  @Column({ type: 'text', name: 'display_password', nullable: true })
+  displayPassword: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

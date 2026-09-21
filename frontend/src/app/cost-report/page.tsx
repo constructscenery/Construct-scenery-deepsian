@@ -146,7 +146,7 @@ function AddInvoiceForm({ productionId, onClose, onSaved }: AddInvoiceFormProps)
 
 export default function CostReportPage() {
   return (
-    <RequireRole roles={['managing_director', 'construction_accountant', 'construction_coordinator']}>
+    <RequireRole roles={['managing_director', 'construction_accountant', 'construction_coordinator', 'guest']}>
       <CostReportContent />
     </RequireRole>
   );
@@ -154,7 +154,8 @@ export default function CostReportPage() {
 
 function CostReportContent() {
   const { user } = useAuth();
-  const canAddInvoice = true;
+  const isGuest = user?.role === 'guest';
+  const canAddInvoice = !isGuest;
 
   const [productions, setProductions] = useState<Production[]>([]);
   const [selectedId, setSelectedId] = useState<string>('');

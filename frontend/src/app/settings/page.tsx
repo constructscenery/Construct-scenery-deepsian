@@ -3,10 +3,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
-import { settingsApi, percentometerApi } from '@/lib/api';
+import { settingsApi, percentometerApi, dataSyncApi, DataSyncRecord, DataSyncStatus } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Pencil, Check, X, Loader2, Plus, Trash2, AlertCircle, Info,
+  Cloud, RefreshCw, Download, Database, Calendar, CheckCircle2,
+  ChevronDown, ChevronUp, FileSpreadsheet,
 } from 'lucide-react';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -453,6 +455,218 @@ function PayRunDefaultsSection({ settings, onSaved }: PayRunDefaultsSectionProps
   );
 }
 
+// ─── Section: Database S3 Backup & Export ─────────────────────────────────
+
+function fmtBytes(bytes: string | number) {
+  const n = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes;
+  if (!n || isNaN(n)) return '—';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function DataSyncBackupSection() {
+  const [status, setStatus] = useState<DataSyncStatus | null>(null);
+  const [history, setHistory] = useState<DataSyncRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [sRes, hRes] = await Promise.all([
+        dataSyncApi.getStatus(),
+        dataSyncApi.getHistory(15),
+      ]);
+      setStatus(sRes);
+      setHistory(hRes.history || []);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load sync status');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleSyncNow = async () => {
+    setSyncing(true);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      const res = await dataSyncApi.triggerSync();
+      setSuccessMsg(`Synced ${res.sync.total_records} records across ${res.sync.tables_synced} tables to S3!`);
+      await loadData();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleDownload = async (item: DataSyncRecord) => {
+    setDownloadingId(item.id);
+    try {
+      await dataSyncApi.downloadFile(item.id, item.filename);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to download file');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+            <Cloud size={18} />
+          </div>
+          <div>
+            <h2 className="text-slate-900 font-semibold text-sm flex items-center gap-2">
+              Database S3 Backup & Export
+              <span className="text-[10px] uppercase font-semibold tracking-wider bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                Weekly Auto-Sync
+              </span>
+            </h2>
+            <p className="text-slate-400 text-xs mt-0.5">
+              Multi-tab Excel snapshots uploaded to AWS S3, versioned per sync.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleSyncNow}
+          disabled={syncing}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold rounded-lg shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+        >
+          <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
+          {syncing ? 'Syncing to S3...' : 'Sync to S3 Now'}
+        </button>
+      </div>
+
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center gap-2">
+          <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {successMsg && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700 flex items-center gap-2">
+          <CheckCircle2 size={14} className="text-emerald-500 flex-shrink-0" />
+          <span>{successMsg}</span>
+        </div>
+      )}
+
+      {/* Stats summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
+          <div className="flex items-center gap-1.5 text-slate-500 font-medium mb-1">
+            <Calendar size={13} className="text-blue-500" />
+            Weekly Schedule
+          </div>
+          <p className="text-slate-800 font-semibold">{status?.cronScheduleHuman || 'Every Sunday at 02:00 UTC'}</p>
+          <p className="text-[10px] text-emerald-600 font-medium mt-0.5">● Cron Scheduled Active</p>
+        </div>
+
+        <div className="p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
+          <div className="flex items-center gap-1.5 text-slate-500 font-medium mb-1">
+            <Database size={13} className="text-blue-500" />
+            Target S3 Bucket
+          </div>
+          <p className="text-slate-800 font-semibold truncate" title={status?.bucket}>{status?.bucket || 'deepsiant-assets-prod'}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Region: {status?.region || 'eu-north-1'}</p>
+        </div>
+
+        <div className="p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs">
+          <div className="flex items-center gap-1.5 text-slate-500 font-medium mb-1">
+            <FileSpreadsheet size={13} className="text-blue-500" />
+            Latest Backup
+          </div>
+          <p className="text-slate-800 font-semibold">{status?.latestSync ? fmtDate(status.latestSync.created_at) : 'None yet'}</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">
+            {status?.latestSync ? `${status.latestSync.total_records} rows · ${fmtBytes(status.latestSync.file_size)}` : 'Ready to export'}
+          </p>
+        </div>
+      </div>
+
+      {/* History table */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Versioned Folder Snapshots</h3>
+          <span className="text-[11px] text-slate-400">{history.length} snapshot{history.length === 1 ? '' : 's'}</span>
+        </div>
+        {loading && history.length === 0 ? (
+          <p className="text-xs text-slate-400 py-3">Loading history...</p>
+        ) : history.length === 0 ? (
+          <p className="text-xs text-slate-400 py-3">No backups recorded yet.</p>
+        ) : (
+          <div className="border border-slate-200 rounded-lg overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-semibold text-[10px]">
+                <tr>
+                  <th className="py-2.5 px-3">Version Folder</th>
+                  <th className="py-2.5 px-3">Trigger</th>
+                  <th className="py-2.5 px-3">Tables / Rows</th>
+                  <th className="py-2.5 px-3">Size</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3 text-right">Download</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {history.map((item) => {
+                  const folderName = item.filename.replace(/\.xlsx$/, '');
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50">
+                      <td className="py-2.5 px-3">
+                        <p className="font-semibold text-slate-800 font-mono text-xs">{folderName}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{fmtDate(item.created_at)}</p>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                          item.triggered_by_type === 'SCHEDULED' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {item.triggered_by_type}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span>{item.tables_synced} tables · {item.total_records} actual rows</span>
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">{fmtBytes(item.file_size)}</td>
+                      <td className="py-2.5 px-3">
+                        <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-medium">
+                          Synced
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        <button
+                          onClick={() => handleDownload(item)}
+                          disabled={downloadingId === item.id}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold rounded text-[11px] transition-colors"
+                          title="Download Backup_All_Data.xlsx master workbook"
+                        >
+                          <Download size={11} className={downloadingId === item.id ? 'animate-bounce' : ''} />
+                          Master .xlsx
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Section 4: Percentometer Ratios ─────────────────────────────────────────
 
 interface PercentometerSectionProps {
@@ -755,6 +969,7 @@ export default function SettingsPage() {
             <HandoverAlertSection  settings={settings} onSaved={loadSettings} />
             <CompanyDetailsSection settings={settings} onSaved={loadSettings} />
             <PayRunDefaultsSection settings={settings} onSaved={loadSettings} />
+            <DataSyncBackupSection />
           </>
         )}
 

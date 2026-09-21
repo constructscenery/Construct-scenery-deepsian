@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { logAudit } = require('../services/auditService');
 
 // ─── GET /api/suppliers/names ──────────────────────────────────────────────────
 // Distinct active supplier names — used for autocomplete in forms.
@@ -19,9 +20,20 @@ const getSupplierNames = async (_req, res) => {
 // ─── GET /api/suppliers ────────────────────────────────────────────────────────
 const getSuppliers = async (req, res) => {
   try {
+    const includeArchived = req.query.include_archived === 'true';
+    const archivedOnly    = req.query.archived_only === 'true';
+    let whereClause       = 'WHERE (is_archived = false OR is_archived IS NULL) AND deleted_at IS NULL';
+
+    if (archivedOnly) {
+      whereClause = 'WHERE is_archived = true OR deleted_at IS NOT NULL';
+    } else if (includeArchived) {
+      whereClause = '';
+    }
+
     const { rows } = await db.query(
-      `SELECT id, name, category, primary_contact_name, email, street_name, city, county, zip_code, phone, account_number, credit_terms, payment_terms, lead_times, notes, created_at, updated_at
+      `SELECT id, name, category, primary_contact_name, email, street_name, city, county, zip_code, phone, account_number, credit_terms, payment_terms, lead_times, notes, is_archived, deleted_at, created_at, updated_at
        FROM suppliers
+       ${whereClause}
        ORDER BY name`
     );
     res.json(rows);
@@ -148,18 +160,74 @@ const updateSupplier = async (req, res) => {
   }
 };
 
-// ─── DELETE /api/suppliers/:id ─────────────────────────────────────────────────
+// ─── DELETE /api/suppliers/:id (Soft-Delete / Archive OR Permanent Delete) ───
 const deleteSupplier = async (req, res) => {
+  const isPermanent = req.query.permanent === 'true';
   try {
-    const { rowCount } = await db.query('DELETE FROM suppliers WHERE id = $1', [req.params.id]);
-    if (!rowCount) return res.status(404).json({ error: 'Supplier not found' });
-    res.json({ message: 'Supplier deleted' });
+    const { rows: [supplier] } = await db.query(
+      'SELECT id, name FROM suppliers WHERE id = $1',
+      [req.params.id]
+    );
+    if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
+
+    if (isPermanent) {
+      // Check if supplier has linked purchase orders
+      const { rows: [{ poCount }] } = await db.query(
+        'SELECT COUNT(*)::int AS "poCount" FROM purchase_orders WHERE supplier_id = $1',
+        [req.params.id]
+      );
+      if (poCount > 0) {
+        return res.status(409).json({
+          error: `Cannot permanently delete supplier "${supplier.name}" because they have ${poCount} linked purchase order(s). Keep them archived to preserve accounting history.`
+        });
+      }
+
+      await db.query('DELETE FROM suppliers WHERE id = $1', [req.params.id]);
+
+      try {
+        await logAudit({
+          userId: req.user?.id,
+          userName: req.user?.full_name,
+          userRole: req.user?.role,
+          category: 'financial',
+          action: 'supplier_permanently_deleted',
+          entityType: 'supplier',
+          entityId: req.params.id,
+          details: `Permanently deleted supplier "${supplier.name}"`,
+          metadata: { supplier_id: req.params.id, supplier_name: supplier.name },
+        });
+      } catch (auditErr) {
+        console.error('Audit log failed for supplier permanent delete:', auditErr);
+      }
+
+      return res.json({
+        message: `Supplier "${supplier.name}" has been permanently deleted.`,
+        permanently_deleted: true,
+      });
+    }
+
+    const { rows } = await db.query(
+      'UPDATE suppliers SET is_archived = true, deleted_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING id, name',
+      [req.params.id]
+    );
+    res.json({ message: 'Supplier archived successfully', soft_deleted: true, supplier: rows[0] });
   } catch (err) {
     console.error('deleteSupplier:', err);
-    // Handle foreign key constraint error, though we don't have them yet
-    if (err.code === '23503') {
-       return res.status(400).json({ error: 'Cannot delete supplier because they are referenced elsewhere.' });
-    }
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─── PATCH /api/suppliers/:id/restore ──────────────────────────────────────────
+const restoreSupplier = async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      'UPDATE suppliers SET is_archived = false, deleted_at = NULL, updated_at = NOW() WHERE id = $1 RETURNING id, name',
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Supplier not found' });
+    res.json({ message: 'Supplier restored successfully', supplier: rows[0] });
+  } catch (err) {
+    console.error('restoreSupplier:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -171,6 +239,7 @@ module.exports = {
   createSupplier,
   updateSupplier,
   deleteSupplier,
+  restoreSupplier,
   getSupplierHistory,
   getAllSupplierHistory
 };

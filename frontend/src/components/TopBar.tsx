@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Bell, Settings } from 'lucide-react';
+import { Bell, Settings, Cloud } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import SettingsModal from '@/components/SettingsModal';
+import SyncModal from '@/components/SyncModal';
 
 interface TopBarProps {
   title: string;
@@ -15,8 +16,9 @@ function getInitials(name: string) {
 }
 
 export default function TopBar({ title, subtitle }: TopBarProps) {
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
 
   return (
     <>
@@ -30,6 +32,20 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
           {subtitle && <p className="hidden sm:block text-slate-500 text-xs truncate">{subtitle}</p>}
         </div>
 
+        {/* Sync Button (visible on mobile and desktop for non-guests) */}
+        {!isGuest && (
+          <button
+            id="topbar-sync-btn"
+            onClick={() => setSyncOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200 rounded-lg transition-all"
+            title="Export database to Excel & sync to S3"
+            aria-label="Export and sync to S3"
+          >
+            <Cloud size={14} className="text-blue-600 flex-shrink-0" />
+            <span className="hidden sm:inline">Export / Sync</span>
+          </button>
+        )}
+
         {/* Desktop-only actions */}
         <div className="hidden md:flex items-center gap-1">
           <button
@@ -41,14 +57,16 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full" />
           </button>
 
-          <button
-            id="topbar-settings-btn"
-            onClick={() => setSettingsOpen(true)}
-            className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-            aria-label="Account settings"
-          >
-            <Settings size={18} />
-          </button>
+          {!isGuest && (
+            <button
+              id="topbar-settings-btn"
+              onClick={() => setSettingsOpen(true)}
+              className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+              aria-label="Account settings"
+            >
+              <Settings size={18} />
+            </button>
+          )}
 
           {/* Avatar — also opens settings */}
           <button
@@ -70,6 +88,8 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
       </header>
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SyncModal open={syncOpen} onClose={() => setSyncOpen(false)} />
     </>
   );
 }
+

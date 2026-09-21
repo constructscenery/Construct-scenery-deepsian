@@ -22,6 +22,7 @@ router.get('/:id',                       ctrl.getPOById);
 router.put('/:id',                       requireRole(...ALL_ROLES), ctrl.updatePO);
 router.patch('/:id',                     requireRole(...ALL_ROLES), ctrl.updatePO);
 router.delete('/:id',                    requireRole(...ALL_ROLES), ctrl.deletePO);
+router.patch('/:id/restore',             requireRole(...ALL_ROLES), ctrl.restorePO);
 router.post('/:id/issue',                requireRole(...ALL_ROLES), ctrl.issuePO);
 router.post('/:id/submit',               requireRole(...ALL_ROLES), ctrl.submitPO);
 router.post('/:id/attach-invoice',       upload.single('invoice'), requireRole(...ALL_ROLES), ctrl.attachInvoice);

@@ -125,7 +125,7 @@ const TABS = [
   { id: 'materials', label: 'Materials to Send' },
   { id: 'weekly',    label: 'Weekly Invoice Summary' },
   { id: 'budget',    label: 'Master Budget' },
-  { id: 'pl',        label: "Warren's P&L" },
+  { id: 'pl',        label: "Director's P&L" },
   { id: 'omitted',   label: 'Omitted Entries' },
   { id: 'margins',   label: 'Margins Reference' },
 ] as const;
@@ -731,12 +731,13 @@ function calcTotal(l: EditLine, globalMarginPct: string): number {
 
 // ─── Tab: Master Budget ───────────────────────────────────────────────────────
 
-function TabMasterBudget({ budget, productionId, productionSets, globalMarginRate, onSaved }: {
+function TabMasterBudget({ budget, productionId, productionSets, globalMarginRate, onSaved, canEdit = true }: {
   budget: Type2Report['budget'];
   productionId: string;
   productionSets: ProductionSet[];
   globalMarginRate: number;
   onSaved: () => void;
+  canEdit?: boolean;
 }) {
   const initAbove = useCallback(() =>
     (budget?.budget_lines ?? []).filter(l => l.is_above_line).map(fromApi), [budget]);
@@ -798,6 +799,7 @@ function TabMasterBudget({ budget, productionId, productionSets, globalMarginRat
   const setTotal    = setLines.reduce((s, l) => s + calcTotal(l, marginPct), 0);
 
   const SaveBtn = ({ bottom = false }: { bottom?: boolean }) => {
+    if (!canEdit) return null;
     if (saveOk) {
       return (
         <button disabled
@@ -1142,7 +1144,7 @@ function TabWeeklyPL({ rows, productionId, onRefresh, canEdit }: {
       <thead><tr>
         <Th>Week Ending</Th>
         <Th right>Margin from Recharged Costs</Th>
-        <Th right>Warren&apos;s Salary {canEdit && <span className="text-blue-400 font-normal">(editable)</span>}</Th>
+        <Th right>Director&apos;s Salary {canEdit && <span className="text-blue-400 font-normal">(editable)</span>}</Th>
         <Th right>Weekly Profit</Th>
         <Th right>Running Total Profit</Th>
         {canEdit && <Th>Save</Th>}
@@ -1423,8 +1425,9 @@ export default function CostReportType2({ report, onRefresh, userRole }: {
 }) {
   const [activeTab, setActiveTab] = useState<TabId>('main');
   const omittedCount = (report.omitted_labour?.length ?? 0) + (report.omitted_materials?.length ?? 0);
+  const isGuest   = userRole === 'guest';
   const isMD      = userRole === 'managing_director';
-  const canEdit   = true;
+  const canEdit   = !isGuest;
 
   return (
     <div className="space-y-4">
@@ -1468,6 +1471,7 @@ export default function CostReportType2({ report, onRefresh, userRole }: {
               productionSets={report.production_sets ?? []}
               globalMarginRate={report.summary.margin_rate}
               onSaved={onRefresh}
+              canEdit={canEdit}
             />
           )}
           {activeTab === 'pl'        && <TabWeeklyPL rows={report.weekly_pl} productionId={report.production.id} onRefresh={onRefresh} canEdit={canEdit} />}

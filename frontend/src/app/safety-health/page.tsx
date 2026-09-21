@@ -47,7 +47,8 @@ export default function SafetyHealthPage() {
   const [linkCopied, setLinkCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isUploader = Boolean(user);
+  const isGuest = user?.role === 'guest';
+  const isUploader = Boolean(user) && !isGuest;
 
   const loadDocuments = useCallback(async () => {
     setLoading(true); setError('');
@@ -142,7 +143,7 @@ export default function SafetyHealthPage() {
           <div className="flex items-start gap-3"><div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><HeartPulse size={18} /></div><div><h2 className="text-slate-800 font-semibold">{currentTab.label}</h2><p className="text-slate-500 text-sm mt-1">{currentTab.description}</p></div></div>
           {isUploader && <button onClick={() => openUpload()} className="flex items-center justify-center gap-2 bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-medium"><Upload size={14} /> Upload</button>}
         </div>
-        {activeType === 'risk_template' && <div className="mt-5 border border-slate-200 rounded-lg p-4 flex items-center justify-between gap-3"><div className="flex items-center gap-3"><FileText size={20} className="text-blue-600" /><div><p className="text-sm font-medium text-slate-800">{template?.file_name || 'No template uploaded yet'}</p><p className="text-xs text-slate-400">Word document template</p></div></div>{template && <div className="flex items-center gap-3"><button onClick={() => safetyHealthApi.download(template.id, template.file_name)} className="flex items-center gap-2 text-sm text-blue-600"><Download size={14} /> Download</button><button onClick={() => openUpload(template)} className="flex items-center gap-1 text-sm text-amber-700"><Pencil size={13} /> Edit</button><button onClick={() => handleDelete(template)} className="text-sm text-red-600">Delete</button></div>}</div>}
+        {activeType === 'risk_template' && <div className="mt-5 border border-slate-200 rounded-lg p-4 flex items-center justify-between gap-3"><div className="flex items-center gap-3"><FileText size={20} className="text-blue-600" /><div><p className="text-sm font-medium text-slate-800">{template?.file_name || 'No template uploaded yet'}</p><p className="text-xs text-slate-400">Word document template</p></div></div>{template && <div className="flex items-center gap-3"><button onClick={() => safetyHealthApi.download(template.id, template.file_name)} className="flex items-center gap-2 text-sm text-blue-600"><Download size={14} /> Download</button>{!isGuest && <><button onClick={() => openUpload(template)} className="flex items-center gap-1 text-sm text-amber-700"><Pencil size={13} /> Edit</button><button onClick={() => handleDelete(template)} className="text-sm text-red-600">Delete</button></>}</div>}</div>}
         {activeType !== 'risk_template' && <>
           {activeType === 'coshh' && <div className="mt-5 flex items-center gap-1 border-b border-slate-200"><button onClick={() => setCoshhStatus('active')} className={`px-3 py-2 text-sm border-b-2 ${coshhStatus === 'active' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600'}`}>Active COSHH</button><button onClick={() => setCoshhStatus('pending_alteration')} className={`px-3 py-2 text-sm border-b-2 ${coshhStatus === 'pending_alteration' ? 'border-amber-600 text-amber-700' : 'border-transparent text-slate-600'}`}>Pending Alteration</button></div>}
           <div className="mt-5 flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2"><Search size={15} className="text-slate-400" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search file name, location, production, or tags..." className="bg-transparent outline-none text-sm w-full" /></div>
@@ -166,8 +167,12 @@ export default function SafetyHealthPage() {
                     <td className="px-3 py-3">{doc.public_token ? <span className="text-xs text-emerald-700">Public QR</span> : <span className="text-xs text-slate-400">Authenticated</span>}</td>
                     <td className="px-3 py-3">
                       <button onClick={() => safetyHealthApi.download(doc.id, doc.file_name)} className="flex items-center gap-1 text-blue-600 text-xs"><Download size={13} /> Download</button>
-                      <button onClick={() => openUpload(doc)} className="flex items-center gap-1 text-amber-700 text-xs mt-1"><Pencil size={13} /> Edit</button>
-                      <button onClick={() => handleDelete(doc)} className="flex items-center gap-1 text-red-600 text-xs mt-1"><X size={13} /> Delete</button>
+                      {!isGuest && (
+                        <>
+                          <button onClick={() => openUpload(doc)} className="flex items-center gap-1 text-amber-700 text-xs mt-1"><Pencil size={13} /> Edit</button>
+                          <button onClick={() => handleDelete(doc)} className="flex items-center gap-1 text-red-600 text-xs mt-1"><X size={13} /> Delete</button>
+                        </>
+                      )}
                       {doc.public_token && <><button onClick={() => setQrTarget({ url: safetyHealthApi.publicUrl(doc.public_token!), label: doc.file_name, filename: `${doc.file_name}-qr.png` })} className="flex items-center gap-1 text-emerald-700 text-xs mt-1"><QrCode size={13} /> View QR</button><a href={safetyHealthApi.publicUrl(doc.public_token)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-emerald-700 text-xs mt-1"><ExternalLink size={13} /> Public link</a></>}
                     </td>
                   </tr>

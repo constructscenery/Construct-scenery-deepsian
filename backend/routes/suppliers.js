@@ -11,6 +11,7 @@ router.post('/',      ctrl.createSupplier);
 router.get('/:id/history', ctrl.getSupplierHistory);
 router.get('/:id',    ctrl.getSupplierById);
 router.put('/:id',    ctrl.updateSupplier);
+router.patch('/:id/restore', ctrl.restoreSupplier);
 router.delete('/:id', ctrl.deleteSupplier);
 
 module.exports = router;

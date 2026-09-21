@@ -21,7 +21,10 @@ import {
   AlertTriangle,
   ShieldOff,
   CheckCircle2,
+  Calendar,
+  Banknote,
 } from 'lucide-react';
+import { EmptyStateRow } from '@/components/EmptyState';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -519,11 +522,21 @@ function AvailableWeeksTab({ productionId, refreshSignal, canWrite, onOpenPrevie
             {loading ? (
               <SkeletonRows cols={5} />
             ) : weeks.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-5 py-12 text-center text-slate-400 text-sm">
-                  No finalised timesheet weeks found for this production.
-                </td>
-              </tr>
+              <EmptyStateRow
+                colSpan={5}
+                icon={Calendar}
+                title="No finalised timesheet weeks found"
+                description="Payroll runs require submitted and verified crew timesheets before a payroll batch can be generated."
+                recommendation="Ensure crew members have recorded hours and timesheets are approved under Timesheets for this production."
+                action={{
+                  label: 'Go to Timesheets',
+                  href: '/timesheets',
+                }}
+                secondaryAction={{
+                  label: 'View Crew Roster',
+                  href: '/crew',
+                }}
+              />
             ) : (
               weeks.map(week => {
                 const badgeStatus: BadgeStatus = !week.pay_run_id
@@ -581,9 +594,10 @@ interface HistoryTabProps {
   refreshSignal: number;
   canWrite: boolean;
   onRefresh: () => void;
+  onSwitchToWeeks?: () => void;
 }
 
-function HistoryTab({ productionId, refreshSignal, canWrite, onRefresh }: HistoryTabProps) {
+function HistoryTab({ productionId, refreshSignal, canWrite, onRefresh, onSwitchToWeeks }: HistoryTabProps) {
   const [payRuns, setPayRuns] = useState<PayRun[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -685,11 +699,17 @@ function HistoryTab({ productionId, refreshSignal, canWrite, onRefresh }: Histor
             {loading ? (
               <SkeletonRows cols={4} />
             ) : payRuns.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-5 py-12 text-center text-slate-400 text-sm">
-                  No pay runs found for this production.
-                </td>
-              </tr>
+              <EmptyStateRow
+                colSpan={4}
+                icon={Banknote}
+                title="No pay runs generated yet"
+                description="No formal payroll batches have been generated or processed for this production."
+                recommendation="Select 'Timesheet Weeks' tab above and click 'Generate Pay Run' on any finalised week."
+                action={onSwitchToWeeks ? {
+                  label: 'View Timesheet Weeks',
+                  onClick: onSwitchToWeeks,
+                } : undefined}
+              />
             ) : (
               payRuns.map(pr => (
                 <tr key={pr.id} className="hover:bg-slate-50/50 transition-colors">
@@ -754,7 +774,7 @@ type Tab = 'available' | 'history';
 
 export default function PayRunsPage() {
   return (
-    <RequireRole roles={['managing_director', 'construction_accountant', 'construction_coordinator']}>
+    <RequireRole roles={['managing_director', 'construction_accountant', 'construction_coordinator', 'guest']}>
       <PayRunsContent />
     </RequireRole>
   );
@@ -762,9 +782,10 @@ export default function PayRunsPage() {
 
 function PayRunsContent() {
   const { user } = useAuth();
+  const isGuest = user?.role === 'guest';
 
   const canAccess = true;
-  const canWrite = true;
+  const canWrite = !isGuest;
 
   const [productions, setProductions] = useState<Production[]>([]);
   const [selectedProd, setSelectedProd] = useState('');
@@ -904,6 +925,7 @@ function PayRunsContent() {
             refreshSignal={refreshSignal}
             canWrite={canWrite}
             onRefresh={() => setRefreshSignal(s => s + 1)}
+            onSwitchToWeeks={() => setActiveTab('available')}
           />
         )}
 

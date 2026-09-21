@@ -32,15 +32,13 @@ const PRIMARY: Record<string, NavItem[]> = {
 
 const FULL_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard',       label: 'Dashboard',          icon: LayoutDashboard },
-  { href: '/overview',        label: 'Overview',           icon: LayoutDashboard },
   { href: '/productions',     label: 'Productions',        icon: Clapperboard },
   { href: '/purchase-orders', label: 'Purchase Orders',    icon: ShoppingCart },
-  { href: '/cost-report',     label: 'Cost Report',        icon: BarChart2 },
-  { href: '/historical-cost-reports', label: 'Finance', icon: Archive },
+  { href: '/cost-report',     label: 'Live Cost Report',   icon: BarChart2 },
+  { href: '/historical-cost-reports', label: 'Report Archive', icon: Archive },
   { href: '/forecasting',     label: 'Forecasting',        icon: TrendingUp },
   { href: '/crew',            label: 'Crew',               icon: Users },
-  { href: '/crew/import',     label: 'Crew Import',        icon: Upload },
-  { href: '/timesheets',      label: 'Timesheets & Pay',   icon: ClipboardList },
+  { href: '/timesheets',      label: 'Timesheets',         icon: ClipboardList },
 ];
 
 // All items per role (for "More" drawer)
@@ -48,12 +46,14 @@ const ALL_ITEMS: Record<string, NavItem[]> = {
   managing_director: FULL_NAV_ITEMS,
   construction_accountant: FULL_NAV_ITEMS,
   construction_coordinator: FULL_NAV_ITEMS,
+  guest: FULL_NAV_ITEMS,
 };
 
 function getRoleLabel(role: string) {
   if (role === 'managing_director')        return 'Managing Director';
   if (role === 'construction_accountant')  return 'Construction Accountant';
   if (role === 'construction_coordinator') return 'Construction Coordinator';
+  if (role === 'guest')                    return 'Guest (Read Only)';
   return role;
 }
 

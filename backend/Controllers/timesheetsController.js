@@ -4,6 +4,7 @@ const fileStorage                  = require('../services/fileStorage');
 const { generateTimesheetPdf }     = require('../services/timesheetPdfService');
 const { generateVerificationPack } = require('../services/verificationPackService');
 const { generateTimesheetListPdf } = require('../services/timesheetListPdfService');
+const { logAudit }                 = require('../services/auditService');
 
 // ─── Helper: record an outbound email to email_log ────────────────────────────
 const logEmail = async (module, relatedRecordId, recipientEmail, recipientName, success, errorMessage = null) => {
@@ -1000,6 +1001,19 @@ const verifyTimesheet = async (req, res) => {
       [req.params.id]
     );
     res.json({ message: 'Timesheet verified', timesheet: updated });
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      productionId: updated.production_id,
+      category: 'payroll',
+      action: 'timesheet_finalised',
+      entityType: 'timesheet',
+      entityId: updated.id,
+      details: `Finalised and verified timesheet for week ending ${updated.week_ending_date}`,
+      metadata: { timesheet_id: updated.id, week_ending_date: updated.week_ending_date, crew_member_id: updated.crew_member_id },
+    });
   } catch (err) {
     console.error('verifyTimesheet:', err);
     res.status(500).json({ error: err.message });

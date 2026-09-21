@@ -4,6 +4,7 @@ const fileStorage                     = require('../services/fileStorage');
 const { generatePoPdf }               = require('../services/poPdfService');
 const { recordSupplierCost, softDeleteEntry } = require('../services/costReportService');
 const { generatePoListPdf }                   = require('../services/poPdfService');
+const { logAudit }                            = require('../services/auditService');
 
 // ─── Helper: build shared WHERE conditions for PO list queries ────────────────
 const buildPoFilterConditions = (query) => {
@@ -26,7 +27,10 @@ const buildPoFilterConditions = (query) => {
   if (query.net_amount_min){ conditions.push(`po.net_amount >= $${i++}`);          params.push(query.net_amount_min); }
   if (query.net_amount_max){ conditions.push(`po.net_amount <= $${i++}`);          params.push(query.net_amount_max); }
 
-  if (query.include_archived !== 'true') {
+  if (query.archived_only === 'true') {
+    conditions.push(`(po.deleted_at IS NOT NULL OR po.is_archived = true)`);
+  } else if (query.include_archived !== 'true') {
+    conditions.push(`(po.deleted_at IS NULL AND po.is_archived = false)`);
     conditions.push(`p.status != $${i++}`);
     params.push('archived');
   }
@@ -64,11 +68,17 @@ const generatePoNumber = async () => {
 
 // ─── Helper: write a PO status transition to the audit log ───────────────────
 const logStatusTransition = async (client, poId, productionId, fromStatus, toStatus, userId) => {
-  await client.query(
-    `INSERT INTO audit_log (user_id, production_id, action, metadata)
-     VALUES ($1, $2, 'po_status_transition', $3)`,
-    [userId, productionId, JSON.stringify({ po_id: poId, from_status: fromStatus, to_status: toStatus })]
-  );
+  await logAudit({
+    userId,
+    productionId,
+    category: 'financial',
+    action: `po_${toStatus}`,
+    entityType: 'purchase_order',
+    entityId: poId,
+    details: `Purchase order ${poId} transitioned from ${fromStatus} to ${toStatus}`,
+    metadata: { po_id: poId, from_status: fromStatus, to_status: toStatus },
+    client,
+  });
 };
 
 // ─── GET /api/purchase-orders ─────────────────────────────────────────────────
@@ -249,6 +259,19 @@ const createPO = async (req, res) => {
       ]
     );
     res.status(201).json({ ...rows[0], message: 'Purchase order created successfully', purchase_order: rows[0] });
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      productionId: rows[0].production_id,
+      category: 'financial',
+      action: 'po_created',
+      entityType: 'purchase_order',
+      entityId: rows[0].po_number,
+      details: `Created Purchase Order ${rows[0].po_number} for ${rows[0].supplier_name} (£${parseFloat(rows[0].gross_amount || 0).toFixed(2)})`,
+      metadata: { po_id: rows[0].id, po_number: rows[0].po_number, gross_amount: rows[0].gross_amount, supplier_name: rows[0].supplier_name },
+    });
   } catch (err) {
     console.error('createPO:', err);
     res.status(500).json({ error: err.message });
@@ -537,19 +560,89 @@ const approvePO = async (req, res) => {
   }
 };
 
-// ─── DELETE /api/purchase-orders/:id ─────────────────────────────────────────
+// ─── DELETE /api/purchase-orders/:id (Soft-delete / Archive OR Permanent Delete)
 const deletePO = async (req, res) => {
+  const isPermanent = req.query.permanent === 'true';
   try {
     const { rows: [existing] } = await db.query(
-      'SELECT status FROM purchase_orders WHERE id = $1',
+      'SELECT id, po_number, status, supplier_name FROM purchase_orders WHERE id = $1',
       [req.params.id]
     );
-    if (!existing)               return res.status(404).json({ error: 'Purchase order not found' });
+    if (!existing) return res.status(404).json({ error: 'Purchase order not found' });
     if (existing.status === 'approved')
-      return res.status(403).json({ error: 'Approved purchase orders cannot be deleted' });
+      return res.status(403).json({ error: 'Approved purchase orders cannot be deleted or archived directly' });
 
-    await db.query('DELETE FROM purchase_orders WHERE id = $1', [req.params.id]);
-    res.json({ message: 'Purchase order deleted' });
+    if (isPermanent) {
+      // Remove any related cost report entries
+      await db.query(
+        "DELETE FROM cost_report_entries WHERE source_id = $1 AND source_type = 'purchase_order'",
+        [req.params.id]
+      );
+
+      // Permanently delete PO
+      await db.query('DELETE FROM purchase_orders WHERE id = $1', [req.params.id]);
+
+      await logAudit({
+        userId: req.user?.id,
+        userName: req.user?.full_name,
+        userRole: req.user?.role,
+        category: 'financial',
+        action: 'po_permanently_deleted',
+        entityType: 'purchase_order',
+        entityId: req.params.id,
+        details: `Permanently deleted purchase order ${existing.po_number || req.params.id} (${existing.supplier_name || 'N/A'})`,
+        metadata: { po_id: req.params.id, po_number: existing.po_number },
+      });
+
+      return res.json({
+        message: `Purchase order ${existing.po_number || ''} permanently deleted successfully`,
+        permanently_deleted: true,
+      });
+    }
+
+    await db.query(
+      'UPDATE purchase_orders SET is_archived = true, deleted_at = NOW(), updated_at = NOW() WHERE id = $1',
+      [req.params.id]
+    );
+    res.json({ message: 'Purchase order archived successfully', soft_deleted: true });
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      category: 'financial',
+      action: 'po_archived',
+      entityType: 'purchase_order',
+      entityId: req.params.id,
+      details: `Archived purchase order ID ${req.params.id}`,
+      metadata: { po_id: req.params.id },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─── PATCH /api/purchase-orders/:id/restore ───────────────────────────────────
+const restorePO = async (req, res) => {
+  try {
+    const { rows: [existing] } = await db.query(
+      'UPDATE purchase_orders SET is_archived = false, deleted_at = NULL, updated_at = NOW() WHERE id = $1 RETURNING id, po_number',
+      [req.params.id]
+    );
+    if (!existing) return res.status(404).json({ error: 'Purchase order not found' });
+    res.json({ message: 'Purchase order restored successfully', purchase_order: existing });
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      category: 'financial',
+      action: 'po_restored',
+      entityType: 'purchase_order',
+      entityId: existing.po_number || existing.id,
+      details: `Restored purchase order ${existing.po_number || existing.id}`,
+      metadata: { po_id: existing.id, po_number: existing.po_number },
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -634,6 +727,6 @@ module.exports = {
   issuePO, submitPO,
   attachInvoice, downloadInvoice, deleteInvoice,
   attachConfirmation, downloadConfirmation,
-  approvePO, deletePO,
+  approvePO, deletePO, restorePO,
   exportCSV, exportPDFList, downloadPdf,
 };

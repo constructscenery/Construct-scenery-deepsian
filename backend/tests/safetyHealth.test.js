@@ -1,5 +1,5 @@
 jest.mock('../config/db', () => ({ query: jest.fn() }));
-jest.mock('../services/fileStorage', () => ({ store: jest.fn(), deleteFile: jest.fn() }));
+jest.mock('../services/fileStorage', () => ({ store: jest.fn(), deleteFile: jest.fn(), streamToResponse: jest.fn() }));
 jest.mock('../config/email', () => ({ sendEmail: jest.fn(), templates: { insuranceCertificateExpiryAlert: jest.fn() } }));
 
 const db = require('../config/db');
@@ -8,9 +8,48 @@ const { uploadDocument, replaceDocument } = require('../Controllers/safetyHealth
 const { sendEmail, templates } = require('../config/email');
 const { runAssetReminders } = require('../services/reminderService');
 const { getVehicles } = require('../Controllers/assetsHireController');
+const express = require('express');
+const request = require('supertest');
+const { authenticate } = require('../Middleware/auth');
+const publicApp = express();
+publicApp.use('/api/public/safety-health', require('../routes/publicSafetyHealth'));
+publicApp.use(authenticate);
+publicApp.get('/api/safety-health', (_req, res) => res.json([]));
 
 const response = () => ({ status: jest.fn().mockReturnThis(), json: jest.fn() });
 beforeEach(() => jest.resetAllMocks());
+
+describe('public Health & Safety QR destinations', () => {
+  test.each([undefined, 'Bearer expired-token'])('directory needs no valid login (%s)', async authorization => {
+    db.query.mockResolvedValue({ rows: [] });
+    const call = request(publicApp).get('/api/public/safety-health');
+    if (authorization) call.set('Authorization', authorization);
+    expect((await call).status).toBe(200);
+    expect(db.query.mock.calls[0][0]).toContain("d.status = 'active'");
+    expect(db.query.mock.calls[0][0]).toContain("d.document_type IN ('coshh', 'insurance')");
+  });
+
+  test('certificate PDF is streamed without authentication', async () => {
+    db.query.mockResolvedValue({ rows: [{ file_url: 'private-storage/certificate.pdf', file_name: 'certificate.pdf', file_mime_type: 'application/pdf' }] });
+    fileStorage.streamToResponse.mockImplementation(async (_url, res) => res.type('application/pdf').send('%PDF-1.4'));
+    const result = await request(publicApp).get('/api/public/safety-health/public-token');
+    expect(result.status).toBe(200);
+    expect(result.headers['content-type']).toContain('application/pdf');
+    expect(db.query.mock.calls[0][1]).toEqual(['public-token']);
+    expect(db.query.mock.calls[0][0]).toContain("status = 'active' AND document_type IN ('coshh', 'insurance')");
+  });
+
+  test('missing or nonpublic certificates do not expose a file', async () => {
+    db.query.mockResolvedValue({ rows: [] });
+    expect((await request(publicApp).get('/api/public/safety-health/unknown-token')).status).toBe(404);
+    expect(fileStorage.streamToResponse).not.toHaveBeenCalled();
+  });
+
+  test('private document listing still requires authentication', async () => {
+    expect((await request(publicApp).get('/api/safety-health')).status).toBe(401);
+    expect(db.query).not.toHaveBeenCalled();
+  });
+});
 
 test.each(['2026-02-30', 'invalid', '19/09/2026'])('rejects invalid expiry %s before storing a file', async expiry_date => {
   const res = response();

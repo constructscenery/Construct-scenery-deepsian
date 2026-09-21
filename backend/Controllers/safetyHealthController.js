@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const db = require('../config/db');
 const fileStorage = require('../services/fileStorage');
+const { logAudit } = require('../services/auditService');
 
 // SafetyHealthDocumentType
 const TYPES = new Set(['risk_template', 'risk_assessment', 'coshh', 'insurance']);
@@ -124,6 +125,18 @@ const uploadDocument = async (req, res) => {
     const { rows: [row] } = await db.query(`INSERT INTO safety_health_documents (document_type, file_url, file_key, file_name, file_size, file_mime_type, assessment_date, location, production_id, tags, status, public_token, uploaded_by, expiry_date, reminder_enabled, reminder_days) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id, document_type, file_name, file_size, file_mime_type, assessment_date, location, production_id, tags, status, public_token, uploaded_by, uploaded_at, expiry_date, reminder_enabled, reminder_days`, [type, stored.url, stored.key, req.file.originalname, req.file.size, req.file.mimetype, req.body.assessment_date || null, req.body.location || null, productionIds[0] || null, tags, status, token, req.user.id, type === 'insurance' ? req.body.expiry_date || null : null, ![false, 'false'].includes(req.body.reminder_enabled), Number(req.body.reminder_days ?? 30)]);
     await syncProductionLinks(row.id, productionIds);
     res.status(201).json(row);
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      category: 'safety_document',
+      action: 'safety_document_uploaded',
+      entityType: 'safety_health_documents',
+      entityId: row.id,
+      details: `Uploaded ${row.document_type}: "${row.file_name}" (${(row.file_size / 1024).toFixed(1)} KB)`,
+      metadata: { document_id: row.id, document_type: row.document_type, file_name: row.file_name, file_size: row.file_size },
+    });
   } catch (err) { console.error('uploadSafetyHealth:', err); res.status(err.status || 500).json({ error: err.message }); }
 };
 
@@ -173,6 +186,18 @@ const replaceDocument = async (req, res) => {
       if (productionIds) await syncProductionLinks(req.params.id, productionIds);
       if (stored) await fileStorage.deleteFile(existing.file_key || keyFromUrl(existing.file_url));
       res.json(updated);
+
+      await logAudit({
+        userId: req.user?.id,
+        userName: req.user?.full_name,
+        userRole: req.user?.role,
+        category: 'safety_document',
+        action: 'safety_document_updated',
+        entityType: 'safety_health_documents',
+        entityId: updated.id,
+        details: `Updated safety document "${updated.file_name}" (${updated.document_type})`,
+        metadata: { document_id: updated.id, document_type: updated.document_type, file_name: updated.file_name },
+      });
     } catch (err) {
       if (stored) await fileStorage.deleteFile(stored.key);
       throw err;
@@ -190,6 +215,18 @@ const deleteDocument = async (req, res) => {
     await fileStorage.deleteFile(existing.file_key || keyFromUrl(existing.file_url));
     await db.query('DELETE FROM safety_health_documents WHERE id = $1', [req.params.id]);
     res.json({ message: 'Document deleted' });
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      category: 'safety_document',
+      action: 'safety_document_deleted',
+      entityType: 'safety_health_documents',
+      entityId: req.params.id,
+      details: `Deleted safety document "${existing.file_name || req.params.id}"`,
+      metadata: { document_id: req.params.id, file_name: existing.file_name },
+    });
   } catch (err) {
     console.error('deleteSafetyHealth:', err);
     res.status(500).json({ error: 'Unable to delete document' });

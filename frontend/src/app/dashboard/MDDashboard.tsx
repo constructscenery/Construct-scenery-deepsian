@@ -322,7 +322,7 @@ export default function MDDashboard() {
                       <div className="grid grid-cols-4 gap-3 text-center">
                         {[
                           { label: 'Margin Earned', val: latestWeek.margin_earned },
-                          { label: "Warren's Salary", val: -latestWeek.warrens_salary },
+                          { label: "Director's Salary", val: -latestWeek.warrens_salary },
                           { label: 'Luton/Box Uplift', val: -(latestWeek.luton_uplift + latestWeek.box_rental_uplift) },
                           { label: 'Weekly Profit', val: latestWeek.weekly_profit, bold: true },
                         ].map(({ label, val, bold }) => (

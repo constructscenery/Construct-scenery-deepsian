@@ -4,12 +4,13 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import BuildingsTab from './components/BuildingsTab';
 import AssetsPlantTab from './components/AssetsPlantTab';
 import ITResourcesTab from './components/ITResourcesTab';
+import LaddersTab from './components/LaddersTab';
 import TopBar from '@/components/TopBar';
 import {
   Truck, Wrench, ShieldAlert, AlertTriangle, CheckCircle2, Clock,
   Plus, Search, Filter, Pencil, Trash2, Calendar, FileText,
   Building2, ArrowRight, RefreshCw, Download, Check, X,
-  ChevronRight, ExternalLink, Sparkles, User, AlertCircle
+  ChevronRight, ExternalLink, Sparkles, User, AlertCircle, Barcode
 } from 'lucide-react';
 import {
   vehiclesApi, hireEquipmentApi, assetsHireApi, productionsApi, suppliersApi,
@@ -17,6 +18,7 @@ import {
   VehicleComplianceStatus, VehicleComplianceInfo
 } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { EmptyStateRow } from '@/components/EmptyState';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -35,9 +37,11 @@ const EQUIPMENT_TYPES = [
 
 export default function AssetsHirePage() {
   const { user } = useAuth();
+  const isGuest = user?.role === 'guest';
+  const canWrite = !isGuest;
 
   // Active sub-module tab
-  const [activeTab, setActiveTab] = useState<'vehicles' | 'hire' | 'buildings' | 'assets' | 'it'>('vehicles');
+  const [activeTab, setActiveTab] = useState<'vehicles' | 'hire' | 'buildings' | 'assets' | 'it' | 'ladders'>('vehicles');
 
   // Data states
   const [summary, setSummary] = useState<AssetsHireSummary | null>(null);
@@ -72,7 +76,7 @@ export default function AssetsHirePage() {
   const [complianceChecking, setComplianceChecking] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const isCoordinatorOrMD = Boolean(user);
+  const isCoordinatorOrMD = Boolean(user) && user?.role !== 'guest';
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
@@ -421,6 +425,18 @@ export default function AssetsHirePage() {
             <Sparkles size={17} />
             <span>IT Resources</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('ladders')}
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${
+              activeTab === 'ladders'
+                ? 'border-blue-600 bg-blue-50/40 rounded-t-lg'
+                : 'border-transparent hover:border-slate-300'
+            }`}
+          >
+            <Barcode size={17} />
+            <span>Ladders</span>
+          </button>
         </div>
 
         {/* ─── TAB 1: VEHICLE ASSET REGISTER ─────────────────────────────────── */}
@@ -492,15 +508,33 @@ export default function AssetsHirePage() {
                         </td>
                       </tr>
                     ) : filteredVehicles.length === 0 ? (
-                      <tr>
-                        <td colSpan={10} className="px-4 py-12 text-center text-slate-400">
-                          <Truck size={28} className="mx-auto mb-2 text-slate-300" />
-                          <p className="font-semibold text-slate-700 text-sm">No vehicles found</p>
-                          <p className="text-xs text-slate-400 mt-1">
-                            {vehicles.length === 0 ? 'Click "Add Vehicle" to register company-owned fleet assets.' : 'Try adjusting your search or compliance filters.'}
-                          </p>
-                        </td>
-                      </tr>
+                      vehicles.length === 0 ? (
+                        <EmptyStateRow
+                          colSpan={10}
+                          icon={Truck}
+                          title="No fleet vehicles registered"
+                          description="No company vehicles or vans are currently tracked in the fleet register."
+                          recommendation="Register company vans and trucks with MOT, service, and insurance dates to track fleet compliance."
+                          action={canWrite ? {
+                            label: 'Add Vehicle',
+                            onClick: () => setShowVehicleModal(true),
+                            icon: Plus,
+                          } : undefined}
+                        />
+                      ) : (
+                        <EmptyStateRow
+                          colSpan={10}
+                          icon={AlertCircle}
+                          title="No matching vehicles found"
+                          description="No vehicles match your active search or compliance status filter."
+                          recommendation="Try clearing your search query or setting the compliance filter to 'All Compliance'."
+                          action={{
+                            label: 'Clear Filters',
+                            onClick: () => { setVSearch(''); setVTypeFilter(''); setVStatusFilter(''); },
+                            icon: X,
+                          }}
+                        />
+                      )
                     ) : (
                       filteredVehicles.map(v => (
                         <tr key={v.id} className="hover:bg-slate-50/80 transition-colors">
@@ -676,15 +710,33 @@ export default function AssetsHirePage() {
                         </td>
                       </tr>
                     ) : filteredHireList.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
-                          <Wrench size={28} className="mx-auto mb-2 text-slate-300" />
-                          <p className="font-semibold text-slate-700 text-sm">No hire records found</p>
-                          <p className="text-xs text-slate-400 mt-1">
-                            {hireList.length === 0 ? 'Click "Record Equipment Hire" to log plant and equipment hires.' : 'Try adjusting your search or filters.'}
-                          </p>
-                        </td>
-                      </tr>
+                      hireList.length === 0 ? (
+                        <EmptyStateRow
+                          colSpan={9}
+                          icon={Wrench}
+                          title="No equipment hires logged"
+                          description="No plant or tool hire agreements have been recorded."
+                          recommendation="Record your active equipment hires with hire companies, daily rates, and off-hire dates to track plant hire spend."
+                          action={canWrite ? {
+                            label: 'Record Equipment Hire',
+                            onClick: () => setShowHireModal(true),
+                            icon: Plus,
+                          } : undefined}
+                        />
+                      ) : (
+                        <EmptyStateRow
+                          colSpan={9}
+                          icon={AlertCircle}
+                          title="No matching hire records"
+                          description="No hire records match your active search or status filter."
+                          recommendation="Try resetting your search query or selecting 'All Statuses'."
+                          action={{
+                            label: 'Clear Filters',
+                            onClick: () => { setHSearch(''); setHStatusFilter('all'); setHProdFilter(''); },
+                            icon: X,
+                          }}
+                        />
+                      )
                     ) : (
                       filteredHireList.map(h => (
                         <tr key={h.id} className="hover:bg-slate-50/80 transition-colors">
@@ -783,6 +835,7 @@ export default function AssetsHirePage() {
         {activeTab === 'buildings' && <BuildingsTab isCoordinatorOrMD={isCoordinatorOrMD} />}
         {activeTab === 'assets' && <AssetsPlantTab isCoordinatorOrMD={isCoordinatorOrMD} productions={productions} />}
         {activeTab === 'it' && <ITResourcesTab isCoordinatorOrMD={isCoordinatorOrMD} />}
+        {activeTab === 'ladders' && <LaddersTab isCoordinatorOrMD={isCoordinatorOrMD} />}
 
       </main>
 

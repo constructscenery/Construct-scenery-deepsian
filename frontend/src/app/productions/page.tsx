@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
 import {
   Plus, Search, Calendar, CheckCircle2, Clock, AlertTriangle,
-  ChevronRight, X, Loader2, Archive, ArchiveRestore, Trash2,
+  ChevronRight, X, Loader2, Archive, ArchiveRestore, Trash2, Clapperboard,
 } from 'lucide-react';
 import { productionsApi, Production, ProductionStatus, ContractType } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { EmptyStateRow } from '@/components/EmptyState';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -291,9 +292,10 @@ function ArchiveModal({ preview, onConfirm, onClose, loading, error }: ArchiveMo
 export default function ProductionsPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const isCoordinator = true;
-  const canArchive    = true;
-  const canEdit       = true;
+  const isGuest       = user?.role === 'guest';
+  const isCoordinator = !isGuest;
+  const canArchive    = !isGuest;
+  const canEdit       = !isGuest;
 
   const [productions, setProductions]     = useState<Production[]>([]);
   const [archived, setArchived]           = useState<Production[]>([]);
@@ -506,11 +508,33 @@ export default function ProductionsPage() {
                     </tr>
                   ))
                 ) : filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-5 py-10 text-center text-slate-400 text-sm">
-                      {search ? 'No productions match your search.' : 'No productions found.'}
-                    </td>
-                  </tr>
+                  productions.length === 0 ? (
+                    <EmptyStateRow
+                      colSpan={7}
+                      icon={Clapperboard}
+                      title="No active productions"
+                      description="There are currently no active productions in your workspace."
+                      recommendation="Create your first production to begin managing set builds, tracking live cost reports, assigning crew, and generating purchase orders."
+                      action={isCoordinator ? {
+                        label: 'Create First Production',
+                        onClick: () => setShowModal(true),
+                        icon: Plus,
+                      } : undefined}
+                    />
+                  ) : (
+                    <EmptyStateRow
+                      colSpan={7}
+                      icon={AlertTriangle}
+                      title="No matching productions"
+                      description="No productions match your active search or filter criteria."
+                      recommendation="Try clearing your search term or resetting the status and contract filters."
+                      action={{
+                        label: 'Clear Filters',
+                        onClick: () => { setSearch(''); setActiveTab('all'); },
+                        icon: X,
+                      }}
+                    />
+                  )
                 ) : (
                   filtered.map(p => {
                     const sc = STATUS_CONFIG[p.status] ?? STATUS_CONFIG.pre_production;

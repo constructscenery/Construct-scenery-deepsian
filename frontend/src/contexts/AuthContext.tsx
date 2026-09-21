@@ -7,6 +7,7 @@ import { authApi, clearAuth, type AuthUser } from '@/lib/api';
 type AuthState = {
   user: AuthUser | null;
   loading: boolean;
+  isGuest: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (partial: Partial<AuthUser>) => void;
@@ -32,7 +33,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(res.user);
             localStorage.setItem('cs_user', JSON.stringify(res.user));
           }
-        }).catch(() => {});
+        }).catch(() => {
+          if (!localStorage.getItem('cs_token')) setUser(null);
+        });
       } catch {
         clearAuth();
       }
@@ -68,11 +71,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  return (
-    <AuthContext.Provider value={{ user, loading, login, logout, updateUser }}>
-      {children}
-    </AuthContext.Provider>
-  );
+    const isGuest = user?.role === 'guest';
+
+    return (
+      <AuthContext.Provider value={{ user, loading, isGuest, login, logout, updateUser }}>
+        {children}
+      </AuthContext.Provider>
+    );
 }
 
 export function useAuth(): AuthState {

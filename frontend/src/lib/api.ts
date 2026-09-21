@@ -7,11 +7,12 @@ type RequestOptions = {
   body?: unknown;
   headers?: Record<string, string>;
   skipAuth?: boolean;
+  redirectOnUnauthorized?: boolean;
   cache?: RequestCache;
 };
 
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, headers = {}, skipAuth = false, cache } = opts;
+  const { method = 'GET', body, headers = {}, skipAuth = false, redirectOnUnauthorized = true, cache } = opts;
 
   const requestHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -48,7 +49,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     }
     // Refresh failed — clear auth and redirect to login
     clearAuth();
-    if (typeof window !== 'undefined') window.location.href = '/login';
+    if (redirectOnUnauthorized && typeof window !== 'undefined') window.location.href = '/login';
     throw new Error('Session expired');
   }
 
@@ -96,7 +97,7 @@ export const authApi = {
       skipAuth: true,
     }),
 
-  me: () => request<{ user: AuthUser }>('/api/auth/me'),
+  me: () => request<{ user: AuthUser }>('/api/auth/me', { redirectOnUnauthorized: false }),
 
   logout: (refresh_token: string) =>
     request<{ message: string }>('/api/auth/logout', {
@@ -126,17 +127,24 @@ export const authApi = {
     }),
 };
 
+export type UserRole =
+  | 'managing_director'
+  | 'construction_accountant'
+  | 'construction_coordinator'
+  | 'guest';
+
 export type AuthUser = {
   id: string;
   email: string;
   full_name: string;
-  role: 'managing_director' | 'construction_accountant' | 'construction_coordinator';
+  role: UserRole;
   avatar_url?: string | null;
 };
 
 // ─── User administration (MD only) ─────────────────────────────────────────────
 export type ManagedUser = AuthUser & {
   is_active: boolean;
+  display_password?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -154,6 +162,17 @@ export const usersApi = {
     request<{ message: string; user: ManagedUser }>(`/api/users/${id}`, {
       method: 'PATCH',
       body: data,
+    }),
+
+  changePassword: (id: string, password: string) =>
+    request<{ message: string; display_password: string }>(`/api/users/${id}/password`, {
+      method: 'PATCH',
+      body: { password },
+    }),
+
+  delete: (id: string) =>
+    request<{ message: string }>(`/api/users/${id}`, {
+      method: 'DELETE',
     }),
 };
 
@@ -215,7 +234,7 @@ export type Production = {
   } | null;
 };
 
-export type AuditLogEntry = {
+export type ProductionAuditLogEntry = {
   id: string;
   action: 'archived' | 'unarchived';
   created_at: string;
@@ -332,7 +351,7 @@ export const productionsApi = {
       `/api/productions/${id}/archive-preview`
     ),
   getAuditLog: () =>
-    request<AuditLogEntry[]>('/api/productions/audit-log'),
+    request<ProductionAuditLogEntry[]>('/api/productions/audit-log'),
   archive: (id: string) =>
     request<{ message: string; production: Production }>(`/api/productions/${id}/archive`, { method: 'POST' }),
   unarchive: (id: string) =>
@@ -487,8 +506,9 @@ export type PurchaseOrder = {
   confirmation_attachment_name: string | null;
   approved_by: string | null;
   approved_at: string | null;
-  created_by: string;
   created_at: string;
+  is_archived?: boolean;
+  deleted_at?: string | null;
   // joined
   prod_name?: string;
   prod_status?: string;
@@ -575,8 +595,13 @@ export const purchaseOrdersApi = {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   },
-  delete: (id: string) =>
-    request<{ message: string }>(`/api/purchase-orders/${id}`, { method: 'DELETE' }),
+  delete: (id: string, permanent?: boolean) =>
+    request<{ message: string; soft_deleted?: boolean; permanently_deleted?: boolean }>(
+      `/api/purchase-orders/${id}${permanent ? '?permanent=true' : ''}`,
+      { method: 'DELETE' }
+    ),
+  restore: (id: string) =>
+    request<{ message: string; purchase_order: PurchaseOrder }>(`/api/purchase-orders/${id}/restore`, { method: 'PATCH' }),
   import: (formData: FormData) =>
     fetch('/api/purchase-orders/import', {
       method: 'POST',
@@ -623,6 +648,8 @@ export type CrewMember = {
   qualifications: string[];
   company_utr: string | null;
   created_at: string;
+  is_archived?: boolean;
+  deleted_at?: string | null;
   active_productions?: string[];
 };
 
@@ -751,8 +778,13 @@ export const crewApi = {
     }),
   deleteDocument: (crewId: string, docId: string) =>
     request<{ message: string }>(`/api/crew/${crewId}/documents/${docId}`, { method: 'DELETE' }),
-  delete: (id: string) =>
-    request<{ message: string; soft_deleted: boolean }>(`/api/crew/${id}`, { method: 'DELETE' }),
+  delete: (id: string, permanent?: boolean) =>
+    request<{ message: string; soft_deleted?: boolean; permanently_deleted?: boolean }>(
+      `/api/crew/${id}${permanent ? '?permanent=true' : ''}`,
+      { method: 'DELETE' }
+    ),
+  restore: (id: string) =>
+    request<{ message: string; member: CrewMember }>(`/api/crew/${id}/restore`, { method: 'PATCH' }),
 
   // ── Registration Requests & Invites ─────────────────────────────────────────
   sendInvite: (data: { email: string; name?: string; message?: string }) =>
@@ -1106,20 +1138,33 @@ export type Supplier = {
   payment_terms: string | null;
   lead_times: string | null;
   notes: string | null;
+  is_archived?: boolean;
+  deleted_at?: string | null;
   created_at: string;
   updated_at: string;
 };
 export const supplierApi = {
-  list: () => request<Supplier[]>('/api/suppliers'),
-  getAll: () => request<{ suppliers: Supplier[] }>('/api/suppliers'),
+  list: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<Supplier[]>(`/api/suppliers${qs}`);
+  },
+  getAll: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<{ suppliers: Supplier[] }>(`/api/suppliers${qs}`);
+  },
   getNames: () => request<string[]>('/api/suppliers/names'),
   getById: (id: string) => request<Supplier>(`/api/suppliers/${id}`),
   create: (data: Partial<Supplier>) =>
     request<Supplier>('/api/suppliers', { method: 'POST', body: data }),
   update: (id: string, data: Partial<Supplier>) =>
     request<Supplier>(`/api/suppliers/${id}`, { method: 'PUT', body: data }),
-  delete: (id: string) =>
-    request<{ message: string }>(`/api/suppliers/${id}`, { method: 'DELETE' }),
+  delete: (id: string, permanent?: boolean) =>
+    request<{ message: string; soft_deleted?: boolean; permanently_deleted?: boolean }>(
+      `/api/suppliers/${id}${permanent ? '?permanent=true' : ''}`,
+      { method: 'DELETE' }
+    ),
+  restore: (id: string) =>
+    request<{ message: string; supplier: Supplier }>(`/api/suppliers/${id}/restore`, { method: 'PATCH' }),
   getHistory: (id: string) => request<SupplierPurchaseOrder[]>(`/api/suppliers/${id}/history`),
   getAllHistory: () => request<SupplierPurchaseOrder[]>('/api/suppliers/history'),
 };
@@ -1480,6 +1525,89 @@ export const itResourcesApi = {
   delete: (id: string) => request<{ message: string }>(`/api/it-resources/${id}`, { method: 'DELETE' }),
 };
 
+export interface LadderReminder {
+  status: 'overdue' | 'due_soon' | 'valid' | 'unknown';
+  label: string;
+  is_overdue: boolean;
+  is_due_soon: boolean;
+  days_until: number | null;
+}
+
+export interface Ladder {
+  id: string;
+  barcode: string;
+  ladder_type: string;
+  inspection_date: string;
+  condition: string;
+  next_inspection_due: string;
+  location?: string | null;
+  inspector_name?: string | null;
+  reminder_days?: number;
+  notes?: string | null;
+  is_archived?: boolean;
+  deleted_at?: string | null;
+  reminder?: LadderReminder;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export const laddersApi = {
+  getAll: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return request<{ ladders: Ladder[] }>(`/api/ladders${qs}`);
+  },
+  getById: (id: string) => request<{ ladder: Ladder }>(`/api/ladders/${id}`),
+  create: (data: Partial<Ladder>) => request<{ message: string; ladder: Ladder }>('/api/ladders', { method: 'POST', body: data }),
+  update: (id: string, data: Partial<Ladder>) => request<{ message: string; ladder: Ladder }>(`/api/ladders/${id}`, { method: 'PUT', body: data }),
+  delete: (id: string, permanent?: boolean) =>
+    request<{ message: string; soft_deleted?: boolean; permanently_deleted?: boolean }>(
+      `/api/ladders/${id}${permanent ? '?permanent=true' : ''}`,
+      { method: 'DELETE' }
+    ),
+  restore: (id: string) => request<{ message: string; ladder: Ladder }>(`/api/ladders/${id}/restore`, { method: 'PATCH' }),
+};
+
+export type AuditCategory = 'financial' | 'payroll' | 'rate_card' | 'safety_document' | 'role' | 'production' | 'general';
+
+export interface AuditLogEntry {
+  id: string;
+  user_id?: string | null;
+  production_id?: string | null;
+  action: string;
+  category: AuditCategory;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  details?: string | null;
+  user_name: string;
+  user_role: string;
+  metadata?: Record<string, any> | null;
+  created_at: string;
+  production_name?: string | null;
+}
+
+export interface AuditSummary {
+  total: number;
+  financial: number;
+  payroll: number;
+  rate_card: number;
+  safety_document: number;
+  role: number;
+  last_24h: number;
+  last_event_at: string | null;
+}
+
+export const auditLogApi = {
+  getAll: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return request<{ total: number; limit: number; offset: number; logs: AuditLogEntry[] }>(`/api/audit-log${qs}`);
+  },
+  getSummary: () => request<{ summary: AuditSummary }>('/api/audit-log/summary'),
+  exportCsvUrl: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return `/api/audit-log/export${qs}`;
+  },
+};
+
 export default request;
 
 export type HistoricalCostReportType = 'type1' | 'type2';
@@ -1617,6 +1745,60 @@ export const safetyHealthApi = {
   publicList: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return request<SafetyHealthDocument[]>(`/api/public/safety-health${qs}`, { skipAuth: true, cache: 'no-store' });
+  },
+};
+
+export type DataSyncRecord = {
+  id: string;
+  filename: string;
+  s3_key: string;
+  s3_url: string;
+  file_size: string | number;
+  tables_synced: number;
+  total_records: number;
+  metadata: Record<string, unknown>;
+  status: string;
+  triggered_by_type: 'MANUAL' | 'SCHEDULED';
+  triggered_by_user_id: string | null;
+  triggered_by_user_name: string | null;
+  error_message: string | null;
+  created_at: string;
+  completed_at: string | null;
+};
+
+export type DataSyncStatus = {
+  latestSync: DataSyncRecord | null;
+  totalSyncs: number;
+  successfulSyncs: number;
+  scheduledSyncs: number;
+  cronSchedule: string;
+  cronScheduleHuman: string;
+  bucket: string;
+  region: string;
+};
+
+export const dataSyncApi = {
+  triggerSync: () => request<{ message: string; sync: DataSyncRecord }>('/api/data-sync/trigger', { method: 'POST' }),
+  getHistory: (limit = 50) => request<{ history: DataSyncRecord[] }>(`/api/data-sync/history?limit=${limit}`),
+  getStatus: () => request<DataSyncStatus>('/api/data-sync/status'),
+  downloadUrl: (id: string, specificFile?: string) =>
+    `/api/data-sync/download/${id}${specificFile ? `?file=${encodeURIComponent(specificFile)}` : ''}`,
+  downloadFile: async (id: string, filename: string, specificFile?: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cs_token') : null;
+    const qs = specificFile ? `?file=${encodeURIComponent(specificFile)}` : '';
+    const response = await fetch(`/api/data-sync/download/${id}${qs}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new Error('Failed to download backup file');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = specificFile || filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
   },
 };
 

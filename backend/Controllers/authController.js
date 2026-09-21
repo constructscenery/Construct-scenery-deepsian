@@ -32,11 +32,13 @@ const signup = async (req, res) => {
     if (existing.length) return res.status(400).json({ error: 'Email already registered' });
 
     const password_hash = await bcrypt.hash(password, 12);
+    const { encrypt } = require('../config/crypto');
+    const display_password = encrypt(password);
     const { rows } = await db.query(
-      `INSERT INTO users (email, password_hash, full_name, role)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO users (email, password_hash, display_password, full_name, role)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING id, email, full_name, role, created_at`,
-      [email.toLowerCase().trim(), password_hash, full_name, role]
+      [email.toLowerCase().trim(), password_hash, display_password, full_name, role]
     );
 
     res.status(201).json({ message: 'User created successfully', user: rows[0] });
