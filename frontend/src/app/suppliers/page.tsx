@@ -150,18 +150,18 @@ export default function SuppliersPage() {
   const filtered = items
     .filter((item) => {
       const q = search.toLowerCase();
-          const searchableText = [
-            item.name,
-            item.email,
-            item.phone,
-            item.category,
-            item.primary_contact_name,
-            item.street_name,
-            item.city,
-            item.county,
-            item.zip_code,
-          ].filter(Boolean).join(' ').toLowerCase();
-          const matchesSearch = !q || searchableText.includes(q);
+      const searchableText = [
+        item.name,
+        item.email,
+        item.phone,
+        item.category,
+        item.primary_contact_name,
+        item.street_name,
+        item.city,
+        item.county,
+        item.zip_code,
+      ].filter(Boolean).join(' ').toLowerCase();
+      const matchesSearch = !q || searchableText.includes(q);
       const matchesCategory = !categoryFilter || item.category === categoryFilter;
       const location = [item.street_name, item.city, item.county, item.zip_code].filter(Boolean).join(' ').toLowerCase();
       const matchesLocation = !locationFilter || location.includes(locationFilter.toLowerCase());
@@ -169,8 +169,8 @@ export default function SuppliersPage() {
         archiveFilter === 'all'
           ? true
           : archiveFilter === 'archived'
-          ? Boolean(item.is_archived)
-          : !item.is_archived;
+            ? Boolean(item.is_archived)
+            : !item.is_archived;
       return matchesSearch && matchesCategory && matchesLocation && matchesArchive;
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -325,7 +325,7 @@ export default function SuppliersPage() {
         {toast && <Toast message={toast} onClose={() => setToast(null)} />}
 
         <div className="flex items-center gap-1 border-b border-slate-200">
-          <button onClick={() => setActiveTab('suppliers')} className={`px-4 py-2.5 text-sm font-normal border-b-2 ${activeTab === 'suppliers' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600'}`}>5.3 Supplier Database</button>
+          <button onClick={() => setActiveTab('suppliers')} className={`px-4 py-2.5 text-sm font-normal border-b-2 ${activeTab === 'suppliers' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600'}`}>Supplier Database</button>
           <button onClick={() => setActiveTab('history')} className={`px-4 py-2.5 text-sm font-normal border-b-2 ${activeTab === 'history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600'}`}>PO History & Production Links</button>
         </div>
 
@@ -345,212 +345,212 @@ export default function SuppliersPage() {
             )}
           </div>
         ) : <>
-        
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-          <div className="px-5 py-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(260px,1fr)_220px_220px_auto] items-center gap-3">
-              <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 min-w-0">
-                <Search size={14} className="text-slate-400 flex-shrink-0" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search name, email…"
-                  className="bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none w-full"
-                />
-                {search && (
-                  <button onClick={() => setSearch('')} className="text-slate-400 hover:text-slate-600">
-                    <X size={13} />
+
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="px-5 py-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(260px,1fr)_220px_220px_auto] items-center gap-3">
+                <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 min-w-0">
+                  <Search size={14} className="text-slate-400 flex-shrink-0" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search name, email…"
+                    className="bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none w-full"
+                  />
+                  {search && (
+                    <button onClick={() => setSearch('')} className="text-slate-400 hover:text-slate-600">
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All categories</option>
+                  {supplierCategories.map(category => <option key={category} value={category}>{category}</option>)}
+                </select>
+                <select
+                  value={locationFilter}
+                  onChange={(e) => setLocationFilter(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All locations</option>
+                  {supplierLocations.map(location => <option key={location} value={location}>{location}</option>)}
+                </select>
+                <div className="flex items-center rounded-lg border border-slate-200 p-0.5 bg-slate-100 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setArchiveFilter('active')}
+                    className={`px-2.5 py-1.5 rounded-md font-medium transition-colors ${archiveFilter === 'active' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    Active
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setArchiveFilter('archived')}
+                    className={`px-2.5 py-1.5 rounded-md font-medium transition-colors ${archiveFilter === 'archived' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    Archived
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setArchiveFilter('all')}
+                    className={`px-2.5 py-1.5 rounded-md font-medium transition-colors ${archiveFilter === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    All
+                  </button>
+                </div>
+                {hasSupplierFilters && (
+                  <button
+                    onClick={clearSupplierFilters}
+                    className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium px-2 py-2"
+                  >
+                    <X size={12} /> Clear filters
                   </button>
                 )}
               </div>
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All categories</option>
-                {supplierCategories.map(category => <option key={category} value={category}>{category}</option>)}
-              </select>
-              <select
-                value={locationFilter}
-                onChange={(e) => setLocationFilter(e.target.value)}
-                className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All locations</option>
-                {supplierLocations.map(location => <option key={location} value={location}>{location}</option>)}
-              </select>
-              <div className="flex items-center rounded-lg border border-slate-200 p-0.5 bg-slate-100 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setArchiveFilter('active')}
-                  className={`px-2.5 py-1.5 rounded-md font-medium transition-colors ${archiveFilter === 'active' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
-                >
-                  Active
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setArchiveFilter('archived')}
-                  className={`px-2.5 py-1.5 rounded-md font-medium transition-colors ${archiveFilter === 'archived' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
-                >
-                  Archived
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setArchiveFilter('all')}
-                  className={`px-2.5 py-1.5 rounded-md font-medium transition-colors ${archiveFilter === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
-                >
-                  All
-                </button>
-              </div>
-              {hasSupplierFilters && (
-                <button
-                  onClick={clearSupplierFilters}
-                  className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium px-2 py-2"
-                >
-                  <X size={12} /> Clear filters
-                </button>
+
+              {canWrite && (
+                <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                  <button
+                    onClick={openAdd}
+                    className="flex items-center justify-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-5 py-2.5 hover:bg-blue-700 transition-colors font-medium whitespace-nowrap"
+                  >
+                    <Plus size={14} />
+                    Add Supplier
+                  </button>
+                </div>
               )}
             </div>
-
-            {canWrite && (
-              <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
-                <button
-                  onClick={openAdd}
-                  className="flex items-center justify-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-5 py-2.5 hover:bg-blue-700 transition-colors font-medium whitespace-nowrap"
-                >
-                  <Plus size={14} />
-                  Add Supplier
-                </button>
-              </div>
-            )}
           </div>
-        </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[700px]">
-              <thead>
-                <tr className="bg-slate-50 text-left border-b border-slate-100">
-                  <th className="px-5 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Supplier Name</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Category</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Contact</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Address</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Notes</th>
-                  {canWrite && (
-                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Actions</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loading
-                  ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
-                  : filtered.length === 0
-                  ? (
-                    items.length === 0 ? (
-                      <EmptyStateRow
-                        colSpan={canWrite ? 6 : 5}
-                        icon={Building2}
-                        title="No suppliers registered"
-                        description="There are no suppliers currently in your database."
-                        recommendation="Register your key material suppliers, subcontractors, and trade vendors to link them directly to purchase orders."
-                        action={canWrite ? {
-                          label: 'Add First Supplier',
-                          onClick: openAdd,
-                          icon: Plus,
-                        } : undefined}
-                      />
-                    ) : (
-                      <EmptyStateRow
-                        colSpan={canWrite ? 6 : 5}
-                        icon={AlertCircle}
-                        title={archiveFilter === 'archived' ? 'No archived suppliers' : 'No matching suppliers'}
-                        description={
-                          archiveFilter === 'archived'
-                            ? 'No suppliers are currently marked as archived.'
-                            : 'No suppliers match your active search and filter criteria.'
-                        }
-                        recommendation="Try clearing your search query or switching your active filters."
-                        action={{
-                          label: 'Clear Filters',
-                          onClick: clearSupplierFilters,
-                          icon: X,
-                        }}
-                      />
-                    )
-                  )
-                  : filtered.map((item) => (
-                    <tr key={item.id} className={`hover:bg-slate-50/50 transition-colors ${item.is_archived ? 'bg-slate-50/70 opacity-80' : ''}`}>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <p className="text-slate-800 font-semibold text-sm">{item.name}</p>
-                          {item.is_archived && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                              Archived
-                            </span>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[700px]">
+                <thead>
+                  <tr className="bg-slate-50 text-left border-b border-slate-100">
+                    <th className="px-5 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Supplier Name</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Category</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Contact</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Address</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Notes</th>
+                    {canWrite && (
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Actions</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loading
+                    ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
+                    : filtered.length === 0
+                      ? (
+                        items.length === 0 ? (
+                          <EmptyStateRow
+                            colSpan={canWrite ? 6 : 5}
+                            icon={Building2}
+                            title="No suppliers registered"
+                            description="There are no suppliers currently in your database."
+                            recommendation="Register your key material suppliers, subcontractors, and trade vendors to link them directly to purchase orders."
+                            action={canWrite ? {
+                              label: 'Add First Supplier',
+                              onClick: openAdd,
+                              icon: Plus,
+                            } : undefined}
+                          />
+                        ) : (
+                          <EmptyStateRow
+                            colSpan={canWrite ? 6 : 5}
+                            icon={AlertCircle}
+                            title={archiveFilter === 'archived' ? 'No archived suppliers' : 'No matching suppliers'}
+                            description={
+                              archiveFilter === 'archived'
+                                ? 'No suppliers are currently marked as archived.'
+                                : 'No suppliers match your active search and filter criteria.'
+                            }
+                            recommendation="Try clearing your search query or switching your active filters."
+                            action={{
+                              label: 'Clear Filters',
+                              onClick: clearSupplierFilters,
+                              icon: X,
+                            }}
+                          />
+                        )
+                      )
+                      : filtered.map((item) => (
+                        <tr key={item.id} className={`hover:bg-slate-50/50 transition-colors ${item.is_archived ? 'bg-slate-50/70 opacity-80' : ''}`}>
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <p className="text-slate-800 font-semibold text-sm">{item.name}</p>
+                              {item.is_archived && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                                  Archived
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-600 text-sm">{item.category || '—'}</td>
+                          <td className="px-4 py-3.5 text-slate-700 text-sm">
+                            {item.email && <div className="text-blue-600">{item.email}</div>}
+                            {item.phone && <div className="text-slate-500 text-xs">{item.phone}</div>}
+                            {!item.email && !item.phone && <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-700 text-sm">
+                            {[item.street_name, item.city, item.zip_code].filter(Boolean).join(', ') || <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-500 text-xs max-w-[200px] truncate">
+                            {item.notes ?? <span className="text-slate-300">—</span>}
+                          </td>
+                          {canWrite && (
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => openHistory(item)}
+                                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors font-medium border border-blue-100"
+                                >
+                                  PO History
+                                </button>
+                                <button
+                                  onClick={() => openEdit(item)}
+                                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors font-medium border border-slate-200"
+                                >
+                                  <Pencil size={11} /> Edit
+                                </button>
+                                {item.is_archived ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleRestore(item)}
+                                      className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors font-medium border border-emerald-200"
+                                    >
+                                      <RotateCcw size={11} /> Restore
+                                    </button>
+                                    <button
+                                      onClick={() => setPermanentDeleteTarget(item)}
+                                      className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors font-medium border border-rose-200"
+                                      title="Permanently Delete Supplier"
+                                    >
+                                      <Trash2 size={11} /> Delete Permanently
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={() => setDeleteTarget(item)}
+                                    className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-medium border border-amber-200"
+                                  >
+                                    <Archive size={11} /> Archive
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                           )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-600 text-sm">{item.category || '—'}</td>
-                      <td className="px-4 py-3.5 text-slate-700 text-sm">
-                        {item.email && <div className="text-blue-600">{item.email}</div>}
-                        {item.phone && <div className="text-slate-500 text-xs">{item.phone}</div>}
-                        {!item.email && !item.phone && <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-700 text-sm">
-                        {[item.street_name, item.city, item.zip_code].filter(Boolean).join(', ') || <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-500 text-xs max-w-[200px] truncate">
-                        {item.notes ?? <span className="text-slate-300">—</span>}
-                      </td>
-                      {canWrite && (
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => openHistory(item)}
-                              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors font-medium border border-blue-100"
-                            >
-                              PO History
-                            </button>
-                            <button
-                              onClick={() => openEdit(item)}
-                              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors font-medium border border-slate-200"
-                            >
-                              <Pencil size={11} /> Edit
-                            </button>
-                            {item.is_archived ? (
-                              <>
-                                <button
-                                  onClick={() => handleRestore(item)}
-                                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors font-medium border border-emerald-200"
-                                >
-                                  <RotateCcw size={11} /> Restore
-                                </button>
-                                <button
-                                  onClick={() => setPermanentDeleteTarget(item)}
-                                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors font-medium border border-rose-200"
-                                  title="Permanently Delete Supplier"
-                                >
-                                  <Trash2 size={11} /> Delete Permanently
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                onClick={() => setDeleteTarget(item)}
-                                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-medium border border-amber-200"
-                              >
-                                <Archive size={11} /> Archive
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+                        </tr>
+                      ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
         </>}
       </main>
 

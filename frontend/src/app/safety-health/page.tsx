@@ -8,10 +8,10 @@ import { productionsApi, safetyHealthApi, type Production, type SafetyHealthDocu
 import { Check, Copy, Download, ExternalLink, FileText, HeartPulse, Pencil, QrCode, Search, Upload, X } from 'lucide-react';
 
 const tabs: Array<{ type: SafetyHealthDocumentType; label: string; description: string }> = [
-  { type: 'risk_template', label: '6.1 Risk Assessment Template', description: 'The standard Word template available for download and completion.' },
-  { type: 'risk_assessment', label: '6.2 Filled Risk Assessments', description: 'Completed risk assessments stored as searchable PDFs.' },
-  { type: 'coshh', label: '6.3 COSHH Certificates', description: 'Tagged certificates with public QR access.' },
-  { type: 'insurance', label: '6.4 Insurance Certificates', description: 'Tagged certificates with public QR access.' },
+  { type: 'risk_template', label: 'Risk Assessment Template', description: 'The standard Word template available for download and completion.' },
+  { type: 'risk_assessment', label: 'Filled Risk Assessments', description: 'Completed risk assessments stored as searchable PDFs.' },
+  { type: 'coshh', label: 'COSHH Certificates', description: 'Tagged certificates with public QR access.' },
+  { type: 'insurance', label: 'Insurance Certificates', description: 'Tagged certificates with public QR access.' },
 ];
 
 function InsuranceStatus({ expiryDate }: { expiryDate: string | null }) {
@@ -132,11 +132,11 @@ export default function SafetyHealthPage() {
             <p className="text-xs text-blue-800 mt-2 break-all">{publicDirectoryUrl}</p>
           </div>
           <div className="flex flex-wrap gap-2 flex-shrink-0">
-          <button onClick={() => setQrTarget({ url: publicDirectoryUrl, label: 'COSHH & Insurance Certificate Directory', filename: 'health-and-safety-directory-qr.png' })} className="flex items-center justify-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"><QrCode size={14} /> View QR</button>
-          <button onClick={copyPublicDirectoryLink} className="flex items-center justify-center gap-2 flex-shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-            {linkCopied ? <Check size={14} /> : <Copy size={14} />}
-            {linkCopied ? 'Copied' : 'Copy link'}
-          </button>
+            <button onClick={() => setQrTarget({ url: publicDirectoryUrl, label: 'COSHH & Insurance Certificate Directory', filename: 'health-and-safety-directory-qr.png' })} className="flex items-center justify-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"><QrCode size={14} /> View QR</button>
+            <button onClick={copyPublicDirectoryLink} className="flex items-center justify-center gap-2 flex-shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+              {linkCopied ? <Check size={14} /> : <Copy size={14} />}
+              {linkCopied ? 'Copied' : 'Copy link'}
+            </button>
           </div>
         </div>
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">

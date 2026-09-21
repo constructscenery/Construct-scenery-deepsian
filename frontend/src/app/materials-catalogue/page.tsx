@@ -403,221 +403,221 @@ export default function MaterialsCataloguePage() {
             onClick={() => setActiveTab('catalogue')}
             className={`px-4 py-2.5 text-sm font-normal border-b-2 ${activeTab === 'catalogue' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600'}`}
           >
-            5.1 Materials Catalogue
+            Materials Catalogue
           </button>
           <button
             onClick={() => setActiveTab('inventory')}
             className={`px-4 py-2.5 text-sm font-normal border-b-2 ${activeTab === 'inventory' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600'}`}
           >
-            5.2 Current Held Stock
+            Current Held Stock
           </button>
         </div>
 
         {activeTab === 'catalogue' && <>
 
-        {/* Filter bar */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between px-5 py-4 gap-3">
+          {/* Filter bar */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between px-5 py-4 gap-3">
 
-            {/* Left: search + supplier filter */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Search */}
-              <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 w-full sm:w-64">
-                <Search size={14} className="text-slate-400 flex-shrink-0" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search name, category, supplier…"
-                  className="bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none w-full"
-                />
-                {search && (
-                  <button onClick={() => setSearch('')} className="text-slate-400 hover:text-slate-600">
-                    <X size={13} />
-                  </button>
+              {/* Left: search + supplier filter */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Search */}
+                <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 w-full sm:w-64">
+                  <Search size={14} className="text-slate-400 flex-shrink-0" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search name, category, supplier…"
+                    className="bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none w-full"
+                  />
+                  {search && (
+                    <button onClick={() => setSearch('')} className="text-slate-400 hover:text-slate-600">
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Supplier filter dropdown */}
+                <select
+                  value={supplierFilter}
+                  onChange={(e) => setSupplierFilter(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All suppliers</option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All categories</option>
+                  {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+                </select>
+
+                {/* Read-only badge for non-coordinators */}
+                {isReadOnly && (
+                  <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-700 rounded-full font-medium">
+                    Read-only
+                  </span>
                 )}
               </div>
 
-              {/* Supplier filter dropdown */}
-              <select
-                value={supplierFilter}
-                onChange={(e) => setSupplierFilter(e.target.value)}
-                className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All suppliers</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.name}>{s.name}</option>
-                ))}
-              </select>
-
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All categories</option>
-                {categories.map((category) => <option key={category} value={category}>{category}</option>)}
-              </select>
-
-              {/* Read-only badge for non-coordinators */}
-              {isReadOnly && (
-                <span className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-700 rounded-full font-medium">
-                  Read-only
-                </span>
+              {/* Right: action buttons */}
+              {canWrite && (
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                  <button
+                    onClick={() => { setShowImport(true); setImportResult(null); setImportError(''); setCsvFile(null); }}
+                    className="flex items-center justify-center gap-2 text-sm border border-slate-200 text-slate-600 rounded-lg px-4 py-2 hover:bg-slate-50 transition-colors font-medium whitespace-nowrap"
+                  >
+                    <Upload size={14} />
+                    Import CSV
+                  </button>
+                  <button
+                    onClick={openAdd}
+                    className="flex items-center justify-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-4 py-2 hover:bg-blue-700 transition-colors font-medium whitespace-nowrap"
+                  >
+                    <Plus size={14} />
+                    Add Entry
+                  </button>
+                </div>
               )}
             </div>
+          </div>
 
-            {/* Right: action buttons */}
-            {canWrite && (
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-                <button
-                  onClick={() => { setShowImport(true); setImportResult(null); setImportError(''); setCsvFile(null); }}
-                  className="flex items-center justify-center gap-2 text-sm border border-slate-200 text-slate-600 rounded-lg px-4 py-2 hover:bg-slate-50 transition-colors font-medium whitespace-nowrap"
-                >
-                  <Upload size={14} />
-                  Import CSV
-                </button>
-                <button
-                  onClick={openAdd}
-                  className="flex items-center justify-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-4 py-2 hover:bg-blue-700 transition-colors font-medium whitespace-nowrap"
-                >
-                  <Plus size={14} />
-                  Add Entry
-                </button>
+          {/* Table card */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[700px]">
+                <thead>
+                  <tr className="bg-slate-50 text-left border-b border-slate-100">
+                    <th className="px-5 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Material Name</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Description</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Category</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Supplier</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Unit of Measure</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right whitespace-nowrap">Current Unit Price (£)</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Price Updated</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Total Bought</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Remaining Stock</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Notes</th>
+                    {canWrite && (
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Actions</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loading
+                    ? Array.from({ length: 7 }).map((_, i) => <SkeletonRow key={i} />)
+                    : filtered.length === 0
+                      ? (
+                        items.length === 0 ? (
+                          <EmptyStateRow
+                            colSpan={canWrite ? 11 : 10}
+                            icon={Package}
+                            title="No catalogue materials yet"
+                            description="The master materials price book is currently empty."
+                            recommendation="Add standard stock materials, sheet goods, timber, steel, or import a supplier price list via CSV."
+                            action={canWrite ? {
+                              label: 'Add Material',
+                              onClick: openAdd,
+                              icon: Plus,
+                            } : undefined}
+                            secondaryAction={canWrite ? {
+                              label: 'Import CSV',
+                              onClick: () => setShowImport(true),
+                            } : undefined}
+                          />
+                        ) : (
+                          <EmptyStateRow
+                            colSpan={canWrite ? 11 : 10}
+                            icon={AlertCircle}
+                            title="No matching materials"
+                            description="No materials match your current category, supplier, or text search."
+                            recommendation="Try clearing your search query or selecting 'All categories'."
+                            action={{
+                              label: 'Clear Filters',
+                              onClick: () => { setSearch(''); setSupplierFilter(''); setCategoryFilter(''); },
+                              icon: X,
+                            }}
+                          />
+                        )
+                      )
+                      : filtered.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-5 py-3.5">
+                            <p className="text-slate-800 font-semibold text-sm">{item.material_name || item.product_description}</p>
+                            <p className="text-slate-400 text-[10px] mt-0.5">Updated {fmtDate(item.updated_at)}</p>
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-700 text-sm max-w-[220px]">
+                            {item.description || item.product_description}
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-600 text-sm">
+                            {item.category || '—'}
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-600 text-sm">
+                            {item.supplier_name || '—'}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className="inline-block text-xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full font-medium">
+                              {item.unit_of_measure}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-900 font-semibold text-sm text-right whitespace-nowrap">
+                            {fmtGBP(item.unit_price)}
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-600 text-sm whitespace-nowrap">
+                            {item.price_updated_date ? fmtDate(item.price_updated_date) : '—'}
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-700 text-sm whitespace-nowrap">
+                            {stockTotalsFor(item.id).bought || '—'} {stockTotalsFor(item.id).bought ? item.unit_of_measure : ''}
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-700 text-sm whitespace-nowrap">
+                            {stockTotalsFor(item.id).remaining || '—'} {stockTotalsFor(item.id).remaining ? item.unit_of_measure : ''}
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-500 text-xs max-w-[200px] truncate">
+                            {item.notes ?? <span className="text-slate-300">—</span>}
+                          </td>
+                          {canWrite && (
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => openEdit(item)}
+                                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors font-medium border border-slate-200"
+                                >
+                                  <Pencil size={11} />
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => setDeleteTarget(item)}
+                                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-red-50 text-red-600 hover:bg-red-100 transition-colors font-medium border border-red-100"
+                                >
+                                  <Trash2 size={11} />
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer count */}
+            {!loading && filtered.length > 0 && (
+              <div className="px-5 py-3 border-t border-slate-100 bg-slate-50">
+                <p className="text-slate-400 text-xs">
+                  Showing {filtered.length} of {items.length} {items.length === 1 ? 'entry' : 'entries'}
+                  {(search || supplierFilter || categoryFilter) ? ' — filtered' : ''}
+                </p>
               </div>
             )}
           </div>
-        </div>
-
-        {/* Table card */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[700px]">
-              <thead>
-                <tr className="bg-slate-50 text-left border-b border-slate-100">
-                  <th className="px-5 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Material Name</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Description</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Category</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Supplier</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Unit of Measure</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right whitespace-nowrap">Current Unit Price (£)</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Price Updated</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Total Bought</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Remaining Stock</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Notes</th>
-                  {canWrite && (
-                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Actions</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loading
-                  ? Array.from({ length: 7 }).map((_, i) => <SkeletonRow key={i} />)
-                  : filtered.length === 0
-                  ? (
-                    items.length === 0 ? (
-                      <EmptyStateRow
-                        colSpan={canWrite ? 11 : 10}
-                        icon={Package}
-                        title="No catalogue materials yet"
-                        description="The master materials price book is currently empty."
-                        recommendation="Add standard stock materials, sheet goods, timber, steel, or import a supplier price list via CSV."
-                        action={canWrite ? {
-                          label: 'Add Material',
-                          onClick: openAdd,
-                          icon: Plus,
-                        } : undefined}
-                        secondaryAction={canWrite ? {
-                          label: 'Import CSV',
-                          onClick: () => setShowImport(true),
-                        } : undefined}
-                      />
-                    ) : (
-                      <EmptyStateRow
-                        colSpan={canWrite ? 11 : 10}
-                        icon={AlertCircle}
-                        title="No matching materials"
-                        description="No materials match your current category, supplier, or text search."
-                        recommendation="Try clearing your search query or selecting 'All categories'."
-                        action={{
-                          label: 'Clear Filters',
-                          onClick: () => { setSearch(''); setSupplierFilter(''); setCategoryFilter(''); },
-                          icon: X,
-                        }}
-                      />
-                    )
-                  )
-                  : filtered.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-5 py-3.5">
-                        <p className="text-slate-800 font-semibold text-sm">{item.material_name || item.product_description}</p>
-                        <p className="text-slate-400 text-[10px] mt-0.5">Updated {fmtDate(item.updated_at)}</p>
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-700 text-sm max-w-[220px]">
-                        {item.description || item.product_description}
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-600 text-sm">
-                        {item.category || '—'}
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-600 text-sm">
-                        {item.supplier_name || '—'}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <span className="inline-block text-xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full font-medium">
-                          {item.unit_of_measure}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-900 font-semibold text-sm text-right whitespace-nowrap">
-                        {fmtGBP(item.unit_price)}
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-600 text-sm whitespace-nowrap">
-                        {item.price_updated_date ? fmtDate(item.price_updated_date) : '—'}
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-700 text-sm whitespace-nowrap">
-                        {stockTotalsFor(item.id).bought || '—'} {stockTotalsFor(item.id).bought ? item.unit_of_measure : ''}
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-700 text-sm whitespace-nowrap">
-                        {stockTotalsFor(item.id).remaining || '—'} {stockTotalsFor(item.id).remaining ? item.unit_of_measure : ''}
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-500 text-xs max-w-[200px] truncate">
-                        {item.notes ?? <span className="text-slate-300">—</span>}
-                      </td>
-                      {canWrite && (
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => openEdit(item)}
-                              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors font-medium border border-slate-200"
-                            >
-                              <Pencil size={11} />
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => setDeleteTarget(item)}
-                              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-red-50 text-red-600 hover:bg-red-100 transition-colors font-medium border border-red-100"
-                            >
-                              <Trash2 size={11} />
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Footer count */}
-          {!loading && filtered.length > 0 && (
-            <div className="px-5 py-3 border-t border-slate-100 bg-slate-50">
-              <p className="text-slate-400 text-xs">
-                Showing {filtered.length} of {items.length} {items.length === 1 ? 'entry' : 'entries'}
-                {(search || supplierFilter || categoryFilter) ? ' — filtered' : ''}
-              </p>
-            </div>
-          )}
-        </div>
         </>}
 
         {activeTab === 'inventory' && (
@@ -831,8 +831,8 @@ export default function MaterialsCataloguePage() {
                 {formLoading
                   ? <Loader2 size={14} className="animate-spin" />
                   : editItem
-                  ? <Pencil size={14} />
-                  : <Plus size={14} />}
+                    ? <Pencil size={14} />
+                    : <Plus size={14} />}
                 {editItem ? 'Save Changes' : 'Add Entry'}
               </button>
             </div>

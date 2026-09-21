@@ -227,9 +227,8 @@ export default function AssetsHirePage() {
 
       {/* Toast Notification */}
       {notification && (
-        <div className={`fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${
-          notification.type === 'success' ? 'bg-emerald-600 text-white shadow-emerald-600/20' : 'bg-rose-600 text-white shadow-rose-600/20'
-        }`}>
+        <div className={`fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${notification.type === 'success' ? 'bg-emerald-600 text-white shadow-emerald-600/20' : 'bg-rose-600 text-white shadow-rose-600/20'
+          }`}>
           {notification.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
           <span>{notification.message}</span>
         </div>
@@ -358,45 +357,40 @@ export default function AssetsHirePage() {
         <div className="flex items-center gap-2 border-b border-slate-200 pb-0">
           <button
             onClick={() => setActiveTab('vehicles')}
-            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${
-              activeTab === 'vehicles'
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${activeTab === 'vehicles'
                 ? 'border-blue-600 bg-blue-50/40 rounded-t-lg'
                 : 'border-transparent hover:border-slate-300'
-            }`}
+              }`}
           >
             <Truck size={17} />
-            <span>9.2 Vehicle Asset Register</span>
-            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-sm font-normal text-slate-600 ${
-              activeTab === 'vehicles' ? 'bg-blue-100' : 'bg-slate-100'
-            }`}>
+            <span>Vehicle Asset Register</span>
+            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-sm font-normal text-slate-600 ${activeTab === 'vehicles' ? 'bg-blue-100' : 'bg-slate-100'
+              }`}>
               {vehicles.length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveTab('hire')}
-            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${
-              activeTab === 'hire'
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${activeTab === 'hire'
                 ? 'border-blue-600 bg-blue-50/40 rounded-t-lg'
                 : 'border-transparent hover:border-slate-300'
-            }`}
+              }`}
           >
             <Wrench size={17} />
-            <span>9.4 Hire Equipment Tracker</span>
-            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-sm font-normal text-slate-600 ${
-              activeTab === 'hire' ? 'bg-blue-100' : 'bg-slate-100'
-            }`}>
+            <span>Hire Equipment Tracker</span>
+            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-sm font-normal text-slate-600 ${activeTab === 'hire' ? 'bg-blue-100' : 'bg-slate-100'
+              }`}>
               {hireList.length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveTab('buildings')}
-            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${
-              activeTab === 'buildings'
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${activeTab === 'buildings'
                 ? 'border-blue-600 bg-blue-50/40 rounded-t-lg'
                 : 'border-transparent hover:border-slate-300'
-            }`}
+              }`}
           >
             <Building2 size={17} />
             <span>Buildings</span>
@@ -404,11 +398,10 @@ export default function AssetsHirePage() {
 
           <button
             onClick={() => setActiveTab('assets')}
-            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${
-              activeTab === 'assets'
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${activeTab === 'assets'
                 ? 'border-blue-600 bg-blue-50/40 rounded-t-lg'
                 : 'border-transparent hover:border-slate-300'
-            }`}
+              }`}
           >
             <Truck size={17} />
             <span>Assets / Plant</span>
@@ -416,11 +409,10 @@ export default function AssetsHirePage() {
 
           <button
             onClick={() => setActiveTab('it')}
-            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${
-              activeTab === 'it'
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${activeTab === 'it'
                 ? 'border-blue-600 bg-blue-50/40 rounded-t-lg'
                 : 'border-transparent hover:border-slate-300'
-            }`}
+              }`}
           >
             <Sparkles size={17} />
             <span>IT Resources</span>
@@ -428,11 +420,10 @@ export default function AssetsHirePage() {
 
           <button
             onClick={() => setActiveTab('ladders')}
-            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${
-              activeTab === 'ladders'
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${activeTab === 'ladders'
                 ? 'border-blue-600 bg-blue-50/40 rounded-t-lg'
                 : 'border-transparent hover:border-slate-300'
-            }`}
+              }`}
           >
             <Barcode size={17} />
             <span>Ladders</span>
@@ -636,25 +627,22 @@ export default function AssetsHirePage() {
                   <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
                     <button
                       onClick={() => setHStatusFilter('all')}
-                      className={`px-3 py-1.5 rounded-md font-medium transition-all ${
-                        hStatusFilter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                      }`}
+                      className={`px-3 py-1.5 rounded-md font-medium transition-all ${hStatusFilter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                        }`}
                     >
                       All ({hireList.length})
                     </button>
                     <button
                       onClick={() => setHStatusFilter('active')}
-                      className={`px-3 py-1.5 rounded-md font-medium transition-all ${
-                        hStatusFilter === 'active' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                      }`}
+                      className={`px-3 py-1.5 rounded-md font-medium transition-all ${hStatusFilter === 'active' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                        }`}
                     >
                       Active ({hireList.filter(x => x.status === 'active').length})
                     </button>
                     <button
                       onClick={() => setHStatusFilter('returned')}
-                      className={`px-3 py-1.5 rounded-md font-medium transition-all ${
-                        hStatusFilter === 'returned' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                      }`}
+                      className={`px-3 py-1.5 rounded-md font-medium transition-all ${hStatusFilter === 'returned' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                        }`}
                     >
                       Returned ({hireList.filter(x => x.status === 'returned').length})
                     </button>

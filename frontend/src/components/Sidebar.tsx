@@ -93,19 +93,19 @@ export default function Sidebar() {
   return (
     <aside className="hidden md:flex fixed inset-y-0 left-0 w-60 bg-slate-900 flex-col z-30">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-700/60">
-        <img src="/construct scenery logo.png" alt="Construct Scenery Database" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+      <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-slate-700/60">
+        <img src="/construct scenery logo.png" alt="Construct Scenery Database" className="w-7 h-7 rounded-lg object-cover flex-shrink-0" />
         <div>
-          <p className="text-white font-bold text-sm leading-tight">Construct Scenery</p>
-          <p className="text-blue-400 text-[10px] leading-tight tracking-wider uppercase">Database</p>
+          <p className="text-white font-bold text-[13px] leading-tight">Construct Scenery</p>
+          <p className="text-blue-400 text-[9px] leading-tight tracking-wider uppercase">Database</p>
         </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-4">
+      <nav className="flex-1 px-3 py-3 flex flex-col justify-between">
         {visibleGroups.map(group => (
           <div key={group.label}>
-            <p className="text-slate-500 text-[10px] uppercase tracking-widest font-semibold px-3 pb-1.5">
+            <p className="text-slate-500 text-[10px] uppercase tracking-widest font-semibold px-3 pb-1">
               {group.label}
             </p>
             <div className="space-y-0.5">
@@ -115,14 +115,14 @@ export default function Sidebar() {
                   <Link
                     key={href}
                     href={href}
-                    className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${active
+                    className={`group flex items-center gap-2.5 px-3 py-[7px] rounded-lg text-[13px] font-medium transition-all duration-150 ${active
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                       }`}
                   >
-                    <Icon size={17} className="flex-shrink-0" />
+                    <Icon size={16} className="flex-shrink-0" />
                     <span className="flex-1 truncate">{label}</span>
-                    {active && <ChevronRight size={14} className="opacity-70" />}
+                    {active && <ChevronRight size={13} className="opacity-70" />}
                   </Link>
                 );
               })}
@@ -132,8 +132,8 @@ export default function Sidebar() {
       </nav>
 
       {/* User + Logout */}
-      <div className="px-4 py-4 border-t border-slate-700/60 space-y-2">
-        <div className="flex items-center gap-3">
+      <div className="px-4 py-3 border-t border-slate-700/60 space-y-1.5">
+        <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
             <span className="text-white text-xs font-bold">
               {user ? getInitials(user.full_name) : '?'}
@@ -146,7 +146,7 @@ export default function Sidebar() {
         </div>
         <button
           onClick={logout}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-xs font-medium transition-all"
+          className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-xs font-medium transition-all"
         >
           <LogOut size={14} />
           Sign out
