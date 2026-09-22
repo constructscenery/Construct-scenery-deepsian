@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Camera, User, Mail, Lock, Eye, EyeOff, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Camera, User, Mail, Lock, Eye, EyeOff, Check, AlertCircle, Loader2, Moon, Sun, LayoutGrid } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUIPreferences } from '@/contexts/UIPreferencesContext';
 import { profileApi } from '@/lib/api';
 
 interface SettingsModalProps {
@@ -18,6 +19,7 @@ type Tab = 'profile' | 'password';
 
 export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   const { user, updateUser } = useAuth();
+  const { isDark, toggleTheme, sidebarIcons, toggleSidebarIcons } = useUIPreferences();
 
   // ─── Tab ──────────────────────────────────────────────────────────────────────
   const [tab, setTab] = useState<Tab>('profile');
@@ -159,7 +161,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
       />
 
       {/* Panel */}
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
@@ -174,51 +176,115 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
           </button>
         </div>
 
-        {/* Avatar section */}
-        <div className="flex flex-col items-center pt-6 pb-4 px-6 gap-3 bg-slate-50 border-b border-slate-100">
-          <div className="relative group">
-            <div className="w-20 h-20 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center ring-4 ring-white shadow-md">
-              {avatarPreview ? (
-                <img
-                  src={avatarPreview}
-                  alt={user.full_name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-white text-2xl font-bold select-none">
-                  {getInitials(user.full_name)}
-                </span>
+        {/* Profile & Display Settings Banner (at the very top beside profile) */}
+        <div className="pt-5 pb-4 px-6 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row items-center sm:items-start justify-between gap-4">
+          {/* Profile details */}
+          <div className="flex items-center gap-3.5">
+            <div className="relative group flex-shrink-0">
+              <div className="w-16 h-16 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center ring-3 ring-white shadow-md">
+                {avatarPreview ? (
+                  <img
+                    src={avatarPreview}
+                    alt={user.full_name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-white text-xl font-bold select-none">
+                    {getInitials(user.full_name)}
+                  </span>
+                )}
+              </div>
+              {/* Camera overlay */}
+              <button
+                id="settings-avatar-upload-btn"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                aria-label="Change profile picture"
+              >
+                <Camera size={18} className="text-white" />
+              </button>
+              <input
+                ref={fileInputRef}
+                id="settings-avatar-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleAvatarChange}
+                aria-label="Upload profile picture"
+              />
+            </div>
+            <div className="text-left min-w-0">
+              <p className="font-semibold text-slate-900 text-sm leading-snug truncate">{user.full_name}</p>
+              <p className="text-xs text-slate-500 capitalize">{user.role.replace(/_/g, ' ')}</p>
+              <p className="text-[11px] text-slate-400 truncate max-w-[170px]">{user.email}</p>
+              {avatarFile && (
+                <p className="mt-1 text-[11px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full inline-block">
+                  New photo selected
+                </p>
               )}
             </div>
-            {/* Camera overlay */}
-            <button
-              id="settings-avatar-upload-btn"
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-              aria-label="Change profile picture"
-            >
-              <Camera size={20} className="text-white" />
-            </button>
-            <input
-              ref={fileInputRef}
-              id="settings-avatar-input"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="hidden"
-              onChange={handleAvatarChange}
-              aria-label="Upload profile picture"
-            />
           </div>
-          <div className="text-center">
-            <p className="font-semibold text-slate-900 text-sm">{user.full_name}</p>
-            <p className="text-xs text-slate-500 capitalize">{user.role.replace(/_/g, ' ')}</p>
+
+          {/* Two toggles beside profile */}
+          <div className="flex flex-col gap-2 w-full sm:w-auto min-w-[190px] bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
+            {/* 1. Night and Day Mode Toggle */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                {isDark ? (
+                  <Moon size={14} className="text-indigo-400 fill-indigo-400/20" />
+                ) : (
+                  <Sun size={14} className="text-amber-500 fill-amber-500/20" />
+                )}
+                <span>{isDark ? 'Night mode' : 'Day mode'}</span>
+              </div>
+              <button
+                type="button"
+                id="settings-night-mode-toggle"
+                role="switch"
+                aria-checked={isDark}
+                onClick={toggleTheme}
+                title={isDark ? 'Switch to Day mode' : 'Switch to Night mode'}
+                className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  isDark ? 'bg-indigo-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    isDark ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* 2. Enable Icons Toggle (tabs & sub-tabs) */}
+            <div className="flex items-center justify-between gap-3 pt-1.5 border-t border-slate-100">
+              <div className="flex flex-col text-left">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                  <LayoutGrid size={13} className={sidebarIcons ? 'text-blue-500' : 'text-slate-400'} />
+                  <span>Enable icons</span>
+                </span>
+                <span className="text-[9px] text-slate-400 leading-tight">tabs &amp; sub-tabs</span>
+              </div>
+              <button
+                type="button"
+                id="settings-sidebar-icons-toggle"
+                role="switch"
+                aria-checked={sidebarIcons}
+                onClick={toggleSidebarIcons}
+                title={sidebarIcons ? 'Disable sidebar icons' : 'Enable sidebar icons'}
+                className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  sidebarIcons ? 'bg-blue-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                    sidebarIcons ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
-          {avatarFile && (
-            <p className="text-xs text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-              New photo selected — save to apply
-            </p>
-          )}
         </div>
 
         {/* Tabs */}
@@ -234,7 +300,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                   : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
-              <Icon size={14} />
+              {sidebarIcons && <Icon size={14} />}
               {label}
             </button>
           ))}

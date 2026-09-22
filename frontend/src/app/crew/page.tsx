@@ -15,6 +15,7 @@ import {
   CrewMember, CrewRate, EmploymentStatus, Production, CrewRegistrationRequest,
 } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUIPreferences } from '@/contexts/UIPreferencesContext';
 import { EmptyStateRow } from '@/components/EmptyState';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -408,6 +409,7 @@ interface ShareRegistrationModalProps {
 }
 
 function ShareRegistrationModal({ onClose }: ShareRegistrationModalProps) {
+  const { sidebarIcons } = useUIPreferences();
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'link' | 'email'>('link');
   const [emailForm, setEmailForm] = useState({ email: '', name: '', message: '' });
@@ -475,7 +477,7 @@ function ShareRegistrationModal({ onClose }: ShareRegistrationModalProps) {
               activeTab === 'link' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
-            <Copy size={15} />
+            {sidebarIcons && <Copy size={15} />}
             <span>Copy Form Link</span>
           </button>
           <button
@@ -484,7 +486,7 @@ function ShareRegistrationModal({ onClose }: ShareRegistrationModalProps) {
               activeTab === 'email' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
-            <Mail size={15} />
+            {sidebarIcons && <Mail size={15} />}
             <span>Send via Email</span>
           </button>
         </div>

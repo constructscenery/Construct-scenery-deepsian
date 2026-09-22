@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
@@ -16,8 +18,106 @@ body {
   color: var(--foreground);
 }
 
-/* Smooth scrollbar */
+/* ─── Dark Mode Palette & Surfaces ─────────────────────────────────────────── */
+html.dark {
+  --background: #090d16;
+  --foreground: #f8fafc;
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #090d16;
+  color: #f8fafc;
+}
+
+/* Backgrounds & Surfaces */
+html.dark .bg-white {
+  background-color: #0f172a;
+}
+html.dark .bg-slate-50 {
+  background-color: #080d17;
+}
+html.dark .bg-slate-100 {
+  background-color: #162035;
+}
+html.dark .bg-slate-200 {
+  background-color: #22304d;
+}
+
+/* Borders & Dividers */
+html.dark .border-slate-100 {
+  border-color: #1a263d;
+}
+html.dark .border-slate-200 {
+  border-color: #1e2c45;
+}
+html.dark .border-slate-300 {
+  border-color: #334466;
+}
+html.dark .divide-slate-100 > :not(:last-child),
+html.dark .divide-slate-200 > :not(:last-child) {
+  border-color: #1e2c45;
+}
+
+/* Text Hierarchy */
+html.dark .text-slate-900 {
+  color: #f8fafc;
+}
+html.dark .text-slate-800 {
+  color: #f1f5f9;
+}
+html.dark .text-slate-700 {
+  color: #e2e8f0;
+}
+html.dark .text-slate-600 {
+  color: #cbd5e1;
+}
+html.dark .text-slate-500 {
+  color: #94a3b8;
+}
+html.dark .text-slate-400 {
+  color: #64748b;
+}
+
+/* Keep pure white text on primary buttons, tags & badges */
+html.dark .text-white {
+  color: #ffffff !important;
+}
+
+/* Interactive & Hover States */
+html.dark .hover\:bg-slate-50:hover {
+  background-color: #141f33;
+}
+html.dark .hover\:bg-slate-100:hover {
+  background-color: #1c2b47;
+}
+html.dark .hover\:text-slate-700:hover,
+html.dark .hover\:text-slate-900:hover {
+  color: #ffffff;
+}
+
+/* Form Controls */
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+html.dark select,
+html.dark textarea {
+  background-color: #111a2e;
+  border-color: #26354f;
+  color: #f8fafc;
+}
+html.dark input:focus,
+html.dark select:focus,
+html.dark textarea:focus {
+  border-color: #3b82f6;
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b;
+}
+
+/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+html.dark ::-webkit-scrollbar-thumb { background: #334466; }
+html.dark ::-webkit-scrollbar-thumb:hover { background: #475a80; }

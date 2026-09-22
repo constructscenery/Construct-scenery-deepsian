@@ -64,7 +64,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           src="/construct scenery logo.png"
           alt=""
           aria-hidden="true"
-          className="w-[80%] h-[80%] object-cover opacity-[0.03]"
+          className="w-[80%] h-[80%] object-cover opacity-[0.03] dark:opacity-[0.04] dark:invert"
         />
       </div>
 

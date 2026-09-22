@@ -7,8 +7,10 @@ import {
   BarChart2, ChevronRight, LogOut, CreditCard,
   Banknote, Upload, ShieldCheck, Truck,
   HeartPulse, Archive, Building2, Package, TrendingUp, History,
+  Layers, Users2, ShoppingBag, SlidersHorizontal,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUIPreferences } from '@/contexts/UIPreferencesContext';
 import { UserRole } from '@/lib/api';
 
 const ALL_ROLES: UserRole[] = [
@@ -21,6 +23,7 @@ const ALL_ROLES: UserRole[] = [
 const NAV_GROUPS = [
   {
     label: 'Operations',
+    icon: Layers,
     items: [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ALL_ROLES },
       { href: '/productions', label: 'Productions', icon: Clapperboard, roles: ALL_ROLES },
@@ -30,6 +33,7 @@ const NAV_GROUPS = [
   },
   {
     label: 'People & Payroll',
+    icon: Users2,
     items: [
       { href: '/crew', label: 'Crew', icon: Users, roles: ALL_ROLES },
       { href: '/timesheets', label: 'Timesheets', icon: ClipboardList, roles: ALL_ROLES },
@@ -38,6 +42,7 @@ const NAV_GROUPS = [
   },
   {
     label: 'Purchasing',
+    icon: ShoppingBag,
     items: [
       { href: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart, roles: ALL_ROLES },
       { href: '/suppliers', label: 'Suppliers', icon: Building2, roles: ALL_ROLES },
@@ -46,14 +51,15 @@ const NAV_GROUPS = [
   },
   {
     label: 'Planning & Finance',
+    icon: TrendingUp,
     items: [
-      //    { href: '/forecasting',             label: 'Forecasting',      icon: TrendingUp, roles: ALL_ROLES },
       { href: '/cost-report', label: 'Live Cost Report', icon: BarChart2, roles: ALL_ROLES },
       { href: '/historical-cost-reports', label: 'Report Archive', icon: Archive, roles: ALL_ROLES },
     ],
   },
   {
     label: 'Administration',
+    icon: SlidersHorizontal,
     items: [
       { href: '/settings/rate-card', label: 'Rate Cards', icon: CreditCard, roles: ALL_ROLES },
       { href: '/settings/users', label: 'Users & Roles', icon: ShieldCheck, roles: ['managing_director'] as UserRole[] },
@@ -77,6 +83,7 @@ function getRoleLabel(role: string) {
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { sidebarIcons } = useUIPreferences();
 
   const visibleGroups = NAV_GROUPS.map(group => ({
     ...group,
@@ -91,7 +98,7 @@ export default function Sidebar() {
   const activeHref = matchingHrefs.sort((a, b) => b.length - a.length)[0];
 
   return (
-    <aside className="hidden md:flex fixed inset-y-0 left-0 w-60 bg-slate-900 flex-col z-30">
+    <aside className="hidden md:flex fixed inset-y-0 left-0 w-60 bg-slate-900 border-r border-slate-800/80 flex-col z-30">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-slate-700/60">
         <img src="/construct scenery logo.png" alt="Construct Scenery Database" className="w-7 h-7 rounded-lg object-cover flex-shrink-0" />
@@ -102,33 +109,44 @@ export default function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-3 flex flex-col justify-between">
-        {visibleGroups.map(group => (
-          <div key={group.label}>
-            <p className="text-slate-500 text-[10px] uppercase tracking-widest font-semibold px-3 pb-1">
-              {group.label}
-            </p>
-            <div className="space-y-0.5">
-              {group.items.map(({ href, label, icon: Icon }) => {
-                const active = href === activeHref;
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    className={`group flex items-center gap-2.5 px-3 py-[7px] rounded-lg text-[13px] font-medium transition-all duration-150 ${active
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                      }`}
-                  >
-                    <Icon size={16} className="flex-shrink-0" />
-                    <span className="flex-1 truncate">{label}</span>
-                    {active && <ChevronRight size={13} className="opacity-70" />}
-                  </Link>
-                );
-              })}
+      <nav className="flex-1 px-3 py-3 flex flex-col justify-between overflow-y-auto">
+        {visibleGroups.map(group => {
+          const GroupIcon = group.icon;
+          return (
+            <div key={group.label} className="mb-2 last:mb-0">
+              {/* Heading: reversed to larger 13px size, still uppercase */}
+              <div className="flex items-center gap-1.5 px-2.5 pb-1.5 text-slate-300 font-semibold text-[13px] uppercase tracking-wider">
+                {sidebarIcons && GroupIcon && (
+                  <GroupIcon size={14} className="text-slate-400 flex-shrink-0" />
+                )}
+                <span className="truncate">{group.label}</span>
+              </div>
+
+              {/* Sub tabs / options items: reversed to smaller 10px size, lowercase */}
+              <div className="space-y-0.5">
+                {group.items.map(({ href, label, icon: Icon }) => {
+                  const active = href === activeHref;
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-medium lowercase transition-all duration-150 ${active
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        }`}
+                    >
+                      {sidebarIcons && (
+                        <Icon size={13} className="flex-shrink-0" />
+                      )}
+                      <span className="flex-1 truncate">{label.toLowerCase()}</span>
+                      {active && <ChevronRight size={11} className="opacity-70 flex-shrink-0" />}
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* User + Logout */}

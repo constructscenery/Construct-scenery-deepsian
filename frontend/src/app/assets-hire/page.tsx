@@ -18,6 +18,7 @@ import {
   VehicleComplianceStatus, VehicleComplianceInfo
 } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUIPreferences } from '@/contexts/UIPreferencesContext';
 import { EmptyStateRow } from '@/components/EmptyState';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -37,6 +38,7 @@ const EQUIPMENT_TYPES = [
 
 export default function AssetsHirePage() {
   const { user } = useAuth();
+  const { sidebarIcons } = useUIPreferences();
   const isGuest = user?.role === 'guest';
   const canWrite = !isGuest;
 
@@ -362,7 +364,7 @@ export default function AssetsHirePage() {
                 : 'border-transparent hover:border-slate-300'
               }`}
           >
-            <Truck size={17} />
+            {sidebarIcons && <Truck size={17} />}
             <span>Vehicle Asset Register</span>
             <span className={`ml-1.5 px-2 py-0.5 rounded-full text-sm font-normal text-slate-600 ${activeTab === 'vehicles' ? 'bg-blue-100' : 'bg-slate-100'
               }`}>
@@ -377,7 +379,7 @@ export default function AssetsHirePage() {
                 : 'border-transparent hover:border-slate-300'
               }`}
           >
-            <Wrench size={17} />
+            {sidebarIcons && <Wrench size={17} />}
             <span>Hire Equipment Tracker</span>
             <span className={`ml-1.5 px-2 py-0.5 rounded-full text-sm font-normal text-slate-600 ${activeTab === 'hire' ? 'bg-blue-100' : 'bg-slate-100'
               }`}>
@@ -392,7 +394,7 @@ export default function AssetsHirePage() {
                 : 'border-transparent hover:border-slate-300'
               }`}
           >
-            <Building2 size={17} />
+            {sidebarIcons && <Building2 size={17} />}
             <span>Buildings</span>
           </button>
 
@@ -403,7 +405,7 @@ export default function AssetsHirePage() {
                 : 'border-transparent hover:border-slate-300'
               }`}
           >
-            <Truck size={17} />
+            {sidebarIcons && <Truck size={17} />}
             <span>Assets / Plant</span>
           </button>
 
@@ -414,7 +416,7 @@ export default function AssetsHirePage() {
                 : 'border-transparent hover:border-slate-300'
               }`}
           >
-            <Sparkles size={17} />
+            {sidebarIcons && <Sparkles size={17} />}
             <span>IT Resources</span>
           </button>
 
@@ -425,7 +427,7 @@ export default function AssetsHirePage() {
                 : 'border-transparent hover:border-slate-300'
               }`}
           >
-            <Barcode size={17} />
+            {sidebarIcons && <Barcode size={17} />}
             <span>Ladders</span>
           </button>
         </div>
