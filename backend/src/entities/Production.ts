@@ -10,6 +10,9 @@ export class Production {
   @Column({ type: 'text' })
   name: string;
 
+  @Column({ type: 'text', name: 'production_code', nullable: true })
+  productionCode: string | null;
+
   @Column({ type: 'text', name: 'production_company', nullable: true })
   productionCompany: string | null;
 

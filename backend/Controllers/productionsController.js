@@ -45,6 +45,7 @@ const getAllProductions = async (req, res) => {
     if (req.query.search) {
       conditions.push(`(
         p.name ILIKE $${i} OR
+        p.production_code ILIKE $${i} OR
         p.production_company ILIKE $${i} OR
         p.production_designer ILIKE $${i} OR
         p.production_type ILIKE $${i} OR
@@ -98,7 +99,7 @@ const deleteProduction = async (req, res) => {
 
 const createProduction = async (req, res) => {
   const {
-    name, production_company, production_designer, production_type,
+    name, production_code, production_company, production_designer, production_type,
     start_date, end_date, contract_type, status,
     supervising_art_director, supervising_art_director_mobile, supervising_art_director_email,
     financial_controller, financial_controller_mobile, financial_controller_email,
@@ -117,16 +118,16 @@ const createProduction = async (req, res) => {
   try {
     const { rows } = await db.query(
       `INSERT INTO productions
-         (name, production_company, production_designer, production_type,
+         (name, production_code, production_company, production_designer, production_type,
           start_date, end_date, contract_type, status, created_by,
           supervising_art_director, supervising_art_director_mobile, supervising_art_director_email,
           financial_controller, financial_controller_mobile, financial_controller_email,
           art_dept_coordinator, art_dept_coordinator_mobile, art_dept_coordinator_email,
           notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
        RETURNING *`,
       [
-        name, production_company || null, production_designer || null, production_type || null,
+        name, production_code || null, production_company || null, production_designer || null, production_type || null,
         start_date || null, end_date || null, contract_type,
         initialStatus,
         req.user.id,
@@ -186,7 +187,7 @@ const getProductionById = async (req, res) => {
 // PUT /api/productions/:id  (status is NOT a free-edit field — use /transition)
 const updateProduction = async (req, res) => {
   const allowed = [
-    'name', 'production_company', 'production_designer', 'production_type',
+    'name', 'production_code', 'production_company', 'production_designer', 'production_type',
     'start_date', 'end_date', 'contract_type',
     'supervising_art_director', 'supervising_art_director_mobile', 'supervising_art_director_email',
     'financial_controller', 'financial_controller_mobile', 'financial_controller_email',

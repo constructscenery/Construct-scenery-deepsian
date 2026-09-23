@@ -207,6 +207,7 @@ export type SetStatus        = 'not_started' | 'in_progress' | 'nearing_completi
 export type Production = {
   id: string;
   name: string;
+  production_code?: string | null;
   production_company: string | null;
   production_designer: string | null;
   production_type: string | null;

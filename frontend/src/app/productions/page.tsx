@@ -107,7 +107,7 @@ interface NewProductionModalProps { onClose: () => void; onCreated: () => void; 
 
 function NewProductionModal({ onClose, onCreated }: NewProductionModalProps) {
   const [form, setForm] = useState({
-    name: '', production_company: '', production_designer: '', production_type: '',
+    name: '', production_code: '', production_company: '', production_designer: '', production_type: '',
     start_date: '', end_date: '',
     contract_type: '' as ContractType | '',
     status: 'pre_production' as ProductionStatus,
@@ -143,6 +143,7 @@ function NewProductionModal({ onClose, onCreated }: NewProductionModalProps) {
         contract_type:                  form.contract_type as ContractType,
         start_date:                     form.start_date || null,
         end_date:                       form.end_date   || null,
+        production_code:                form.production_code || null,
         production_company:             form.production_company  || null,
         production_designer:            form.production_designer || null,
         production_type:                form.production_type     || null,
@@ -176,9 +177,15 @@ function NewProductionModal({ onClose, onCreated }: NewProductionModalProps) {
         </div>
         <form onSubmit={submit} className="px-5 py-4 space-y-3 overflow-y-auto flex-1">
           {error && <p className="text-red-600 text-xs bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Production Name *</label>
-            <input className={inputCls} placeholder="e.g. Meridian" value={form.name} onChange={set('name')} />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-slate-600 mb-1">Production Name *</label>
+              <input className={inputCls} placeholder="e.g. Meridian" value={form.name} onChange={set('name')} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Production Code</label>
+              <input className={inputCls} placeholder="e.g. 129" value={form.production_code} onChange={set('production_code')} />
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -458,6 +465,7 @@ export default function ProductionsPage() {
     const q = search.toLowerCase();
     const matchesSearch = !q || [
       p.name,
+      p.production_code,
       p.production_company,
       p.production_designer,
       p.production_type,
@@ -630,7 +638,14 @@ export default function ProductionsPage() {
                         onClick={() => router.push(`/productions/${p.id}`)}
                       >
                         <td className="px-5 py-4">
-                          <p className="text-slate-900 font-semibold">{p.name}</p>
+                          <div className="flex items-center gap-2">
+                            {p.production_code && (
+                              <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700">
+                                #{p.production_code}
+                              </span>
+                            )}
+                            <p className="text-slate-900 font-semibold">{p.name}</p>
+                          </div>
                           {p.production_company && <p className="text-slate-400 text-xs mt-0.5">{p.production_company}</p>}
                         </td>
                         <td className="px-4 py-4 text-slate-600 text-xs whitespace-nowrap">{p.production_type ?? '—'}</td>

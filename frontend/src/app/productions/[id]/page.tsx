@@ -105,6 +105,7 @@ function EditProductionModal({ production, onClose, onSaved }: EditProductionMod
   const isLocked = production.has_linked_pos || production.has_linked_timesheets;
   const [form, setForm] = useState({
     name:                            production.name ?? '',
+    production_code:                 production.production_code ?? '',
     production_company:              production.production_company ?? '',
     production_designer:             production.production_designer ?? '',
     production_type:                 production.production_type ?? '',
@@ -152,6 +153,7 @@ function EditProductionModal({ production, onClose, onSaved }: EditProductionMod
         contract_type:                  form.contract_type as ContractType,
         start_date:                     form.start_date || null,
         end_date:                       form.end_date   || null,
+        production_code:                form.production_code || null,
         production_company:             form.production_company  || null,
         production_designer:            form.production_designer || null,
         production_type:                form.production_type     || null,
@@ -198,9 +200,15 @@ function EditProductionModal({ production, onClose, onSaved }: EditProductionMod
         </div>
         <form onSubmit={submit} className="px-6 py-5 space-y-4">
           {error && <p className="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Production Name *</label>
-            <input className={inputCls} value={form.name} onChange={set('name')} />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-slate-600 mb-1">Production Name *</label>
+              <input className={inputCls} value={form.name} onChange={set('name')} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Production Code</label>
+              <input className={inputCls} placeholder="e.g. 101" value={form.production_code} onChange={set('production_code')} />
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -1300,6 +1308,11 @@ export default function ProductionDetailPage() {
         {/* Info card */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
           <div className="flex flex-wrap items-center gap-3 mb-4">
+            {production.production_code && (
+              <span className="font-mono text-xs px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+                #{production.production_code}
+              </span>
+            )}
             <h1 className="text-slate-900 text-xl font-bold">{production.name}</h1>
             <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${sc.className}`}>{sc.label}</span>
             <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${production.contract_type === 'cost_plus' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'}`}>
