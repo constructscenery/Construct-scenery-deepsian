@@ -17,8 +17,12 @@ import {
   Archive,
   RotateCcw,
   Building2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { EmptyStateRow } from '@/components/EmptyState';
+
+const PAGE_SIZE = 10;
 
 const inputCls =
   'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -94,6 +98,7 @@ export default function SuppliersPage() {
 
   const [items, setItems] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
@@ -101,6 +106,7 @@ export default function SuppliersPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [history, setHistory] = useState<SupplierPurchaseOrder[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
   const [historySearch, setHistorySearch] = useState('');
   const [historyCategory, setHistoryCategory] = useState('');
   const [historyLocation, setHistoryLocation] = useState('');
@@ -182,11 +188,20 @@ export default function SuppliersPage() {
 
   const hasSupplierFilters = Boolean(search || categoryFilter || locationFilter || archiveFilter !== 'active');
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, categoryFilter, locationFilter, archiveFilter]);
+
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [historySearch, historyCategory, historyLocation, selectedSupplier]);
+
   function clearSupplierFilters() {
     setSearch('');
     setCategoryFilter('');
     setLocationFilter('');
     setArchiveFilter('active');
+    setPage(1);
   }
 
   const historyCategories = Array.from(new Set(history.map(row => row.supplier_category).filter((value): value is string => !!value))).sort();
@@ -198,6 +213,14 @@ export default function SuppliersPage() {
     const matchesSupplier = !selectedSupplier || row.supplier_name.toLowerCase() === selectedSupplier.name.toLowerCase();
     return matchesSearch && matchesCategory && matchesLocation && matchesSupplier;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedSuppliers = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const totalHistoryPages = Math.max(1, Math.ceil(historyRows.length / PAGE_SIZE));
+  const safeHistoryPage = Math.min(historyPage, totalHistoryPages);
+  const pagedHistoryRows = historyRows.slice((safeHistoryPage - 1) * PAGE_SIZE, safeHistoryPage * PAGE_SIZE);
 
   function openAdd() {
     setEditItem(null);
@@ -332,8 +355,8 @@ export default function SuppliersPage() {
         {activeTab === 'history' ? (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-              <div><h2 className="text-slate-800 font-semibold text-base">PO History & Production Links</h2><p className="text-slate-400 text-xs mt-0.5">All purchase orders connected to suppliers and productions{selectedSupplier ? ` — filtered to ${selectedSupplier.name}` : ''}.</p></div>
-              {selectedSupplier && <button onClick={() => setSelectedSupplier(null)} className="text-sm text-blue-600 hover:text-blue-800">Show all suppliers</button>}
+              <div><h2 className="text-slate-800 font-normal text-sm">PO History & Production Links</h2><p className="text-slate-400 text-xs mt-0.5">All purchase orders connected to suppliers and productions{selectedSupplier ? ` — filtered to ${selectedSupplier.name}` : ''}.</p></div>
+              {selectedSupplier && <button onClick={() => setSelectedSupplier(null)} className="text-xs text-blue-600 hover:text-blue-800">Show all suppliers</button>}
             </div>
             <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap gap-2">
               <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 w-full sm:w-64"><Search size={14} className="text-slate-400" /><input value={historySearch} onChange={e => setHistorySearch(e.target.value)} placeholder="Search supplier, PO, production..." className="bg-transparent text-sm outline-none w-full" /></div>
@@ -341,7 +364,54 @@ export default function SuppliersPage() {
               <input value={historyLocation} onChange={e => setHistoryLocation(e.target.value)} placeholder="Filter location" className={inputCls + ' sm:w-48'} />
             </div>
             {historyLoading ? <div className="px-5 py-12 text-center text-slate-400">Loading PO history…</div> : historyRows.length === 0 ? <div className="px-5 py-12 text-center text-slate-500">No purchase order connections match these filters.</div> : (
-              <div className="overflow-x-auto"><table className="w-full text-sm min-w-[1000px]"><thead><tr className="bg-slate-50 text-left border-b border-slate-100">{['Supplier', 'Category', 'Location', 'PO Number', 'Title', 'Production', 'Date', 'Status', 'Net', 'Gross'].map(h => <th key={h} className="px-4 py-3 text-xs font-semibold text-slate-500">{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{historyRows.map(po => <tr key={po.id}><td className="px-4 py-3 text-slate-800 font-medium">{po.supplier_name}</td><td className="px-4 py-3 text-slate-600">{po.supplier_category || '—'}</td><td className="px-4 py-3 text-slate-600">{po.supplier_location || '—'}</td><td className="px-4 py-3 text-slate-800 font-medium">{po.po_number}</td><td className="px-4 py-3 text-slate-600">{po.title || '—'}</td><td className="px-4 py-3 text-slate-700"><Link href={`/productions/${po.production_id}`} className="text-blue-600 hover:underline">{po.production_name}</Link><div className="text-xs text-slate-400">{po.production_status}</div></td><td className="px-4 py-3 text-slate-600">{new Date(po.date_of_po).toLocaleDateString('en-GB')}</td><td className="px-4 py-3 text-slate-600 capitalize">{po.status.replace(/_/g, ' ')}</td><td className="px-4 py-3 text-slate-700">£{Number(po.net_amount).toFixed(2)}</td><td className="px-4 py-3 text-slate-700">£{Number(po.gross_amount).toFixed(2)}</td></tr>)}</tbody></table></div>
+              <>
+                <div className="overflow-x-auto"><table className="w-full text-sm min-w-[1000px]"><thead><tr className="bg-slate-50 text-left border-b border-slate-100">{['Supplier', 'Category', 'Location', 'PO Number', 'Title', 'Production', 'Date', 'Status', 'Net', 'Gross'].map(h => <th key={h} className="px-4 py-3 text-xs font-semibold text-slate-500">{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{pagedHistoryRows.map(po => <tr key={po.id}><td className="px-4 py-3 text-slate-800 font-medium">{po.supplier_name}</td><td className="px-4 py-3 text-slate-600">{po.supplier_category || '—'}</td><td className="px-4 py-3 text-slate-600">{po.supplier_location || '—'}</td><td className="px-4 py-3 text-slate-800 font-medium">{po.po_number}</td><td className="px-4 py-3 text-slate-600">{po.title || '—'}</td><td className="px-4 py-3 text-slate-700"><Link href={`/productions/${po.production_id}`} className="text-blue-600 hover:underline">{po.production_name}</Link><div className="text-xs text-slate-400">{po.production_status}</div></td><td className="px-4 py-3 text-slate-600">{new Date(po.date_of_po).toLocaleDateString('en-GB')}</td><td className="px-4 py-3 text-slate-600 capitalize">{po.status.replace(/_/g, ' ')}</td><td className="px-4 py-3 text-slate-700">£{Number(po.net_amount).toFixed(2)}</td><td className="px-4 py-3 text-slate-700">£{Number(po.gross_amount).toFixed(2)}</td></tr>)}</tbody></table></div>
+                {/* Pagination */}
+                <div className="px-4 py-2 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+                  <span className="text-slate-400 text-xs">
+                    Showing {historyRows.length === 0 ? 0 : (safeHistoryPage - 1) * PAGE_SIZE + 1}–
+                    {Math.min(safeHistoryPage * PAGE_SIZE, historyRows.length)} of {historyRows.length} purchase orders
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      disabled={safeHistoryPage <= 1}
+                      onClick={() => setHistoryPage((p) => p - 1)}
+                      className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
+                    >
+                      <ChevronLeft size={13} />
+                    </button>
+                    {Array.from({ length: Math.min(totalHistoryPages, 5) }, (_, i) => {
+                      const pageNum = totalHistoryPages <= 5
+                        ? i + 1
+                        : safeHistoryPage <= 3
+                        ? i + 1
+                        : safeHistoryPage >= totalHistoryPages - 2
+                        ? totalHistoryPages - 4 + i
+                        : safeHistoryPage - 2 + i;
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setHistoryPage(pageNum)}
+                          className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                            pageNum === safeHistoryPage
+                              ? 'bg-blue-600 text-white'
+                              : 'text-slate-500 border border-slate-200 hover:bg-white'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                    <button
+                      disabled={safeHistoryPage >= totalHistoryPages}
+                      onClick={() => setHistoryPage((p) => p + 1)}
+                      className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
+                    >
+                      <ChevronRight size={13} />
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         ) : <>
@@ -479,7 +549,7 @@ export default function SuppliersPage() {
                           />
                         )
                       )
-                      : filtered.map((item) => (
+                      : pagedSuppliers.map((item) => (
                         <tr key={item.id} className={`hover:bg-slate-50/50 transition-colors ${item.is_archived ? 'bg-slate-50/70 opacity-80' : ''}`}>
                           <td className="px-5 py-3.5">
                             <div className="flex items-center gap-2">
@@ -549,6 +619,52 @@ export default function SuppliersPage() {
                       ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Pagination */}
+            <div className="px-4 py-2 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+              <span className="text-slate-400 text-xs">
+                Showing {filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–
+                {Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length} suppliers
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={safePage <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
+                >
+                  <ChevronLeft size={13} />
+                </button>
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  const pageNum = totalPages <= 5
+                    ? i + 1
+                    : safePage <= 3
+                    ? i + 1
+                    : safePage >= totalPages - 2
+                    ? totalPages - 4 + i
+                    : safePage - 2 + i;
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                        pageNum === safePage
+                          ? 'bg-blue-600 text-white'
+                          : 'text-slate-500 border border-slate-200 hover:bg-white'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+                <button
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
+                >
+                  <ChevronRight size={13} />
+                </button>
+              </div>
             </div>
           </div>
         </>}

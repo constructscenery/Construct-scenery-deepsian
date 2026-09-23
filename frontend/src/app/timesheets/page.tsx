@@ -896,8 +896,8 @@ export default function TimesheetsPage() {
                   <button
                     key={s}
                     onClick={() => setStatusFilter(s as TimesheetStatus | 'all')}
-                    className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors capitalize ${
-                      statusFilter === s ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    className={`text-sm px-3 py-1.5 rounded-md font-normal transition-colors capitalize ${
+                      statusFilter === s ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                     }`}
                   >
                     {s === 'all' ? 'All' : s === 'amendment_requested' ? 'Amendment' : s.charAt(0).toUpperCase() + s.slice(1)}
@@ -910,8 +910,8 @@ export default function TimesheetsPage() {
                   <button
                     key={v}
                     onClick={() => setInvoiceFilter(v)}
-                    className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
-                      invoiceFilter === v ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    className={`text-sm px-3 py-1.5 rounded-md font-normal transition-colors ${
+                      invoiceFilter === v ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                     }`}
                   >
                     {v === 'all' ? 'Any Invoice' : v === 'yes' ? 'Invoice ✓' : 'No Invoice'}

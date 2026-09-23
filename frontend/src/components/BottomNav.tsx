@@ -93,8 +93,8 @@ export default function BottomNav() {
               href === activePrimaryHref ? 'text-blue-400' : 'text-slate-400'
             }`}
           >
-            <Icon size={22} />
-            <span className="text-[10px] font-medium leading-tight">{label}</span>
+            <Icon size={20} />
+            <span className="text-xs font-normal leading-tight">{label}</span>
           </Link>
         ))}
         {/* More button */}
@@ -104,8 +104,8 @@ export default function BottomNav() {
             moreOpen ? 'text-blue-400' : 'text-slate-400'
           }`}
         >
-          <MoreHorizontal size={22} />
-          <span className="text-[10px] font-medium leading-tight">More</span>
+          <MoreHorizontal size={20} />
+          <span className="text-xs font-normal leading-tight">More</span>
         </button>
       </nav>
 
@@ -116,20 +116,20 @@ export default function BottomNav() {
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/60">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-sm font-bold">
+                <span className="text-white text-xs font-normal">
                   {user ? getInitials(user.full_name) : '?'}
                 </span>
               </div>
               <div>
-                <p className="text-white text-sm font-semibold">{user?.full_name ?? '—'}</p>
-                <p className="text-slate-400 text-xs">{user ? getRoleLabel(user.role) : ''}</p>
+                <p className="text-white text-xs font-normal">{user?.full_name ?? '—'}</p>
+                <p className="text-slate-400 text-xs font-normal">{user ? getRoleLabel(user.role) : ''}</p>
               </div>
             </div>
             <button
               onClick={() => setMoreOpen(false)}
               className="p-2 text-slate-400 hover:text-white rounded-lg"
             >
-              <X size={22} />
+              <X size={20} />
             </button>
           </div>
 
@@ -140,13 +140,13 @@ export default function BottomNav() {
                 key={href}
                 href={href}
                 onClick={() => setMoreOpen(false)}
-                className={`flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-medium transition-colors min-h-[52px] ${
+                className={`flex items-center gap-4 px-4 py-3 rounded-xl text-xs font-normal transition-colors min-h-[48px] ${
                   href === activeDrawerHref
                     ? 'bg-blue-600 text-white'
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                 }`}
               >
-                <Icon size={20} className="flex-shrink-0" />
+                <Icon size={18} className="flex-shrink-0" />
                 {label}
               </Link>
             ))}
@@ -156,9 +156,9 @@ export default function BottomNav() {
           <div className="px-4 py-4 border-t border-slate-700/60">
             <button
               onClick={() => { setMoreOpen(false); logout(); }}
-              className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors min-h-[52px]"
+              className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-xs font-normal text-slate-400 hover:bg-slate-800 hover:text-white transition-colors min-h-[48px]"
             >
-              <LogOut size={20} />
+              <LogOut size={18} />
               Sign out
             </button>
           </div>

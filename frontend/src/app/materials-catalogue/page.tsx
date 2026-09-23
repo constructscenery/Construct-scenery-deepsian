@@ -18,8 +18,12 @@ import {
   Download,
   Package,
   Boxes,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { EmptyStateRow } from '@/components/EmptyState';
+
+const PAGE_SIZE = 10;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const fmtGBP = (n: number | string | null | undefined) =>
@@ -116,6 +120,7 @@ export default function MaterialsCataloguePage() {
   const [loading, setLoading] = useState(true);
 
   // ── Filter state ──
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [supplierFilter, setSupplierFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -177,6 +182,10 @@ export default function MaterialsCataloguePage() {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, supplierFilter, categoryFilter]);
+
   // ── Filtered + sorted items ──
   const filtered = items
     .filter((item) => {
@@ -193,6 +202,10 @@ export default function MaterialsCataloguePage() {
       return matchSearch && matchSupplier && matchCategory;
     })
     .sort((a, b) => (a.material_name || a.product_description).localeCompare(b.material_name || b.product_description));
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const categories = Array.from(new Set(items.map(item => item.category).filter((value): value is string => !!value))).sort();
   const stockTotalsFor = (materialId: string) => inventorySummary
@@ -547,7 +560,7 @@ export default function MaterialsCataloguePage() {
                           />
                         )
                       )
-                      : filtered.map((item) => (
+                      : pagedItems.map((item) => (
                         <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-5 py-3.5">
                             <p className="text-slate-800 font-semibold text-sm">{item.material_name || item.product_description}</p>
@@ -608,15 +621,52 @@ export default function MaterialsCataloguePage() {
               </table>
             </div>
 
-            {/* Footer count */}
-            {!loading && filtered.length > 0 && (
-              <div className="px-5 py-3 border-t border-slate-100 bg-slate-50">
-                <p className="text-slate-400 text-xs">
-                  Showing {filtered.length} of {items.length} {items.length === 1 ? 'entry' : 'entries'}
-                  {(search || supplierFilter || categoryFilter) ? ' — filtered' : ''}
-                </p>
+            {/* Pagination */}
+            <div className="px-4 py-2 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+              <span className="text-slate-400 text-xs">
+                Showing {filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–
+                {Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length} items
+                {(search || supplierFilter || categoryFilter) ? ' (filtered)' : ''}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={safePage <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
+                >
+                  <ChevronLeft size={13} />
+                </button>
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  const pageNum = totalPages <= 5
+                    ? i + 1
+                    : safePage <= 3
+                    ? i + 1
+                    : safePage >= totalPages - 2
+                    ? totalPages - 4 + i
+                    : safePage - 2 + i;
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                        pageNum === safePage
+                          ? 'bg-blue-600 text-white'
+                          : 'text-slate-500 border border-slate-200 hover:bg-white'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+                <button
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
+                >
+                  <ChevronRight size={13} />
+                </button>
               </div>
-            )}
+            </div>
           </div>
         </>}
 
@@ -624,10 +674,10 @@ export default function MaterialsCataloguePage() {
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <div>
-                <h2 className="text-slate-800 font-semibold text-base">Current Held Stock</h2>
+                <h2 className="text-slate-800 font-normal text-sm">Current Held Stock</h2>
                 <p className="text-slate-400 text-xs mt-0.5">Materials physically held by Construct Scenery.</p>
               </div>
-              {canWrite && <button onClick={openInventoryAdd} className="flex items-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-4 py-2 hover:bg-blue-700 font-medium"><Plus size={14} /> Add Stock</button>}
+              {canWrite && <button onClick={openInventoryAdd} className="flex items-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-4 py-2 hover:bg-blue-700 font-normal"><Plus size={14} /> Add Stock</button>}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[900px]">

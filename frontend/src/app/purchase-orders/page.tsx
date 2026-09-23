@@ -35,10 +35,11 @@ import {
   Trash2,
   Archive,
   RotateCcw,
+  ChevronDown,
 } from 'lucide-react';
 import { EmptyStateRow } from '@/components/EmptyState';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 const CSV_HEADERS = [
   'PO Number',
@@ -63,13 +64,13 @@ const CSV_HEADERS = [
 
 type TabFilter = POStatus | 'all' | 'pending' | 'archived';
 const STATUS_TABS: { label: string; value: TabFilter }[] = [
-  { label: 'All',               value: 'all' },
+  { label: 'All', value: 'all' },
   { label: 'Pending Approvals', value: 'pending' },
-  { label: 'Draft',             value: 'draft' },
-  { label: 'Submitted',         value: 'submitted' },
-  { label: 'Invoice Received',  value: 'invoice_received' },
-  { label: 'Approved',          value: 'approved' },
-  { label: 'Archived',          value: 'archived' },
+  { label: 'Draft', value: 'draft' },
+  { label: 'Submitted', value: 'submitted' },
+  { label: 'Invoice Received', value: 'invoice_received' },
+  { label: 'Approved', value: 'approved' },
+  { label: 'Archived', value: 'archived' },
 ];
 
 const MAX_FILE_MB = 10;
@@ -90,6 +91,28 @@ const STATUS_LABEL: Record<POStatus, string> = {
   invoice_received: 'Invoice Received',
   approved: 'Approved',
 };
+
+function getTrafficLight(status: string) {
+  if (status === 'approved') {
+    return {
+      dot: 'bg-emerald-500',
+      badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      label: 'Approved',
+    };
+  }
+  if (status === 'submitted' || status === 'invoice_received' || status === 'issued') {
+    return {
+      dot: 'bg-amber-500',
+      badge: 'bg-amber-50 text-amber-700 border-amber-200',
+      label: 'Pending',
+    };
+  }
+  return {
+    dot: 'bg-rose-500',
+    badge: 'bg-rose-50 text-rose-700 border-rose-200',
+    label: 'Not Approved',
+  };
+}
 
 const PAID_FROM_BADGE: Record<string, string> = {
   supplier_account: 'bg-blue-50 text-blue-600',
@@ -239,9 +262,9 @@ function ExpenditureCombobox({
   const filtered = query.trim() === ''
     ? options
     : options.filter(et =>
-        et.code.toLowerCase().includes(query.toLowerCase()) ||
-        et.expenditure_type.toLowerCase().includes(query.toLowerCase())
-      );
+      et.code.toLowerCase().includes(query.toLowerCase()) ||
+      et.expenditure_type.toLowerCase().includes(query.toLowerCase())
+    );
 
   const matched = options.find(et => et.code.toLowerCase() === value.toLowerCase());
 
@@ -286,9 +309,8 @@ function ExpenditureCombobox({
             <li
               key={et.code}
               onMouseDown={() => pick(et)}
-              className={`px-3 py-2 cursor-pointer flex items-center gap-2 hover:bg-blue-50 ${
-                et.code === value ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700'
-              }`}
+              className={`px-3 py-2 cursor-pointer flex items-center gap-2 hover:bg-blue-50 ${et.code === value ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700'
+                }`}
             >
               <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{et.code}</span>
               <span>{et.expenditure_type}</span>
@@ -336,6 +358,16 @@ export default function PurchaseOrdersPage() {
   const [permanentDeletingPO, setPermanentDeletingPO] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const pageSize = PAGE_SIZE;
+  const [openActionDropdownId, setOpenActionDropdownId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = () => setOpenActionDropdownId(null);
+    if (openActionDropdownId) {
+      document.addEventListener('click', handleOutsideClick);
+      return () => document.removeEventListener('click', handleOutsideClick);
+    }
+  }, [openActionDropdownId]);
 
   const [showFilters, setShowFilters] = useState(false);
   const [poFilters, setPoFilters] = useState({
@@ -362,7 +394,7 @@ export default function PurchaseOrdersPage() {
   const [formError, setFormError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
 
-  const [viewMode, setViewMode] = useState<'purchasing'|'accounting'>('purchasing');
+  const [viewMode, setViewMode] = useState<'purchasing' | 'accounting'>('purchasing');
   const [viewFullPO, setViewFullPO] = useState<PurchaseOrder | null>(null);
   const [supplierOverviewModal, setSupplierOverviewModal] = useState<string | null>(null);
 
@@ -612,15 +644,15 @@ export default function PurchaseOrdersPage() {
 
   useEffect(() => {
     loadSuppliersData();
-    purchaseOrdersApi.getAccountCodes().then(setAccountCodes).catch(() => {});
-    expenditureTypesApi.list().then(setExpenditureTypes).catch(() => {});
+    purchaseOrdersApi.getAccountCodes().then(setAccountCodes).catch(() => { });
+    expenditureTypesApi.list().then(setExpenditureTypes).catch(() => { });
 
     try {
       const savedDraft = localStorage.getItem('poDraftForm');
       const savedStep = localStorage.getItem('poDraftStep');
       if (savedDraft) {
         setNewForm(JSON.parse(savedDraft));
-        if (savedStep) setNewStep(Number(savedStep) as 1|2|3);
+        if (savedStep) setNewStep(Number(savedStep) as 1 | 2 | 3);
       }
     } catch (e) {
       console.error('Failed to parse draft form', e);
@@ -645,19 +677,19 @@ export default function PurchaseOrdersPage() {
     setLoading(true);
     try {
       const params: Record<string, string> = {};
-      if (poFilters.production_id)  params.production_id  = poFilters.production_id;
-      if (poFilters.date_from)      params.date_from      = poFilters.date_from;
-      if (poFilters.date_to)        params.date_to        = poFilters.date_to;
+      if (poFilters.production_id) params.production_id = poFilters.production_id;
+      if (poFilters.date_from) params.date_from = poFilters.date_from;
+      if (poFilters.date_to) params.date_to = poFilters.date_to;
       if (poFilters.net_amount_min) params.net_amount_min = poFilters.net_amount_min;
       if (poFilters.net_amount_max) params.net_amount_max = poFilters.net_amount_max;
-      if (poFilters.gross_amount_min) params.amount_min   = poFilters.gross_amount_min;
-      if (poFilters.gross_amount_max) params.amount_max   = poFilters.gross_amount_max;
-      if (poFilters.set_code)       params.set_code       = poFilters.set_code;
-      if (poFilters.account_code)   params.account_code   = poFilters.account_code;
-      if (poFilters.paid_from)      params.paid_from      = poFilters.paid_from;
-      if (poFilters.department)     params.department     = poFilters.department;
-      if (poFilters.title)          params.title          = poFilters.title;
-      if (poFilters.supplier_name)  params.supplier_name  = poFilters.supplier_name;
+      if (poFilters.gross_amount_min) params.amount_min = poFilters.gross_amount_min;
+      if (poFilters.gross_amount_max) params.amount_max = poFilters.gross_amount_max;
+      if (poFilters.set_code) params.set_code = poFilters.set_code;
+      if (poFilters.account_code) params.account_code = poFilters.account_code;
+      if (poFilters.paid_from) params.paid_from = poFilters.paid_from;
+      if (poFilters.department) params.department = poFilters.department;
+      if (poFilters.title) params.title = poFilters.title;
+      if (poFilters.supplier_name) params.supplier_name = poFilters.supplier_name;
       if (statusFilter === 'archived') {
         params.archived_only = 'true';
       }
@@ -682,9 +714,9 @@ export default function PurchaseOrdersPage() {
     if (isMD && po.status !== 'approved') return false;
     const matchStatus =
       statusFilter === 'all' ? true :
-      statusFilter === 'archived' ? Boolean(po.is_archived) :
-      statusFilter === 'pending' ? (po.status === 'submitted' || po.status === 'invoice_received') :
-      po.status === statusFilter;
+        statusFilter === 'archived' ? Boolean(po.is_archived) :
+          statusFilter === 'pending' ? (po.status === 'submitted' || po.status === 'invoice_received') :
+            po.status === statusFilter;
     const q = search.toLowerCase();
     const prodName = (po.prod_name || productions.find(p => p.id === po.production_id)?.name || '').toLowerCase();
     const matchSearch =
@@ -715,9 +747,9 @@ export default function PurchaseOrdersPage() {
     return matchStatus && matchSearch;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredPos.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredPos.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pagePos = filteredPos.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pagePos = filteredPos.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const totalPOs = pos.length;
   const approvedSpend = pos
@@ -812,25 +844,25 @@ export default function PurchaseOrdersPage() {
     loadSetsForProduction(po.production_id);
     const isStandardDept = po.department && DEPARTMENTS.includes(po.department);
     setEditForm({
-      title:          po.title ?? '',
-      supplier_name:  po.supplier_name,
-      supplier_id:    po.supplier_id ?? '',
+      title: po.title ?? '',
+      supplier_name: po.supplier_name,
+      supplier_id: po.supplier_id ?? '',
       supplier_email: po.supplier_email ?? '',
-      street_name:    (po as unknown as Record<string, string>).street_name ?? '',
-      zip_code:       (po as unknown as Record<string, string>).zip_code ?? '',
-      city:           (po as unknown as Record<string, string>).city ?? '',
-      county:         (po as unknown as Record<string, string>).county ?? '',
-      date_of_po:     po.date_of_po?.split('T')[0] ?? '',
-      production_id:  po.production_id,
-      set_code:       po.set_code ?? '',
-      account_code:   po.account_code ?? '',
-      description:    po.description ?? '',
-      department:     isStandardDept ? po.department! : (po.department ? 'Other' : ''),
+      street_name: (po as unknown as Record<string, string>).street_name ?? '',
+      zip_code: (po as unknown as Record<string, string>).zip_code ?? '',
+      city: (po as unknown as Record<string, string>).city ?? '',
+      county: (po as unknown as Record<string, string>).county ?? '',
+      date_of_po: po.date_of_po?.split('T')[0] ?? '',
+      production_id: po.production_id,
+      set_code: po.set_code ?? '',
+      account_code: po.account_code ?? '',
+      description: po.description ?? '',
+      department: isStandardDept ? po.department! : (po.department ? 'Other' : ''),
       custom_department: isStandardDept ? '' : (po.department ?? ''),
-      net_amount:     po.net_amount,
-      vat:            po.vat,
-      gross_amount:   po.gross_amount,
-      paid_from:      po.paid_from,
+      net_amount: po.net_amount,
+      vat: po.vat,
+      gross_amount: po.gross_amount,
+      paid_from: po.paid_from,
     });
     setEditError('');
   }
@@ -847,24 +879,24 @@ export default function PurchaseOrdersPage() {
     setEditLoading(true);
     try {
       await purchaseOrdersApi.update(editPO.id, {
-        title:          editForm.title,
-        supplier_id:    editForm.supplier_id || null,
-        supplier_name:  editForm.supplier_name,
+        title: editForm.title,
+        supplier_id: editForm.supplier_id || null,
+        supplier_name: editForm.supplier_name,
         supplier_email: editForm.supplier_email || null,
-        street_name:    editForm.street_name    || null,
-        zip_code:       editForm.zip_code       || null,
-        city:           editForm.city           || null,
-        county:         editForm.county         || null,
-        date_of_po:     editForm.date_of_po,
-        production_id:  editForm.production_id,
-        set_code:       editForm.set_code       || null,
-        account_code:   editForm.account_code   || null,
-        description:    editForm.description    || null,
-        department:     editForm.department === 'Other' ? editForm.custom_department : (editForm.department || null),
-        net_amount:     editForm.net_amount,
-        vat:            editForm.vat            || '0',
-        gross_amount:   editForm.gross_amount,
-        paid_from:      editForm.paid_from,
+        street_name: editForm.street_name || null,
+        zip_code: editForm.zip_code || null,
+        city: editForm.city || null,
+        county: editForm.county || null,
+        date_of_po: editForm.date_of_po,
+        production_id: editForm.production_id,
+        set_code: editForm.set_code || null,
+        account_code: editForm.account_code || null,
+        description: editForm.description || null,
+        department: editForm.department === 'Other' ? editForm.custom_department : (editForm.department || null),
+        net_amount: editForm.net_amount,
+        vat: editForm.vat || '0',
+        gross_amount: editForm.gross_amount,
+        paid_from: editForm.paid_from,
       });
       setEditPO(null);
       await loadData();
@@ -878,21 +910,21 @@ export default function PurchaseOrdersPage() {
   function handleCopyPO(po: PurchaseOrder) {
     setNewForm({
       ...EMPTY_FORM,
-      title:          po.title ?? '',
-      supplier_name:  po.supplier_name,
+      title: po.title ?? '',
+      supplier_name: po.supplier_name,
       supplier_email: po.supplier_email ?? '',
-      street_name:    (po as unknown as Record<string, string>).street_name ?? '',
-      zip_code:       (po as unknown as Record<string, string>).zip_code ?? '',
-      city:           (po as unknown as Record<string, string>).city ?? '',
-      county:         (po as unknown as Record<string, string>).county ?? '',
-      production_id:  po.production_id,
-      set_code:       po.set_code ?? '',
-      account_code:   po.account_code ?? '',
-      description:    po.description ?? '',
-      net_amount:     po.net_amount,
-      vat:            po.vat,
-      gross_amount:   po.gross_amount,
-      paid_from:      po.paid_from,
+      street_name: (po as unknown as Record<string, string>).street_name ?? '',
+      zip_code: (po as unknown as Record<string, string>).zip_code ?? '',
+      city: (po as unknown as Record<string, string>).city ?? '',
+      county: (po as unknown as Record<string, string>).county ?? '',
+      production_id: po.production_id,
+      set_code: po.set_code ?? '',
+      account_code: po.account_code ?? '',
+      description: po.description ?? '',
+      net_amount: po.net_amount,
+      vat: po.vat,
+      gross_amount: po.gross_amount,
+      paid_from: po.paid_from,
     });
     setNewStep(1);
     setShowNewModal(true);
@@ -909,24 +941,24 @@ export default function PurchaseOrdersPage() {
     setFormLoading(true);
     try {
       const created = await purchaseOrdersApi.create({
-        title:          newForm.title,
-        supplier_id:    newForm.supplier_id || null,
-        supplier_name:  newForm.supplier_name,
-        supplier_email: newForm.supplier_email  || null,
-        street_name:    newForm.street_name     || null,
-        zip_code:       newForm.zip_code        || null,
-        city:           newForm.city            || null,
-        county:         newForm.county          || null,
-        date_of_po:     newForm.date_of_po,
-        production_id:  newForm.production_id,
-        set_code:       newForm.set_code        || null,
-        account_code:   newForm.account_code    || null,
-        description:    newForm.description     || null,
-        department:     newForm.department === 'Other' ? newForm.custom_department : (newForm.department || null),
-        net_amount:     newForm.net_amount,
-        vat:            newForm.vat             || '0',
-        gross_amount:   newForm.gross_amount,
-        paid_from:      newForm.paid_from,
+        title: newForm.title,
+        supplier_id: newForm.supplier_id || null,
+        supplier_name: newForm.supplier_name,
+        supplier_email: newForm.supplier_email || null,
+        street_name: newForm.street_name || null,
+        zip_code: newForm.zip_code || null,
+        city: newForm.city || null,
+        county: newForm.county || null,
+        date_of_po: newForm.date_of_po,
+        production_id: newForm.production_id,
+        set_code: newForm.set_code || null,
+        account_code: newForm.account_code || null,
+        description: newForm.description || null,
+        department: newForm.department === 'Other' ? newForm.custom_department : (newForm.department || null),
+        net_amount: newForm.net_amount,
+        vat: newForm.vat || '0',
+        gross_amount: newForm.gross_amount,
+        paid_from: newForm.paid_from,
       });
 
       if (newConfirmationFile) {
@@ -1007,7 +1039,7 @@ export default function PurchaseOrdersPage() {
         return val.includes(',') || val.includes('"') ? `"${val.replace(/"/g, '""')}"` : val;
       }).join(',');
     }).join('\r\n');
-    
+
     const clipboardContent = `${headerLine}\r\n${skippedLines}`;
     navigator.clipboard.writeText(clipboardContent);
     setCopiedText(true);
@@ -1083,30 +1115,30 @@ export default function PurchaseOrdersPage() {
   return (
     <>
       <TopBar title="Purchase Orders" subtitle="Raise, track and approve supplier purchase orders" />
-      <main className="flex-1 p-4 md:p-6 space-y-4 md:space-y-5">
+      <main className="flex-1 px-4 py-3 md:px-5 md:py-3.5 space-y-2.5">
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {loading
             ? Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="bg-white rounded-xl border border-slate-200 px-5 py-4 shadow-sm animate-pulse">
-                  <div className="h-3 bg-slate-200 rounded w-24 mb-2" />
-                  <div className="h-7 bg-slate-200 rounded w-20 mb-1" />
-                  <div className="h-2.5 bg-slate-200 rounded w-16" />
-                </div>
-              ))
+              <div key={i} className="bg-white rounded-xl border border-slate-200 px-5 py-4 shadow-sm animate-pulse">
+                <div className="h-3 bg-slate-200 rounded w-24 mb-2" />
+                <div className="h-7 bg-slate-200 rounded w-20 mb-1" />
+                <div className="h-2.5 bg-slate-200 rounded w-16" />
+              </div>
+            ))
             : [
-                { label: 'Total POs', value: String(totalPOs), sub: 'all statuses' },
-                { label: 'Approved Spend', value: fmt(approvedSpend), sub: 'inc. VAT' },
-                { label: 'Awaiting Action', value: String(awaitingAction), sub: 'submitted or invoice received' },
-                { label: 'Total Committed', value: fmt(totalCommitted), sub: 'all statuses' },
-              ].map((s) => (
-                <div key={s.label} className="bg-white rounded-xl border border-slate-200 px-5 py-4 shadow-sm">
-                  <p className="text-slate-500 text-xs font-medium">{s.label}</p>
-                  <p className="text-slate-900 text-2xl font-bold mt-1">{s.value}</p>
-                  <p className="text-slate-400 text-xs mt-0.5">{s.sub}</p>
-                </div>
-              ))}
+              { label: 'Total POs', value: String(totalPOs), sub: 'all statuses' },
+              { label: 'Approved Spend', value: fmt(approvedSpend), sub: 'inc. VAT' },
+              { label: 'Awaiting Action', value: String(awaitingAction), sub: 'submitted or invoice received' },
+              { label: 'Total Committed', value: fmt(totalCommitted), sub: 'all statuses' },
+            ].map((s) => (
+              <div key={s.label} className="bg-white rounded-lg border border-slate-200 px-4 py-2.5 shadow-2xs">
+                <p className="text-slate-500 text-xs font-normal">{s.label}</p>
+                <p className="text-slate-800 text-base font-normal mt-0.5">{s.value}</p>
+                <p className="text-slate-400 text-[11px] mt-0.5 font-normal">{s.sub}</p>
+              </div>
+            ))}
         </div>
 
         {/* Table Card */}
@@ -1118,17 +1150,16 @@ export default function PurchaseOrdersPage() {
               {/* Status tabs */}
               <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 flex-wrap">
                 {STATUS_TABS.filter(tab =>
-                !isMD &&
-                (tab.value !== 'pending' || isAccountant)
-              ).map((tab) => (
+                  !isMD &&
+                  (tab.value !== 'pending' || isAccountant)
+                ).map((tab) => (
                   <button
                     key={tab.value}
                     onClick={() => { setStatusFilter(tab.value); setPage(1); }}
-                    className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
-                      statusFilter === tab.value
+                    className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${statusFilter === tab.value
                         ? 'bg-white text-slate-900 shadow-sm'
                         : 'text-slate-500 hover:text-slate-700'
-                    }`}
+                      }`}
                   >
                     {tab.label}
                   </button>
@@ -1154,11 +1185,10 @@ export default function PurchaseOrdersPage() {
               {!isMD && (
                 <button
                   onClick={() => setShowFilters(v => !v)}
-                  className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border transition-colors font-medium ${
-                    showFilters || activeFilterCount > 0
+                  className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border transition-colors font-medium ${showFilters || activeFilterCount > 0
                       ? 'bg-blue-50 border-blue-300 text-blue-700'
                       : 'bg-slate-100 border-slate-200 text-slate-500 hover:text-slate-700'
-                  }`}
+                    }`}
                 >
                   <SlidersHorizontal size={13} />
                   Filters
@@ -1173,17 +1203,15 @@ export default function PurchaseOrdersPage() {
               <div className="flex items-center bg-slate-200/50 rounded-lg p-1 ml-auto">
                 <button
                   onClick={() => setViewMode('purchasing')}
-                  className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
-                    viewMode === 'purchasing' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
-                  }`}
+                  className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${viewMode === 'purchasing' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
+                    }`}
                 >
                   Purchasing
                 </button>
                 <button
                   onClick={() => setViewMode('accounting')}
-                  className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
-                    viewMode === 'accounting' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
-                  }`}
+                  className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${viewMode === 'accounting' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
+                    }`}
                 >
                   Accounting
                 </button>
@@ -1221,8 +1249,8 @@ export default function PurchaseOrdersPage() {
                       try {
                         setNewForm(JSON.parse(savedDraft));
                         const savedStep = localStorage.getItem('poDraftStep');
-                        if (savedStep) setNewStep(Number(savedStep) as 1|2|3);
-                      } catch {}
+                        if (savedStep) setNewStep(Number(savedStep) as 1 | 2 | 3);
+                      } catch { }
                     } else {
                       setNewForm(EMPTY_FORM);
                       setNewStep(1);
@@ -1431,294 +1459,359 @@ export default function PurchaseOrdersPage() {
             <table className="w-full text-sm min-w-[900px]">
               <thead>
                 <tr className="bg-slate-50 text-left">
-                  <th className="px-5 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap sticky left-0 bg-slate-50 z-10">PO Number</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Date</th>
+                  <th className="px-5 py-2.5 text-xs font-normal text-slate-500 whitespace-nowrap sticky left-0 bg-slate-50 z-10">PO Number</th>
+                  <th className="px-4 py-2.5 text-xs font-normal text-slate-500 whitespace-nowrap">Date</th>
                   {viewMode === 'purchasing' ? (
                     <>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-500">Production</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-500">PO Details</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-500">Description</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Amount</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-500">Status</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Dept / Set / Exp Type</th>
+                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500">Production</th>
+                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500">Details</th>
+                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500 text-right">Amount</th>
+                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500">Status</th>
+                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500 whitespace-nowrap">Code</th>
                     </>
                   ) : (
                     <>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Exp Type</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Set Code</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">VAT</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Paid From</th>
-                      <th className="px-4 py-3 text-xs font-semibold text-slate-500">Approval Status</th>
+                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500 whitespace-nowrap">Exp Type</th>
+                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500 whitespace-nowrap">Set Code</th>
+                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500 text-right">VAT</th>
+                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500 whitespace-nowrap">Paid From</th>
+                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500">Approval Status</th>
                     </>
                   )}
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-center">Invoice</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Actions</th>
+                  <th className="px-4 py-2.5 text-xs font-normal text-slate-500 text-center">Invoice</th>
+                  <th className="px-4 py-2.5 text-xs font-normal text-slate-500 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading
                   ? Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
                   : pagePos.length === 0
-                  ? (
-                    pos.length === 0 ? (
-                      <EmptyStateRow
-                        colSpan={14}
-                        icon={FileText}
-                        title="No purchase orders yet"
-                        description="No purchase orders have been raised in the database."
-                        recommendation="Select an active production and supplier to generate your first purchase order."
-                        action={!isGuest ? {
-                          label: 'Raise Purchase Order',
-                          onClick: () => setShowNewModal(true),
-                          icon: Plus,
-                        } : undefined}
-                      />
-                    ) : (
-                      <EmptyStateRow
-                        colSpan={14}
-                        icon={AlertCircle}
-                        title="No matching purchase orders"
-                        description="No purchase orders match your currently applied search criteria or filters."
-                        recommendation="Try clearing your search term or resetting the production and status filters."
-                        action={{
-                          label: 'Clear Filters',
-                          onClick: () => {
-                            setPoFilters({ production_id: '', date_from: '', date_to: '', net_amount_min: '', net_amount_max: '', gross_amount_min: '', gross_amount_max: '', set_code: '', account_code: '', paid_from: '', department: '', title: '', supplier_name: '' });
-                            setSearch('');
-                            setPage(1);
-                          },
-                          icon: X,
-                        }}
-                      />
+                    ? (
+                      pos.length === 0 ? (
+                        <EmptyStateRow
+                          colSpan={10}
+                          icon={FileText}
+                          title="No purchase orders yet"
+                          description="No purchase orders have been raised in the database."
+                          recommendation="Select an active production and supplier to generate your first purchase order."
+                          action={!isGuest ? {
+                            label: 'Raise Purchase Order',
+                            onClick: () => setShowNewModal(true),
+                            icon: Plus,
+                          } : undefined}
+                        />
+                      ) : (
+                        <EmptyStateRow
+                          colSpan={10}
+                          icon={AlertCircle}
+                          title="No matching purchase orders"
+                          description="No purchase orders match your currently applied search criteria or filters."
+                          recommendation="Try clearing your search term or resetting the production and status filters."
+                          action={{
+                            label: 'Clear Filters',
+                            onClick: () => {
+                              setPoFilters({ production_id: '', date_from: '', date_to: '', net_amount_min: '', net_amount_max: '', gross_amount_min: '', gross_amount_max: '', set_code: '', account_code: '', paid_from: '', department: '', title: '', supplier_name: '' });
+                              setSearch('');
+                              setPage(1);
+                            },
+                            icon: X,
+                          }}
+                        />
+                      )
                     )
-                  )
-                  : pagePos.map((po) => {
-                    const busy = actionLoading?.startsWith(po.id + ':');
-                    return (
-                      <tr key={po.id} className="hover:bg-slate-50/50 transition-colors even:bg-slate-50/50 border-b border-slate-100 last:border-0">
-                        <td className="px-5 py-3.5 sticky left-0 bg-white group-hover:bg-slate-50/50 z-10">
-                          <p className="text-blue-700 font-semibold text-xs font-mono whitespace-nowrap">{po.po_number}</p>
-                        </td>
-                        <td className="px-4 py-3.5 text-slate-600 text-xs whitespace-nowrap">
-                          {fmtDate(po.date_of_po)}
-                        </td>
-                        
-                        {viewMode === 'purchasing' ? (
-                          <>
-                            <td className="px-4 py-3.5 text-slate-600 text-sm whitespace-nowrap">
-                              {po.prod_name ?? po.production_id}
-                            </td>
-                            <td className="px-4 py-3.5">
-                              <p className="text-slate-800 font-semibold text-sm">
-                                {po.title || po.supplier_name}
-                              </p>
-                              {po.title && <p className="text-slate-500 text-xs mt-0.5">{po.supplier_name}</p>}
-                            </td>
-                            <td className="px-4 py-3.5 text-slate-600 text-xs max-w-[180px] truncate" title={po.description ?? ''}>
-                              {po.description ?? '—'}
-                            </td>
-                            <td className="px-4 py-3.5 text-slate-900 text-sm text-right font-semibold whitespace-nowrap">
-                              {fmt(po.gross_amount)}
-                            </td>
-                            <td className="px-4 py-3.5">
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${STATUS_BADGE[po.status] ?? 'bg-slate-100 text-slate-600'}`}>
-                                {STATUS_LABEL[po.status] ?? po.status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3.5">
-                              {po.set_code && <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-xs mr-2" title="Set">{po.set_code}</span>}
-                              {po.account_code && <span className="text-slate-400 text-xs" title="Type of Expenditure">{po.account_code}</span>}
-                              {!po.set_code && !po.account_code && <span className="text-slate-300 text-xs">—</span>}
-                            </td>
-                          </>
-                        ) : (
-                          <>
-                            <td className="px-4 py-3.5 text-slate-700 text-sm whitespace-nowrap">
-                              {po.account_code ? <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-xs">{po.account_code}</span> : '—'}
-                            </td>
-                            <td className="px-4 py-3.5 text-slate-700 text-sm whitespace-nowrap">
-                              {po.set_code ? <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-xs">{po.set_code}</span> : '—'}
-                            </td>
-                            <td className="px-4 py-3.5 text-slate-500 text-sm text-right whitespace-nowrap">
-                              {fmt(po.vat)}
-                            </td>
-                            <td className="px-4 py-3.5">
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${PAID_FROM_BADGE[po.paid_from] ?? 'bg-slate-100 text-slate-600'}`}>
-                                {PAID_FROM_LABEL[po.paid_from] ?? po.paid_from}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3.5">
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${STATUS_BADGE[po.status] ?? 'bg-slate-100 text-slate-600'}`}>
-                                {STATUS_LABEL[po.status] ?? po.status}
-                              </span>
-                            </td>
-                          </>
-                        )}
-                        
-                        <td className="px-4 py-3.5 text-center">
-                          {po.invoice_attachment_url ? (() => {
-                            const url = po.invoice_attachment_url.startsWith('http') ? po.invoice_attachment_url : encodeURI(decodeURI(po.invoice_attachment_url));
-                            return (
-                              <button onClick={() => window.open(url, '_blank', 'noopener,noreferrer')} className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline">
-                                <CheckCircle2 size={15} className="text-green-500" />
-                                <span className="text-xs font-medium">View</span>
-                              </button>
-                            );
-                          })() : (
-                            <span title="No invoice attached"><AlertCircle size={16} className="text-amber-400 mx-auto" /></span>
+                    : pagePos.map((po, index) => {
+                      const busy = actionLoading?.startsWith(po.id + ':');
+                      const isNearBottom = index >= Math.max(0, pagePos.length - 2);
+                      return (
+                        <tr key={po.id} className="hover:bg-slate-50/50 transition-colors even:bg-slate-50/50 border-b border-slate-100 last:border-0">
+                          <td className="px-5 py-2 sticky left-0 bg-white group-hover:bg-slate-50/50 z-10">
+                            <span className="text-slate-600 text-xs font-normal whitespace-nowrap">{po.po_number}</span>
+                          </td>
+                          <td className="px-4 py-2 text-slate-600 text-xs font-normal whitespace-nowrap">
+                            {fmtDate(po.date_of_po)}
+                          </td>
+
+                          {viewMode === 'purchasing' ? (
+                            <>
+                              <td className="px-4 py-2 text-slate-600 text-xs font-normal whitespace-nowrap">
+                                {po.prod_name ?? po.production_id}
+                              </td>
+                              <td className="px-4 py-2 max-w-[320px]">
+                                <p className="text-slate-700 text-xs font-normal line-clamp-2" title={po.description || po.title || ''}>
+                                  {po.description || po.title || '—'}
+                                </p>
+                                {po.supplier_name && (
+                                  <p className="text-slate-400 text-[11px] mt-0.5 font-normal">{po.supplier_name}</p>
+                                )}
+                              </td>
+                              <td className="px-4 py-2 text-slate-700 text-xs text-right font-normal whitespace-nowrap">
+                                {fmt(po.gross_amount)}
+                              </td>
+                              <td className="px-4 py-2 whitespace-nowrap">
+                                {(() => {
+                                  const tl = getTrafficLight(po.status);
+                                  return (
+                                    <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full font-normal border ${tl.badge}`}>
+                                      <span className={`w-1.5 h-1.5 rounded-full ${tl.dot}`} />
+                                      {tl.label}
+                                    </span>
+                                  );
+                                })()}
+                              </td>
+                              <td className="px-4 py-2 text-slate-600 text-xs font-normal whitespace-nowrap">
+                                {po.account_code || po.set_code || '—'}
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-4 py-2 text-slate-600 text-xs font-normal whitespace-nowrap">
+                                {po.account_code || '—'}
+                              </td>
+                              <td className="px-4 py-2 text-slate-600 text-xs font-normal whitespace-nowrap">
+                                {po.set_code || '—'}
+                              </td>
+                              <td className="px-4 py-2 text-slate-600 text-xs text-right font-normal whitespace-nowrap">
+                                {fmt(po.vat)}
+                              </td>
+                              <td className="px-4 py-2 whitespace-nowrap">
+                                <span className="text-xs px-2 py-0.5 rounded-full font-normal bg-slate-100 text-slate-600">
+                                  {PAID_FROM_LABEL[po.paid_from] ?? po.paid_from}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 whitespace-nowrap">
+                                {(() => {
+                                  const tl = getTrafficLight(po.status);
+                                  return (
+                                    <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full font-normal border ${tl.badge}`}>
+                                      <span className={`w-1.5 h-1.5 rounded-full ${tl.dot}`} />
+                                      {tl.label}
+                                    </span>
+                                  );
+                                })()}
+                              </td>
+                            </>
                           )}
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {/* View Full PO: All roles */}
-                            <button onClick={() => setViewFullPO(po)} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors font-medium">
-                              <Search size={11} /> View
-                            </button>
-                            {/* Copy PO: All roles except guest */}
-                            {!isGuest && (
-                              <button onClick={() => handleCopyPO(po)} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors font-medium">
-                                <FileText size={11} /> Copy
-                              </button>
-                            )}
-                            {/* Download PDF: All roles */}
-                            <button
-                              disabled={!!busy}
-                              onClick={() => handleAction(po.id, 'download-pdf', async () => {
-                                await purchaseOrdersApi.downloadPdf(po.id, po.po_number);
-                              }, (msg) => setActionError(msg ? { id: po.id, msg } : null))}
-                              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors font-medium disabled:opacity-50"
-                            >
-                              {busy && actionLoading === po.id + ':download-pdf'
-                                ? <Loader2 size={11} className="animate-spin" />
-                                : <FileText size={11} />}
-                              PDF
-                            </button>
-                            {/* Edit: Coordinator (James) only, draft only */}
-                            {isCoordinator && po.status === 'draft' && (
-                              <button
-                                disabled={!!busy}
-                                onClick={() => openEdit(po)}
-                                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors font-medium disabled:opacity-50"
-                              >
-                                <Pencil size={11} />
-                                Edit
-                              </button>
-                            )}
-                            {/* Submit: Coordinator (James) only, draft only */}
-                            {isCoordinator && po.status === 'draft' && (
-                              <button
-                                disabled={!!busy}
-                                onClick={() => {
-                                  if (!po.invoice_attachment_url) {
-                                    setSubmitConfirmPO(po);
-                                  } else {
-                                    handleSubmit(po.id);
-                                  }
-                                }}
-                                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-medium disabled:opacity-50"
-                              >
-                                {busy && actionLoading === po.id + ':submit'
-                                  ? <Loader2 size={11} className="animate-spin" />
-                                  : <FileText size={11} />}
-                                Submit
-                              </button>
-                            )}
-                            {/* Approve: Accountant (Sarah) only, submitted or invoice_received */}
-                            {isAccountant && (po.status === 'submitted' || po.status === 'invoice_received') && (
-                              <button
-                                disabled={!!busy}
-                                onClick={() => handleApprove(po.id)}
-                                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-green-50 text-green-700 hover:bg-green-100 transition-colors font-medium disabled:opacity-50"
-                              >
-                                {busy && actionLoading === po.id + ':approve'
-                                  ? <Loader2 size={11} className="animate-spin" />
-                                  : <CheckCircle2 size={11} />}
-                                Approve
-                              </button>
-                            )}
-                            {/* Attach Confirmation: Coordinator + Accountant, any status except draft */}
-                            {(isCoordinator || isAccountant) && po.status !== 'draft' && (
-                              <button
-                                disabled={!!busy}
-                                onClick={() => {
-                                  setConfirmationModal(po);
-                                  setConfirmationFile(null);
-                                  setConfirmationError('');
-                                }}
-                                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors font-medium disabled:opacity-50"
-                              >
-                                <Upload size={11} />
-                                {po.confirmation_attachment_url ? 'View Confirmation' : 'Confirm'}
-                              </button>
-                            )}
-                            {/* Attach Invoice: Coordinator + Accountant, any status except draft */}
-                            {(isCoordinator || isAccountant) && po.status !== 'draft' && (
-                              <button
-                                disabled={!!busy}
-                                onClick={() => {
-                                  setInvoiceModal(po);
-                                  setInvoiceFile(null);
-                                  setInvoiceError('');
-                                }}
-                                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors font-medium disabled:opacity-50"
-                              >
-                                <Upload size={11} />
-                                Invoice
-                              </button>
-                            )}
-                            {/* Archive: Coordinator or MD, draft only */}
-                            {(isCoordinator || isMD) && po.status === 'draft' && !po.is_archived && (
-                              <button
-                                disabled={!!busy}
-                                onClick={() => handleDelete(po.id)}
-                                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors font-medium disabled:opacity-50"
-                                title="Archive purchase order"
-                              >
-                                {busy && actionLoading === po.id + ':delete'
-                                  ? <Loader2 size={11} className="animate-spin" />
-                                  : <Archive size={11} />}
-                                Archive
-                              </button>
-                            )}
-                            {/* Restore and Permanent Delete for Archived POs */}
-                            {(isCoordinator || isMD) && po.is_archived && (
-                              <>
-                                <button
-                                  disabled={!!busy}
-                                  onClick={() => handleRestore(po.id)}
-                                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors font-medium border border-emerald-200 disabled:opacity-50"
-                                  title="Restore purchase order"
-                                >
-                                  {busy && actionLoading === po.id + ':restore'
-                                    ? <Loader2 size={11} className="animate-spin" />
-                                    : <RotateCcw size={11} />}
-                                  Restore
+
+                          <td className="px-4 py-2 text-center whitespace-nowrap">
+                            {po.invoice_attachment_url ? (() => {
+                              const url = po.invoice_attachment_url.startsWith('http') ? po.invoice_attachment_url : encodeURI(decodeURI(po.invoice_attachment_url));
+                              return (
+                                <button onClick={() => window.open(url, '_blank', 'noopener,noreferrer')} className="inline-flex items-center gap-1 text-slate-600 hover:text-slate-900 font-normal text-xs">
+                                  <CheckCircle2 size={13} className="text-emerald-500" />
+                                  <span>View</span>
                                 </button>
-                                <button
-                                  disabled={!!busy}
-                                  onClick={() => setPermanentDeletePO(po)}
-                                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors font-medium border border-rose-200 disabled:opacity-50"
-                                  title="Permanently delete purchase order"
-                                >
-                                  <Trash2 size={11} />
-                                  Delete Permanently
-                                </button>
-                              </>
+                              );
+                            })() : (
+                              <span title="No invoice attached"><AlertCircle size={14} className="text-amber-400 mx-auto" /></span>
                             )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          </td>
+                          <td className="px-4 py-2 text-right whitespace-nowrap">
+                            <div className="relative inline-block text-left">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenActionDropdownId(openActionDropdownId === po.id ? null : po.id);
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-normal text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-2xs"
+                              >
+                                <span>Actions</span>
+                                <ChevronDown size={12} className="text-slate-400" />
+                              </button>
+
+                              {openActionDropdownId === po.id && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className={`absolute right-0 ${isNearBottom ? 'bottom-full mb-1' : 'top-full mt-1'} w-44 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50 text-xs divide-y divide-slate-100`}
+                                >
+                                  <div className="py-0.5">
+                                    {/* View Full PO */}
+                                    <button
+                                      type="button"
+                                      onClick={() => { setOpenActionDropdownId(null); setViewFullPO(po); }}
+                                      className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors"
+                                    >
+                                      <Search size={13} className="text-slate-400" />
+                                      <span>View Details</span>
+                                    </button>
+                                    {/* Copy PO */}
+                                    {!isGuest && (
+                                      <button
+                                        type="button"
+                                        onClick={() => { setOpenActionDropdownId(null); handleCopyPO(po); }}
+                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors"
+                                      >
+                                        <FileText size={13} className="text-slate-400" />
+                                        <span>Copy PO</span>
+                                      </button>
+                                    )}
+                                    {/* Download PDF */}
+                                    <button
+                                      type="button"
+                                      disabled={!!busy}
+                                      onClick={() => {
+                                        setOpenActionDropdownId(null);
+                                        handleAction(po.id, 'download-pdf', async () => {
+                                          await purchaseOrdersApi.downloadPdf(po.id, po.po_number);
+                                        }, (msg) => setActionError(msg ? { id: po.id, msg } : null));
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors disabled:opacity-50"
+                                    >
+                                      {busy && actionLoading === po.id + ':download-pdf'
+                                        ? <Loader2 size={13} className="animate-spin text-slate-400" />
+                                        : <Download size={13} className="text-slate-400" />}
+                                      <span>Download PDF</span>
+                                    </button>
+                                  </div>
+
+                                  {/* Status Workflow Actions */}
+                                  {((isCoordinator && po.status === 'draft') ||
+                                    (isAccountant && (po.status === 'submitted' || po.status === 'invoice_received')) ||
+                                    ((isCoordinator || isAccountant) && po.status !== 'draft')) && (
+                                      <div className="py-0.5">
+                                        {/* Edit: Coordinator only, draft only */}
+                                        {isCoordinator && po.status === 'draft' && (
+                                          <button
+                                            type="button"
+                                            disabled={!!busy}
+                                            onClick={() => { setOpenActionDropdownId(null); openEdit(po); }}
+                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors disabled:opacity-50"
+                                          >
+                                            <Pencil size={13} className="text-slate-400" />
+                                            <span>Edit PO</span>
+                                          </button>
+                                        )}
+                                        {/* Submit: Coordinator only, draft only */}
+                                        {isCoordinator && po.status === 'draft' && (
+                                          <button
+                                            type="button"
+                                            disabled={!!busy}
+                                            onClick={() => {
+                                              setOpenActionDropdownId(null);
+                                              if (!po.invoice_attachment_url) {
+                                                setSubmitConfirmPO(po);
+                                              } else {
+                                                handleSubmit(po.id);
+                                              }
+                                            }}
+                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors disabled:opacity-50"
+                                          >
+                                            {busy && actionLoading === po.id + ':submit'
+                                              ? <Loader2 size={13} className="animate-spin text-slate-400" />
+                                              : <FileText size={13} className="text-slate-400" />}
+                                            <span>Submit PO</span>
+                                          </button>
+                                        )}
+                                        {/* Approve: Accountant only, submitted or invoice_received */}
+                                        {isAccountant && (po.status === 'submitted' || po.status === 'invoice_received') && (
+                                          <button
+                                            type="button"
+                                            disabled={!!busy}
+                                            onClick={() => { setOpenActionDropdownId(null); handleApprove(po.id); }}
+                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-emerald-700 hover:bg-emerald-50 font-normal transition-colors disabled:opacity-50"
+                                          >
+                                            {busy && actionLoading === po.id + ':approve'
+                                              ? <Loader2 size={13} className="animate-spin text-emerald-600" />
+                                              : <CheckCircle2 size={13} className="text-emerald-600" />}
+                                            <span>Approve PO</span>
+                                          </button>
+                                        )}
+                                        {/* Attach Confirmation */}
+                                        {(isCoordinator || isAccountant) && po.status !== 'draft' && (
+                                          <button
+                                            type="button"
+                                            disabled={!!busy}
+                                            onClick={() => {
+                                              setOpenActionDropdownId(null);
+                                              setConfirmationModal(po);
+                                              setConfirmationFile(null);
+                                              setConfirmationError('');
+                                            }}
+                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors disabled:opacity-50"
+                                          >
+                                            <Upload size={13} className="text-slate-400" />
+                                            <span>{po.confirmation_attachment_url ? 'View Confirmation' : 'Confirm'}</span>
+                                          </button>
+                                        )}
+                                        {/* Attach Invoice */}
+                                        {(isCoordinator || isAccountant) && po.status !== 'draft' && (
+                                          <button
+                                            type="button"
+                                            disabled={!!busy}
+                                            onClick={() => {
+                                              setOpenActionDropdownId(null);
+                                              setInvoiceModal(po);
+                                              setInvoiceFile(null);
+                                              setInvoiceError('');
+                                            }}
+                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors disabled:opacity-50"
+                                          >
+                                            <Upload size={13} className="text-slate-400" />
+                                            <span>{po.invoice_attachment_url ? 'View Invoice' : 'Attach Invoice'}</span>
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+
+                                  {/* Archive & Restore */}
+                                  {(((isCoordinator || isMD) && po.status === 'draft' && !po.is_archived) ||
+                                    ((isCoordinator || isMD) && po.is_archived)) && (
+                                      <div className="py-0.5">
+                                        {(isCoordinator || isMD) && po.status === 'draft' && !po.is_archived && (
+                                          <button
+                                            type="button"
+                                            disabled={!!busy}
+                                            onClick={() => { setOpenActionDropdownId(null); handleDelete(po.id); }}
+                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-amber-700 hover:bg-amber-50 font-normal transition-colors disabled:opacity-50"
+                                          >
+                                            {busy && actionLoading === po.id + ':delete'
+                                              ? <Loader2 size={13} className="animate-spin text-amber-600" />
+                                              : <Archive size={13} className="text-amber-600" />}
+                                            <span>Archive PO</span>
+                                          </button>
+                                        )}
+                                        {(isCoordinator || isMD) && po.is_archived && (
+                                          <>
+                                            <button
+                                              type="button"
+                                              disabled={!!busy}
+                                              onClick={() => { setOpenActionDropdownId(null); handleRestore(po.id); }}
+                                              className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-emerald-700 hover:bg-emerald-50 font-normal transition-colors disabled:opacity-50"
+                                            >
+                                              {busy && actionLoading === po.id + ':restore'
+                                                ? <Loader2 size={13} className="animate-spin text-emerald-600" />
+                                                : <RotateCcw size={13} className="text-emerald-600" />}
+                                              <span>Restore PO</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              disabled={!!busy}
+                                              onClick={() => { setOpenActionDropdownId(null); setPermanentDeletePO(po); }}
+                                              className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-rose-700 hover:bg-rose-50 font-normal transition-colors disabled:opacity-50"
+                                            >
+                                              <Trash2 size={13} className="text-rose-600" />
+                                              <span>Delete Permanently</span>
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    )}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
               </tbody>
             </table>
           </div>
 
           {/* Pagination */}
-          <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+          <div className="px-4 py-2 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
             <span className="text-slate-400 text-xs">
-              Showing {filteredPos.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–
-              {Math.min(safePage * PAGE_SIZE, filteredPos.length)} of {filteredPos.length} purchase orders
+              Showing {filteredPos.length === 0 ? 0 : (safePage - 1) * pageSize + 1}–
+              {Math.min(safePage * pageSize, filteredPos.length)} of {filteredPos.length} purchase orders
             </span>
             <div className="flex items-center gap-1">
               <button
@@ -1732,19 +1825,18 @@ export default function PurchaseOrdersPage() {
                 const pageNum = totalPages <= 5
                   ? i + 1
                   : safePage <= 3
-                  ? i + 1
-                  : safePage >= totalPages - 2
-                  ? totalPages - 4 + i
-                  : safePage - 2 + i;
+                    ? i + 1
+                    : safePage >= totalPages - 2
+                      ? totalPages - 4 + i
+                      : safePage - 2 + i;
                 return (
                   <button
                     key={pageNum}
                     onClick={() => setPage(pageNum)}
-                    className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-                      pageNum === safePage
+                    className={`px-2.5 py-1 text-xs rounded-md transition-colors ${pageNum === safePage
                         ? 'bg-blue-600 text-white'
                         : 'text-slate-500 border border-slate-200 hover:bg-white'
-                    }`}
+                      }`}
                   >
                     {pageNum}
                   </button>
@@ -2065,14 +2157,14 @@ export default function PurchaseOrdersPage() {
                           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
                         />
                       </div>
-                       <div className="sm:col-span-2">
-                         <label className="block text-xs font-medium text-slate-600 mb-1">Type of Expenditure</label>
-                         <ExpenditureCombobox
-                           value={newForm.account_code}
-                           onChange={(code) => updateField("account_code", code)}
-                           options={expenditureTypes}
-                         />
-                       </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Type of Expenditure</label>
+                        <ExpenditureCombobox
+                          value={newForm.account_code}
+                          onChange={(code) => updateField("account_code", code)}
+                          options={expenditureTypes}
+                        />
+                      </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-600 mb-1">Set Code</label>
                         <input
@@ -2227,12 +2319,12 @@ export default function PurchaseOrdersPage() {
                 </div>
               )}
             </div>
-            
+
             <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50">
               <div>
                 {newStep > 1 && (
                   <button
-                    onClick={() => setNewStep(s => (s - 1) as 1|2|3)}
+                    onClick={() => setNewStep(s => (s - 1) as 1 | 2 | 3)}
                     className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-white transition-colors"
                   >
                     Back
@@ -2258,7 +2350,7 @@ export default function PurchaseOrdersPage() {
                         setFormError('Title, Net amount and Gross amount are required.');
                         return;
                       }
-                      setNewStep(s => (s + 1) as 1|2|3);
+                      setNewStep(s => (s + 1) as 1 | 2 | 3);
                     }}
                     className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                   >
@@ -2573,15 +2665,15 @@ export default function PurchaseOrdersPage() {
                       ))}
                     </datalist>
                   </div>
-                   <div className="col-span-2">
-                     <label className="block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wider">Type of Expenditure</label>
-                     <ExpenditureCombobox
-                       value={editForm.account_code}
-                       onChange={(code) => setEditForm(f => ({ ...f, account_code: code }))}
-                       options={expenditureTypes}
-                       inputClassName="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                     />
-                   </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wider">Type of Expenditure</label>
+                    <ExpenditureCombobox
+                      value={editForm.account_code}
+                      onChange={(code) => setEditForm(f => ({ ...f, account_code: code }))}
+                      options={expenditureTypes}
+                      inputClassName="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Department</label>
                     <select
@@ -2680,7 +2772,7 @@ export default function PurchaseOrdersPage() {
               <p className="text-slate-500 text-sm text-center mt-2">
                 No invoice is attached to <span className="font-medium">{submitConfirmPO.po_number}</span>. Are you sure you want to submit? Or you can attach an invoice now.
               </p>
-              
+
               <div className="mt-4 border border-slate-200 rounded-xl p-4 bg-slate-50">
                 <label className="block text-xs font-semibold text-slate-700 mb-2">Attach Invoice (Optional)</label>
                 <input
@@ -2740,7 +2832,7 @@ export default function PurchaseOrdersPage() {
               <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
                 <p className="text-xs text-slate-500 mb-2">Total POs:</p>
                 <p className="font-semibold text-slate-900">{pos.filter(p => p.supplier_name === supplierOverviewModal).length}</p>
-                
+
                 <p className="text-xs text-slate-500 mt-4 mb-2">Total Spent (Gross):</p>
                 <p className="font-semibold text-slate-900">
                   {fmt(pos.filter(p => p.supplier_name === supplierOverviewModal).reduce((acc, p) => acc + parseFloat(p.gross_amount), 0).toFixed(2))}
@@ -2899,11 +2991,10 @@ export default function PurchaseOrdersPage() {
                       key={ct.type}
                       type="button"
                       onClick={() => setQuickProdForm(f => ({ ...f, contract_type: ct.type }))}
-                      className={`text-left px-3 py-2 rounded-lg border-2 transition-all ${
-                        quickProdForm.contract_type === ct.type
+                      className={`text-left px-3 py-2 rounded-lg border-2 transition-all ${quickProdForm.contract_type === ct.type
                           ? 'border-blue-500 bg-blue-50'
                           : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between mb-0.5">
                         <span className="text-xs font-semibold text-slate-800">{ct.label}</span>

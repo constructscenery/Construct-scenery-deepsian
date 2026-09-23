@@ -1441,7 +1441,7 @@ export default function CostReportType2({ report, onRefresh, userRole }: {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-3 text-xs font-semibold whitespace-nowrap border-b-2 transition-colors ${
+                className={`px-4 py-3 text-sm font-normal whitespace-nowrap border-b-2 transition-colors ${
                   activeTab === tab.id
                     ? 'border-blue-600 text-blue-600 bg-blue-50/50'
                     : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
@@ -1449,7 +1449,7 @@ export default function CostReportType2({ report, onRefresh, userRole }: {
               >
                 {tab.label}
                 {tab.id === 'omitted' && omittedCount > 0 && (
-                  <span className="ml-1.5 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  <span className="ml-1.5 bg-amber-500 text-white text-xs font-normal px-1.5 py-0.5 rounded-full">
                     {omittedCount}
                   </span>
                 )}

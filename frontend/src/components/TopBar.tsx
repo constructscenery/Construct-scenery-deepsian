@@ -30,7 +30,7 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
 
         {/* Title */}
         <div className="flex-1 min-w-0">
-          <h1 className="text-slate-900 font-semibold text-base md:text-lg leading-tight truncate">{title}</h1>
+          <h1 className="text-slate-800 font-normal text-sm leading-tight truncate">{title}</h1>
           {subtitle && <p className="hidden sm:block text-slate-500 text-xs truncate">{subtitle}</p>}
         </div>
 
@@ -39,7 +39,7 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
           <button
             id="topbar-sync-btn"
             onClick={() => setSyncOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200 rounded-lg transition-all"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-normal text-slate-700 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200 rounded-lg transition-all"
             title="Export database to Excel & sync to S3"
             aria-label="Export and sync to S3"
           >

@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
 import {
   Plus, Search, Calendar, CheckCircle2, Clock, AlertTriangle,
-  ChevronRight, X, Loader2, Archive, ArchiveRestore, Trash2, Clapperboard,
+  ChevronLeft, ChevronRight, X, Loader2, Archive, ArchiveRestore, Trash2, Clapperboard,
 } from 'lucide-react';
 import { productionsApi, Production, ProductionStatus, ContractType } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyStateRow } from '@/components/EmptyState';
+
+const PAGE_SIZE = 10;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -375,6 +377,7 @@ export default function ProductionsPage() {
   const [archived, setArchived]           = useState<Production[]>([]);
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState('');
+  const [page, setPage]                   = useState(1);
   const [search, setSearch]               = useState('');
   const [activeTab, setActiveTab]         = useState<ProductionStatus | 'all'>('all');
   const [showArchived, setShowArchived]   = useState(false);
@@ -460,6 +463,10 @@ export default function ProductionsPage() {
     }
   };
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, activeTab]);
+
   const filtered = productions.filter(p => {
     const matchesTab    = activeTab === 'all' || p.status === activeTab;
     const q = search.toLowerCase();
@@ -484,6 +491,10 @@ export default function ProductionsPage() {
     ].some(v => v != null && String(v).toLowerCase().includes(q));
     return matchesTab && matchesSearch;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedProductions = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const counts = {
     active_build:   productions.filter(p => p.status === 'active_build').length,
@@ -531,8 +542,8 @@ export default function ProductionsPage() {
             >
               <div className={`w-2.5 h-2.5 rounded-full ${s.color} flex-shrink-0`} />
               <div>
-                {loading ? <div className="h-6 w-6 bg-slate-100 rounded animate-pulse mb-1" /> : <p className="text-slate-900 text-xl font-bold">{s.count}</p>}
-                <p className="text-slate-500 text-xs">{s.label}</p>
+                {loading ? <div className="h-6 w-6 bg-slate-100 rounded animate-pulse mb-1" /> : <p className="text-slate-800 text-sm font-normal">{s.count}</p>}
+                <p className="text-slate-500 text-xs font-normal">{s.label}</p>
               </div>
             </button>
           ))}
@@ -546,7 +557,7 @@ export default function ProductionsPage() {
                 <button
                   key={tab.value}
                   onClick={() => setActiveTab(tab.value)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${activeTab === tab.value ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100'}`}
+                  className={`px-3 py-1.5 text-sm font-normal rounded-lg transition-colors ${activeTab === tab.value ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100'}`}
                 >
                   {tab.label}
                 </button>
@@ -628,7 +639,7 @@ export default function ProductionsPage() {
                     />
                   )
                 ) : (
-                  filtered.map(p => {
+                  pagedProductions.map(p => {
                     const sc = STATUS_CONFIG[p.status] ?? STATUS_CONFIG.pre_production;
                     const donePct = p.total_sets > 0 ? Math.round((p.completed_sets / p.total_sets) * 100) : 0;
                     return (
@@ -700,12 +711,53 @@ export default function ProductionsPage() {
             </table>
           </div>
 
-          <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-            <span className="text-slate-400 text-xs">
-              {loading ? 'Loading…' : `Showing ${filtered.length} of ${productions.length} production${productions.length !== 1 ? 's' : ''}`}
-            </span>
+            {/* Pagination */}
+            <div className="px-4 py-2 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+              <span className="text-slate-400 text-xs">
+                Showing {filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–
+                {Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length} productions
+                {(search || activeTab !== 'all') ? ' (filtered)' : ''}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={safePage <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
+                >
+                  <ChevronLeft size={13} />
+                </button>
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  const pageNum = totalPages <= 5
+                    ? i + 1
+                    : safePage <= 3
+                    ? i + 1
+                    : safePage >= totalPages - 2
+                    ? totalPages - 4 + i
+                    : safePage - 2 + i;
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                        pageNum === safePage
+                          ? 'bg-blue-600 text-white'
+                          : 'text-slate-500 border border-slate-200 hover:bg-white'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+                <button
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
+                >
+                  <ChevronRight size={13} />
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
 
         {/* Archived Productions Section */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

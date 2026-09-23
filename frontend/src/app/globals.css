@@ -18,6 +18,11 @@ body {
   color: var(--foreground);
 }
 
+/* Universal typography: no bold text across all tabs, sub-tabs, sub-modules and components */
+*, *::before, *::after {
+  font-weight: 400 !important;
+}
+
 /* ─── Dark Mode Palette & Surfaces ─────────────────────────────────────────── */
 html.dark {
   --background: #090d16;

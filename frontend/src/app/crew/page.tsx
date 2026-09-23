@@ -1160,13 +1160,13 @@ export default function CrewPage() {
                   <div className="h-6 w-10 bg-slate-100 rounded animate-pulse mb-1" />
                 ) : (
                   <div className="flex items-center gap-1.5">
-                    <p className="text-slate-900 text-2xl font-bold">{s.value}</p>
+                    <p className="text-slate-800 text-sm font-normal">{s.value}</p>
                     {s.highlight && (
                       <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
                     )}
                   </div>
                 )}
-                <p className="text-slate-500 text-xs font-medium">{s.label}</p>
+                <p className="text-slate-500 text-xs font-normal">{s.label}</p>
               </div>
             </div>
           ))}
@@ -1182,13 +1182,13 @@ export default function CrewPage() {
                   <button
                     key={tab.value}
                     onClick={() => setActiveTab(tab.value)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 text-sm font-normal rounded-lg transition-colors flex items-center gap-1.5 ${
                       activeTab === tab.value ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100'
                     }`}
                   >
                     <span>{tab.label}</span>
                     {tab.value === 'requests' && requestCounts.pending > 0 && (
-                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${
+                      <span className={`px-1.5 py-0.5 rounded-full text-xs font-normal leading-none ${
                         activeTab === 'requests' ? 'bg-white text-blue-700' : 'bg-amber-500 text-white'
                       }`}>
                         {requestCounts.pending}

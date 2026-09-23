@@ -900,9 +900,9 @@ function PayRunsContent() {
             <button
               key={tab.value}
               onClick={() => setActiveTab(tab.value)}
-              className={`text-sm px-4 py-1.5 rounded-md font-medium transition-colors ${
+              className={`text-sm px-4 py-1.5 rounded-md font-normal transition-colors ${
                 activeTab === tab.value
-                  ? 'bg-white text-slate-900 shadow-sm'
+                  ? 'bg-white text-slate-800 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
               }`}
             >
