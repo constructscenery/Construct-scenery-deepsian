@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import TopBar from '@/components/TopBar';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -8,6 +8,7 @@ import {
   productionsApi,
   materialsCatalogueApi,
   supplierApi,
+  expenditureTypesApi,
   type PurchaseOrder,
   type POStatus,
   type Production,
@@ -15,6 +16,7 @@ import {
   type ContractType,
   type ProductionStatus,
   type Supplier,
+  type ExpenditureType,
 } from '@/lib/api';
 import {
   Plus,
@@ -127,6 +129,37 @@ const DEPARTMENTS = [
   'Props'
 ];
 
+const EXPENDITURE_TYPES_DEFAULT: ExpenditureType[] = [
+  { code: 'ACC', expenditure_type: 'ACCOMMODATION' },
+  { code: 'CNC', expenditure_type: 'CNC' },
+  { code: 'COM', expenditure_type: 'COMMERCIAL - LENOR UNSTOPPABLES' },
+  { code: 'CON', expenditure_type: 'CONSUMABLES' },
+  { code: 'COV', expenditure_type: 'COVID' },
+  { code: 'CRA', expenditure_type: 'CRAFT' },
+  { code: 'DRG', expenditure_type: 'DRAWINGS/GRAPHICS' },
+  { code: 'FAB', expenditure_type: 'FABRIC/DRAPES' },
+  { code: 'FIX', expenditure_type: 'FIXINGS' },
+  { code: 'GAL', expenditure_type: 'GALLOWGLASS CREW' },
+  { code: 'GRW', expenditure_type: 'GROUNDWORKS' },
+  { code: 'HSF', expenditure_type: 'HEALTH & SAFETY' },
+  { code: 'ITS', expenditure_type: 'IT' },
+  { code: 'MET', expenditure_type: 'METALWORK' },
+  { code: 'OTH', expenditure_type: 'OTHER DEPTS' },
+  { code: 'PNT', expenditure_type: 'PAINT' },
+  { code: 'PER', expenditure_type: 'PERSPEX/GLASS' },
+  { code: 'PLH', expenditure_type: 'PLANT HIRE' },
+  { code: 'PLA', expenditure_type: 'PLASTER WORK' },
+  { code: 'PST', expenditure_type: 'POSTAGE' },
+  { code: 'REP', expenditure_type: 'REPAIRS' },
+  { code: 'RIG', expenditure_type: 'RIGGING' },
+  { code: 'RUB', expenditure_type: 'RUBBISH DISPOSAL' },
+  { code: 'SCU', expenditure_type: 'SCULPT' },
+  { code: 'STA', expenditure_type: 'STATIONERY' },
+  { code: 'TIM', expenditure_type: 'TIMBER' },
+  { code: 'TRN', expenditure_type: 'TRANSPORT' },
+  { code: 'VIN', expenditure_type: 'VINYL WRAPPING' },
+];
+
 type NewPOForm = {
   title: string;
   supplier_id: string;
@@ -183,6 +216,90 @@ function SkeletonRow() {
   );
 }
 
+// ─── Expenditure Type Combobox ────────────────────────────────────────────────
+
+function ExpenditureCombobox({
+  value,
+  onChange,
+  options,
+  inputClassName,
+}: {
+  value: string;
+  onChange: (code: string) => void;
+  options: ExpenditureType[];
+  inputClassName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Keep query in sync when value changes externally (e.g. edit modal opens)
+  useEffect(() => { setQuery(value); }, [value]);
+
+  const filtered = query.trim() === ''
+    ? options
+    : options.filter(et =>
+        et.code.toLowerCase().includes(query.toLowerCase()) ||
+        et.expenditure_type.toLowerCase().includes(query.toLowerCase())
+      );
+
+  const matched = options.find(et => et.code.toLowerCase() === value.toLowerCase());
+
+  const pick = (et: ExpenditureType) => {
+    onChange(et.code);
+    setQuery(et.code);
+    setOpen(false);
+  };
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <input
+        type="text"
+        value={query}
+        placeholder="Type or select (e.g. TIM, TIMBER…)"
+        className={inputClassName ?? 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100'}
+        onFocus={() => setOpen(true)}
+        onChange={e => {
+          setQuery(e.target.value);
+          onChange(e.target.value.toUpperCase().trim());
+          setOpen(true);
+        }}
+        autoComplete="off"
+      />
+      {matched && (
+        <p className="mt-1 text-xs text-emerald-600 font-medium">✓ {matched.expenditure_type}</p>
+      )}
+      {open && filtered.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto text-sm">
+          {filtered.map(et => (
+            <li
+              key={et.code}
+              onMouseDown={() => pick(et)}
+              className={`px-3 py-2 cursor-pointer flex items-center gap-2 hover:bg-blue-50 ${
+                et.code === value ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700'
+              }`}
+            >
+              <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{et.code}</span>
+              <span>{et.expenditure_type}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function PurchaseOrdersPage() {
   const { user } = useAuth();
   const role = user?.role ?? '';
@@ -198,6 +315,7 @@ export default function PurchaseOrdersPage() {
   const [suppliersList, setSuppliersList] = useState<Supplier[]>([]);
   const [setsCache, setSetsCache] = useState<Record<string, ProductionSet[]>>({});
   const [accountCodes, setAccountCodes] = useState<string[]>([]);
+  const [expenditureTypes, setExpenditureTypes] = useState<ExpenditureType[]>(EXPENDITURE_TYPES_DEFAULT);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -495,6 +613,7 @@ export default function PurchaseOrdersPage() {
   useEffect(() => {
     loadSuppliersData();
     purchaseOrdersApi.getAccountCodes().then(setAccountCodes).catch(() => {});
+    expenditureTypesApi.list().then(setExpenditureTypes).catch(() => {});
 
     try {
       const savedDraft = localStorage.getItem('poDraftForm');
@@ -1946,20 +2065,14 @@ export default function PurchaseOrdersPage() {
                           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
                         />
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Type of Expenditure</label>
-                        <input
-                          type="text"
-                          list="account-codes-list"
-                          value={newForm.account_code}
-                          onChange={(e) => updateField('account_code', e.target.value)}
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
-                          placeholder="e.g. MAT-001"
-                        />
-                        <datalist id="account-codes-list">
-                          {accountCodes.map(code => <option key={code} value={code} />)}
-                        </datalist>
-                      </div>
+                       <div className="sm:col-span-2">
+                         <label className="block text-xs font-medium text-slate-600 mb-1">Type of Expenditure</label>
+                         <ExpenditureCombobox
+                           value={newForm.account_code}
+                           onChange={(code) => updateField("account_code", code)}
+                           options={expenditureTypes}
+                         />
+                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-600 mb-1">Set Code</label>
                         <input
@@ -2460,13 +2573,15 @@ export default function PurchaseOrdersPage() {
                       ))}
                     </datalist>
                   </div>
-                  <div className="col-span-1">
-                    <label className="block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wider">Type of Expenditure</label>
-                    <input list="account-codes-list" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={editForm.account_code} onChange={e => setEditForm(f => ({ ...f, account_code: e.target.value }))} />
-                    <datalist id="account-codes-list">
-                      {accountCodes.map(code => <option key={code} value={code} />)}
-                    </datalist>
-                  </div>
+                   <div className="col-span-2">
+                     <label className="block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wider">Type of Expenditure</label>
+                     <ExpenditureCombobox
+                       value={editForm.account_code}
+                       onChange={(code) => setEditForm(f => ({ ...f, account_code: code }))}
+                       options={expenditureTypes}
+                       inputClassName="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                     />
+                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Department</label>
                     <select

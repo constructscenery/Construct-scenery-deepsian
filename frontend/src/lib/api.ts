@@ -1814,3 +1814,14 @@ export const dataSyncApi = {
   },
 };
 
+// ─── EXPENDITURE TYPES ────────────────────────────────────────────────────────
+export type ExpenditureType = {
+  code: string;
+  expenditure_type: string;
+};
+
+export const expenditureTypesApi = {
+  list: () => request<ExpenditureType[]>('/api/expenditure-types'),
+};
+
+

@@ -126,6 +126,7 @@ app.use('/api/buildings',           require('./routes/buildings'));
 app.use('/api/assets-plant',        require('./routes/assetsPlant'));
 app.use('/api/it-resources',        require('./routes/itResources'));
 app.use('/api/ladders',             require('./routes/ladders'));
+app.use('/api/expenditure-types',   require('./routes/expenditureTypes'));
 app.use('/api/audit-log',           require('./routes/auditLog'));
 app.use('/api/data-sync',           require('./routes/dataSync'));
 
