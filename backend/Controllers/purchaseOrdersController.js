@@ -27,6 +27,29 @@ const buildPoFilterConditions = (query) => {
   if (query.net_amount_min){ conditions.push(`po.net_amount >= $${i++}`);          params.push(query.net_amount_min); }
   if (query.net_amount_max){ conditions.push(`po.net_amount <= $${i++}`);          params.push(query.net_amount_max); }
 
+  if (query.search) {
+    conditions.push(`(
+      po.po_number ILIKE $${i} OR
+      po.supplier_name ILIKE $${i} OR
+      po.title ILIKE $${i} OR
+      po.description ILIKE $${i} OR
+      po.notes ILIKE $${i} OR
+      p.name ILIKE $${i} OR
+      po.set_code ILIKE $${i} OR
+      po.account_code ILIKE $${i} OR
+      po.department ILIKE $${i} OR
+      po.supplier_email ILIKE $${i} OR
+      po.supplier_code ILIKE $${i} OR
+      po.street_name ILIKE $${i} OR
+      po.city ILIKE $${i} OR
+      po.zip_code ILIKE $${i} OR
+      po.county ILIKE $${i} OR
+      po.paid_from ILIKE $${i} OR
+      po.status ILIKE $${i++}
+    )`);
+    params.push(`%${query.search}%`);
+  }
+
   if (query.archived_only === 'true') {
     conditions.push(`(po.deleted_at IS NOT NULL OR po.is_archived = true)`);
   } else if (query.include_archived !== 'true') {
@@ -212,7 +235,7 @@ const createPO = async (req, res) => {
     supplier_name, supplier_email, supplier_address,
     street_name, zip_code, city, county,
     date_of_po, production_id,
-    set_code, account_code, description, department, net_amount, vat, gross_amount, paid_from, title,
+    set_code, account_code, description, department, net_amount, vat, gross_amount, paid_from, title, notes,
   } = req.body;
 
   if (!supplier_name || !production_id || !net_amount)
@@ -243,8 +266,8 @@ const createPO = async (req, res) => {
           street_name, zip_code, city, county,
           date_of_po, production_id,
           set_code, account_code, description, department, net_amount, vat, gross_amount, paid_from,
-          status, created_by, title)
-      VALUES ($1,COALESCE($2, (SELECT id FROM suppliers WHERE LOWER(BTRIM(name)) = LOWER(BTRIM($3)) LIMIT 1)),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'draft',$20,$21)
+          status, created_by, title, notes)
+      VALUES ($1,COALESCE($2, (SELECT id FROM suppliers WHERE LOWER(BTRIM(name)) = LOWER(BTRIM($3)) LIMIT 1)),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'draft',$20,$21,$22)
        RETURNING *`,
       [
         po_number, supplier_id || null, supplier_name.trim(), supplier_email || null,
@@ -255,7 +278,8 @@ const createPO = async (req, res) => {
         net, vatAmount, grossAmount,
         paid_from,
         req.user.id,
-        title
+        title,
+        notes || null
       ]
     );
     res.status(201).json({ ...rows[0], message: 'Purchase order created successfully', purchase_order: rows[0] });
@@ -302,7 +326,7 @@ const updatePO = async (req, res) => {
     'supplier_name', 'supplier_email', 'supplier_address',
     'street_name', 'zip_code', 'city', 'county',
     'date_of_po', 'production_id',
-    'set_code', 'account_code', 'description', 'department', 'net_amount', 'vat', 'gross_amount', 'paid_from', 'title'
+    'set_code', 'account_code', 'description', 'department', 'net_amount', 'vat', 'gross_amount', 'paid_from', 'title', 'notes'
   ];
   const updates = {};
   allowed.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });

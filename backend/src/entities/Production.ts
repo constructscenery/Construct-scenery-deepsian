@@ -19,6 +19,36 @@ export class Production {
   @Column({ type: 'text', name: 'production_type', nullable: true })
   productionType: string | null;
 
+  @Column({ type: 'text', name: 'supervising_art_director', nullable: true })
+  supervisingArtDirector: string | null;
+
+  @Column({ type: 'text', name: 'supervising_art_director_mobile', nullable: true })
+  supervisingArtDirectorMobile: string | null;
+
+  @Column({ type: 'text', name: 'supervising_art_director_email', nullable: true })
+  supervisingArtDirectorEmail: string | null;
+
+  @Column({ type: 'text', name: 'financial_controller', nullable: true })
+  financialController: string | null;
+
+  @Column({ type: 'text', name: 'financial_controller_mobile', nullable: true })
+  financialControllerMobile: string | null;
+
+  @Column({ type: 'text', name: 'financial_controller_email', nullable: true })
+  financialControllerEmail: string | null;
+
+  @Column({ type: 'text', name: 'art_dept_coordinator', nullable: true })
+  artDeptCoordinator: string | null;
+
+  @Column({ type: 'text', name: 'art_dept_coordinator_mobile', nullable: true })
+  artDeptCoordinatorMobile: string | null;
+
+  @Column({ type: 'text', name: 'art_dept_coordinator_email', nullable: true })
+  artDeptCoordinatorEmail: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  notes: string | null;
+
   @Column({ type: 'date', name: 'start_date', nullable: true })
   startDate: string | null;
 

@@ -6,6 +6,7 @@ import TopBar from '@/components/TopBar';
 import {
   ArrowLeft, Plus, Pencil, Trash2, X, Loader2, Upload,
   FileText, Calendar, MapPin, Save, Archive, ArchiveRestore, CheckCircle2,
+  Phone, Mail, User,
 } from 'lucide-react';
 import {
   productionsApi,
@@ -103,19 +104,29 @@ interface EditProductionModalProps {
 function EditProductionModal({ production, onClose, onSaved }: EditProductionModalProps) {
   const isLocked = production.has_linked_pos || production.has_linked_timesheets;
   const [form, setForm] = useState({
-    name:                production.name ?? '',
-    production_company:  production.production_company ?? '',
-    production_designer: production.production_designer ?? '',
-    production_type:     production.production_type ?? '',
-    start_date:          production.start_date ? production.start_date.split('T')[0] : '',
-    end_date:            production.end_date   ? production.end_date.split('T')[0]   : '',
-    contract_type:       production.contract_type as ContractType | '',
+    name:                            production.name ?? '',
+    production_company:              production.production_company ?? '',
+    production_designer:             production.production_designer ?? '',
+    production_type:                 production.production_type ?? '',
+    supervising_art_director:        production.supervising_art_director ?? '',
+    supervising_art_director_mobile: production.supervising_art_director_mobile ?? '',
+    supervising_art_director_email:  production.supervising_art_director_email ?? '',
+    financial_controller:           production.financial_controller ?? '',
+    financial_controller_mobile:    production.financial_controller_mobile ?? '',
+    financial_controller_email:     production.financial_controller_email ?? '',
+    art_dept_coordinator:           production.art_dept_coordinator ?? '',
+    art_dept_coordinator_mobile:    production.art_dept_coordinator_mobile ?? '',
+    art_dept_coordinator_email:     production.art_dept_coordinator_email ?? '',
+    notes:                          production.notes ?? '',
+    start_date:                      production.start_date ? production.start_date.split('T')[0] : '',
+    end_date:                        production.end_date   ? production.end_date.split('T')[0]   : '',
+    contract_type:                   production.contract_type as ContractType | '',
   });
   const [saving, setSaving]               = useState(false);
   const [error, setError]                 = useState('');
   const [pendingContractType, setPendingContractType] = useState<ContractType | null>(null);
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
 
   const handleContractTypeChange = (v: ContractType) => {
@@ -138,12 +149,22 @@ function EditProductionModal({ production, onClose, onSaved }: EditProductionMod
     try {
       const updated = await productionsApi.update(production.id, {
         ...form,
-        contract_type:       form.contract_type as ContractType,
-        start_date:          form.start_date || null,
-        end_date:            form.end_date   || null,
-        production_company:  form.production_company  || null,
-        production_designer: form.production_designer || null,
-        production_type:     form.production_type     || null,
+        contract_type:                  form.contract_type as ContractType,
+        start_date:                     form.start_date || null,
+        end_date:                       form.end_date   || null,
+        production_company:             form.production_company  || null,
+        production_designer:            form.production_designer || null,
+        production_type:                form.production_type     || null,
+        supervising_art_director:        form.supervising_art_director || null,
+        supervising_art_director_mobile: form.supervising_art_director_mobile || null,
+        supervising_art_director_email:  form.supervising_art_director_email || null,
+        financial_controller:           form.financial_controller || null,
+        financial_controller_mobile:    form.financial_controller_mobile || null,
+        financial_controller_email:     form.financial_controller_email || null,
+        art_dept_coordinator:           form.art_dept_coordinator || null,
+        art_dept_coordinator_mobile:    form.art_dept_coordinator_mobile || null,
+        art_dept_coordinator_email:     form.art_dept_coordinator_email || null,
+        notes:                          form.notes || null,
       });
       onSaved({ ...production, ...updated });
     } catch (err: unknown) {
@@ -210,6 +231,53 @@ function EditProductionModal({ production, onClose, onSaved }: EditProductionMod
               <label className="block text-xs font-medium text-slate-600 mb-1">End Date</label>
               <input type="date" className={inputCls} value={form.end_date} onChange={set('end_date')} />
             </div>
+          </div>
+
+          {/* Key Contacts */}
+          <div className="pt-2 border-t border-slate-100 space-y-3">
+            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Key Contacts</h3>
+            
+            {/* Supervising Art Director */}
+            <div className="space-y-1.5 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
+              <label className="block text-xs font-medium text-slate-700">Supervising Art Director</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <input className={inputCls} placeholder="Full Name" value={form.supervising_art_director} onChange={set('supervising_art_director')} />
+                <input className={inputCls} placeholder="Mobile / Phone" value={form.supervising_art_director_mobile} onChange={set('supervising_art_director_mobile')} />
+                <input className={inputCls} type="email" placeholder="Email Address" value={form.supervising_art_director_email} onChange={set('supervising_art_director_email')} />
+              </div>
+            </div>
+
+            {/* Financial Controller */}
+            <div className="space-y-1.5 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
+              <label className="block text-xs font-medium text-slate-700">Financial Controller</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <input className={inputCls} placeholder="Full Name" value={form.financial_controller} onChange={set('financial_controller')} />
+                <input className={inputCls} placeholder="Mobile / Phone" value={form.financial_controller_mobile} onChange={set('financial_controller_mobile')} />
+                <input className={inputCls} type="email" placeholder="Email Address" value={form.financial_controller_email} onChange={set('financial_controller_email')} />
+              </div>
+            </div>
+
+            {/* Art Dept Co-ordinator */}
+            <div className="space-y-1.5 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
+              <label className="block text-xs font-medium text-slate-700">Art Dept Co-ordinator</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <input className={inputCls} placeholder="Full Name" value={form.art_dept_coordinator} onChange={set('art_dept_coordinator')} />
+                <input className={inputCls} placeholder="Mobile / Phone" value={form.art_dept_coordinator_mobile} onChange={set('art_dept_coordinator_mobile')} />
+                <input className={inputCls} type="email" placeholder="Email Address" value={form.art_dept_coordinator_email} onChange={set('art_dept_coordinator_email')} />
+              </div>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="pt-2 border-t border-slate-100">
+            <label className="block text-xs font-medium text-slate-600 mb-1">Production Notes</label>
+            <textarea
+              rows={3}
+              className={`${inputCls} resize-none`}
+              placeholder="Additional production notes, stage/studio locations, special build requirements..."
+              value={form.notes}
+              onChange={set('notes')}
+            />
           </div>
           <div className="flex items-center justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
@@ -1279,6 +1347,82 @@ export default function ProductionDetailPage() {
               </div>
               <div className="w-full bg-slate-100 rounded-full h-2">
                 <div className="h-2 bg-blue-500 rounded-full transition-all" style={{ width: `${donePct}%` }} />
+              </div>
+            </div>
+          )}
+
+          {/* Key Production Contacts */}
+          <div className="mt-5 pt-4 border-t border-slate-100">
+            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Key Contacts</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Supervising Art Director */}
+              <div className="p-3 rounded-lg bg-slate-50/70 border border-slate-100">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Supervising Art Director</p>
+                <p className="text-slate-800 font-medium text-sm mt-1">{production.supervising_art_director || '—'}</p>
+                <div className="flex flex-col gap-1 mt-2 text-xs">
+                  {production.supervising_art_director_mobile && (
+                    <a href={`tel:${production.supervising_art_director_mobile}`} className="flex items-center gap-1.5 text-blue-600 hover:underline">
+                      <Phone size={12} className="text-slate-400" />
+                      <span>{production.supervising_art_director_mobile}</span>
+                    </a>
+                  )}
+                  {production.supervising_art_director_email && (
+                    <a href={`mailto:${production.supervising_art_director_email}`} className="flex items-center gap-1.5 text-blue-600 hover:underline truncate">
+                      <Mail size={12} className="text-slate-400 flex-shrink-0" />
+                      <span className="truncate">{production.supervising_art_director_email}</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Financial Controller */}
+              <div className="p-3 rounded-lg bg-slate-50/70 border border-slate-100">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Financial Controller</p>
+                <p className="text-slate-800 font-medium text-sm mt-1">{production.financial_controller || '—'}</p>
+                <div className="flex flex-col gap-1 mt-2 text-xs">
+                  {production.financial_controller_mobile && (
+                    <a href={`tel:${production.financial_controller_mobile}`} className="flex items-center gap-1.5 text-blue-600 hover:underline">
+                      <Phone size={12} className="text-slate-400" />
+                      <span>{production.financial_controller_mobile}</span>
+                    </a>
+                  )}
+                  {production.financial_controller_email && (
+                    <a href={`mailto:${production.financial_controller_email}`} className="flex items-center gap-1.5 text-blue-600 hover:underline truncate">
+                      <Mail size={12} className="text-slate-400 flex-shrink-0" />
+                      <span className="truncate">{production.financial_controller_email}</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Art Dept Co-ordinator */}
+              <div className="p-3 rounded-lg bg-slate-50/70 border border-slate-100">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Art Dept Co-ordinator</p>
+                <p className="text-slate-800 font-medium text-sm mt-1">{production.art_dept_coordinator || '—'}</p>
+                <div className="flex flex-col gap-1 mt-2 text-xs">
+                  {production.art_dept_coordinator_mobile && (
+                    <a href={`tel:${production.art_dept_coordinator_mobile}`} className="flex items-center gap-1.5 text-blue-600 hover:underline">
+                      <Phone size={12} className="text-slate-400" />
+                      <span>{production.art_dept_coordinator_mobile}</span>
+                    </a>
+                  )}
+                  {production.art_dept_coordinator_email && (
+                    <a href={`mailto:${production.art_dept_coordinator_email}`} className="flex items-center gap-1.5 text-blue-600 hover:underline truncate">
+                      <Mail size={12} className="text-slate-400 flex-shrink-0" />
+                      <span className="truncate">{production.art_dept_coordinator_email}</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Production Notes */}
+          {production.notes && (
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Production Notes</h2>
+              <div className="p-3 rounded-lg bg-slate-50/70 border border-slate-100 text-xs text-slate-700 whitespace-pre-wrap">
+                {production.notes}
               </div>
             </div>
           )}

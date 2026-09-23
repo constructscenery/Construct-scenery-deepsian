@@ -111,11 +111,21 @@ function NewProductionModal({ onClose, onCreated }: NewProductionModalProps) {
     start_date: '', end_date: '',
     contract_type: '' as ContractType | '',
     status: 'pre_production' as ProductionStatus,
+    supervising_art_director: '',
+    supervising_art_director_mobile: '',
+    supervising_art_director_email: '',
+    financial_controller: '',
+    financial_controller_mobile: '',
+    financial_controller_email: '',
+    art_dept_coordinator: '',
+    art_dept_coordinator_mobile: '',
+    art_dept_coordinator_email: '',
+    notes: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
 
   const submit = async (e: React.FormEvent) => {
@@ -130,12 +140,22 @@ function NewProductionModal({ onClose, onCreated }: NewProductionModalProps) {
     try {
       await productionsApi.create({
         ...form,
-        contract_type:       form.contract_type as ContractType,
-        start_date:          form.start_date || null,
-        end_date:            form.end_date   || null,
-        production_company:  form.production_company  || null,
-        production_designer: form.production_designer || null,
-        production_type:     form.production_type     || null,
+        contract_type:                  form.contract_type as ContractType,
+        start_date:                     form.start_date || null,
+        end_date:                       form.end_date   || null,
+        production_company:             form.production_company  || null,
+        production_designer:            form.production_designer || null,
+        production_type:                form.production_type     || null,
+        supervising_art_director:        form.supervising_art_director || null,
+        supervising_art_director_mobile: form.supervising_art_director_mobile || null,
+        supervising_art_director_email:  form.supervising_art_director_email || null,
+        financial_controller:           form.financial_controller || null,
+        financial_controller_mobile:    form.financial_controller_mobile || null,
+        financial_controller_email:     form.financial_controller_email || null,
+        art_dept_coordinator:           form.art_dept_coordinator || null,
+        art_dept_coordinator_mobile:    form.art_dept_coordinator_mobile || null,
+        art_dept_coordinator_email:     form.art_dept_coordinator_email || null,
+        notes:                          form.notes || null,
       });
       onCreated();
     } catch (err: unknown) {
@@ -193,6 +213,53 @@ function NewProductionModal({ onClose, onCreated }: NewProductionModalProps) {
             value={form.contract_type as ContractType | ''}
             onChange={v => setForm(f => ({ ...f, contract_type: v }))}
           />
+
+          {/* Key Contacts */}
+          <div className="pt-2 border-t border-slate-100 space-y-3">
+            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Key Contacts</h3>
+            
+            {/* Supervising Art Director */}
+            <div className="space-y-1.5 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
+              <label className="block text-xs font-medium text-slate-700">Supervising Art Director</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <input className={inputCls} placeholder="Full Name" value={form.supervising_art_director} onChange={set('supervising_art_director')} />
+                <input className={inputCls} placeholder="Mobile / Phone" value={form.supervising_art_director_mobile} onChange={set('supervising_art_director_mobile')} />
+                <input className={inputCls} type="email" placeholder="Email Address" value={form.supervising_art_director_email} onChange={set('supervising_art_director_email')} />
+              </div>
+            </div>
+
+            {/* Financial Controller */}
+            <div className="space-y-1.5 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
+              <label className="block text-xs font-medium text-slate-700">Financial Controller</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <input className={inputCls} placeholder="Full Name" value={form.financial_controller} onChange={set('financial_controller')} />
+                <input className={inputCls} placeholder="Mobile / Phone" value={form.financial_controller_mobile} onChange={set('financial_controller_mobile')} />
+                <input className={inputCls} type="email" placeholder="Email Address" value={form.financial_controller_email} onChange={set('financial_controller_email')} />
+              </div>
+            </div>
+
+            {/* Art Dept Co-ordinator */}
+            <div className="space-y-1.5 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
+              <label className="block text-xs font-medium text-slate-700">Art Dept Co-ordinator</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <input className={inputCls} placeholder="Full Name" value={form.art_dept_coordinator} onChange={set('art_dept_coordinator')} />
+                <input className={inputCls} placeholder="Mobile / Phone" value={form.art_dept_coordinator_mobile} onChange={set('art_dept_coordinator_mobile')} />
+                <input className={inputCls} type="email" placeholder="Email Address" value={form.art_dept_coordinator_email} onChange={set('art_dept_coordinator_email')} />
+              </div>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="pt-2 border-t border-slate-100">
+            <label className="block text-xs font-medium text-slate-600 mb-1">Production Notes</label>
+            <textarea
+              rows={3}
+              className={`${inputCls} resize-none`}
+              placeholder="Additional production notes, stage/studio locations, special build requirements..."
+              value={form.notes}
+              onChange={set('notes')}
+            />
+          </div>
           <div className="flex items-center justify-end gap-3 pt-1">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
             <button type="submit" disabled={saving}
@@ -388,8 +455,25 @@ export default function ProductionsPage() {
 
   const filtered = productions.filter(p => {
     const matchesTab    = activeTab === 'all' || p.status === activeTab;
-    const matchesSearch = !search || [p.name, p.production_company, p.production_designer, p.production_type]
-      .some(v => v?.toLowerCase().includes(search.toLowerCase()));
+    const q = search.toLowerCase();
+    const matchesSearch = !q || [
+      p.name,
+      p.production_company,
+      p.production_designer,
+      p.production_type,
+      p.supervising_art_director,
+      p.supervising_art_director_mobile,
+      p.supervising_art_director_email,
+      p.financial_controller,
+      p.financial_controller_mobile,
+      p.financial_controller_email,
+      p.art_dept_coordinator,
+      p.art_dept_coordinator_mobile,
+      p.art_dept_coordinator_email,
+      p.notes,
+      p.contract_type === 'cost_plus' ? 'cost plus' : 'on a price',
+      p.status,
+    ].some(v => v != null && String(v).toLowerCase().includes(q));
     return matchesTab && matchesSearch;
   });
 
@@ -465,7 +549,7 @@ export default function ProductionsPage() {
                 <Search size={13} className="text-slate-400 flex-shrink-0" />
                 <input
                   type="text"
-                  placeholder="Search productions..."
+                  placeholder="Search productions, team, notes..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   className="bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none w-full"

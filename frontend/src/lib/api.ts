@@ -210,6 +210,16 @@ export type Production = {
   production_company: string | null;
   production_designer: string | null;
   production_type: string | null;
+  supervising_art_director?: string | null;
+  supervising_art_director_mobile?: string | null;
+  supervising_art_director_email?: string | null;
+  financial_controller?: string | null;
+  financial_controller_mobile?: string | null;
+  financial_controller_email?: string | null;
+  art_dept_coordinator?: string | null;
+  art_dept_coordinator_mobile?: string | null;
+  art_dept_coordinator_email?: string | null;
+  notes?: string | null;
   start_date: string | null;
   end_date: string | null;
   contract_type: ContractType;
@@ -494,6 +504,7 @@ export type PurchaseOrder = {
   set_code: string | null;
   account_code: string | null;
   description: string | null;
+  notes?: string | null;
   department?: string | null;
   net_amount: string;
   vat: string;

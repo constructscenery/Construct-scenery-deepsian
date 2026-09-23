@@ -42,6 +42,25 @@ const getAllProductions = async (req, res) => {
       conditions.push(`contract_type = $${i++}`);
       params.push(req.query.contract_type);
     }
+    if (req.query.search) {
+      conditions.push(`(
+        p.name ILIKE $${i} OR
+        p.production_company ILIKE $${i} OR
+        p.production_designer ILIKE $${i} OR
+        p.production_type ILIKE $${i} OR
+        p.supervising_art_director ILIKE $${i} OR
+        p.supervising_art_director_mobile ILIKE $${i} OR
+        p.supervising_art_director_email ILIKE $${i} OR
+        p.financial_controller ILIKE $${i} OR
+        p.financial_controller_mobile ILIKE $${i} OR
+        p.financial_controller_email ILIKE $${i} OR
+        p.art_dept_coordinator ILIKE $${i} OR
+        p.art_dept_coordinator_mobile ILIKE $${i} OR
+        p.art_dept_coordinator_email ILIKE $${i} OR
+        p.notes ILIKE $${i++}
+      )`);
+      params.push(`%${req.query.search}%`);
+    }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const { rows } = await db.query(
@@ -81,6 +100,10 @@ const createProduction = async (req, res) => {
   const {
     name, production_company, production_designer, production_type,
     start_date, end_date, contract_type, status,
+    supervising_art_director, supervising_art_director_mobile, supervising_art_director_email,
+    financial_controller, financial_controller_mobile, financial_controller_email,
+    art_dept_coordinator, art_dept_coordinator_mobile, art_dept_coordinator_email,
+    notes,
   } = req.body;
 
   if (!name || !contract_type)
@@ -95,14 +118,22 @@ const createProduction = async (req, res) => {
     const { rows } = await db.query(
       `INSERT INTO productions
          (name, production_company, production_designer, production_type,
-          start_date, end_date, contract_type, status, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          start_date, end_date, contract_type, status, created_by,
+          supervising_art_director, supervising_art_director_mobile, supervising_art_director_email,
+          financial_controller, financial_controller_mobile, financial_controller_email,
+          art_dept_coordinator, art_dept_coordinator_mobile, art_dept_coordinator_email,
+          notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        RETURNING *`,
       [
-        name, production_company, production_designer, production_type,
-        start_date, end_date, contract_type,
+        name, production_company || null, production_designer || null, production_type || null,
+        start_date || null, end_date || null, contract_type,
         initialStatus,
         req.user.id,
+        supervising_art_director || null, supervising_art_director_mobile || null, supervising_art_director_email || null,
+        financial_controller || null, financial_controller_mobile || null, financial_controller_email || null,
+        art_dept_coordinator || null, art_dept_coordinator_mobile || null, art_dept_coordinator_email || null,
+        notes || null,
       ]
     );
     res.status(201).json(rows[0]);
@@ -157,6 +188,10 @@ const updateProduction = async (req, res) => {
   const allowed = [
     'name', 'production_company', 'production_designer', 'production_type',
     'start_date', 'end_date', 'contract_type',
+    'supervising_art_director', 'supervising_art_director_mobile', 'supervising_art_director_email',
+    'financial_controller', 'financial_controller_mobile', 'financial_controller_email',
+    'art_dept_coordinator', 'art_dept_coordinator_mobile', 'art_dept_coordinator_email',
+    'notes',
   ];
   const updates = {};
   allowed.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });

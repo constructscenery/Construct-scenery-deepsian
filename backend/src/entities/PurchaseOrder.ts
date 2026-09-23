@@ -53,6 +53,9 @@ export class PurchaseOrder {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
+  @Column({ type: 'text', nullable: true })
+  notes: string | null;
+
   @Column({ type: 'text', name: 'department', nullable: true })
   department: string | null;
 

@@ -31,14 +31,19 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
+                var migrated = localStorage.getItem('cs_ui_v2');
+                if (!migrated) {
+                  localStorage.removeItem('cs_theme');
+                  localStorage.removeItem('cs_sidebar_icons');
+                  localStorage.setItem('cs_ui_v2', 'true');
+                }
                 var theme = localStorage.getItem('cs_theme');
-                var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                if (theme === 'dark' || (!theme && prefersDark)) {
-                  document.documentElement.classList.add('dark');
-                  document.documentElement.style.colorScheme = 'dark';
-                } else {
+                if (theme === 'light') {
                   document.documentElement.classList.remove('dark');
                   document.documentElement.style.colorScheme = 'light';
+                } else {
+                  document.documentElement.classList.add('dark');
+                  document.documentElement.style.colorScheme = 'dark';
                 }
               } catch (_) {}
             `,

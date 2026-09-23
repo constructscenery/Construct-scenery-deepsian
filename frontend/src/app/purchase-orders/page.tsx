@@ -567,11 +567,32 @@ export default function PurchaseOrdersPage() {
       statusFilter === 'pending' ? (po.status === 'submitted' || po.status === 'invoice_received') :
       po.status === statusFilter;
     const q = search.toLowerCase();
+    const prodName = (po.prod_name || productions.find(p => p.id === po.production_id)?.name || '').toLowerCase();
     const matchSearch =
       !q ||
-      po.supplier_name.toLowerCase().includes(q) ||
-      po.po_number.toLowerCase().includes(q) ||
-      (po.description ?? '').toLowerCase().includes(q);
+      [
+        po.po_number,
+        po.supplier_name,
+        po.title,
+        po.description,
+        po.notes,
+        prodName,
+        po.set_code,
+        po.account_code,
+        po.department,
+        po.supplier_email,
+        (po as unknown as Record<string, unknown>).supplier_code as string | undefined,
+        po.street_name,
+        po.city,
+        po.zip_code,
+        po.county,
+        po.paid_from,
+        po.status,
+        po.gross_amount,
+        po.net_amount,
+        po.vat,
+        po.date_of_po,
+      ].some(v => v != null && String(v).toLowerCase().includes(q));
     return matchStatus && matchSearch;
   });
 
@@ -1001,7 +1022,7 @@ export default function PurchaseOrdersPage() {
                   type="text"
                   value={search}
                   onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                  placeholder="Search PO, supplier, description..."
+                  placeholder="Search everything (PO, supplier, production, notes)..."
                   className="bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none w-full"
                 />
                 {search && (
@@ -1292,6 +1313,7 @@ export default function PurchaseOrdersPage() {
               <thead>
                 <tr className="bg-slate-50 text-left">
                   <th className="px-5 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap sticky left-0 bg-slate-50 z-10">PO Number</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Date</th>
                   {viewMode === 'purchasing' ? (
                     <>
                       <th className="px-4 py-3 text-xs font-semibold text-slate-500">Production</th>
