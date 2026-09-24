@@ -10,6 +10,7 @@ import {
 import { productionsApi, Production, ProductionStatus, ContractType } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyStateRow } from '@/components/EmptyState';
+import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
 
 const PAGE_SIZE = 10;
 
@@ -712,51 +713,14 @@ export default function ProductionsPage() {
           </div>
 
             {/* Pagination */}
-            <div className="px-4 py-2 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
-              <span className="text-slate-400 text-xs">
-                Showing {filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–
-                {Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length} productions
-                {(search || activeTab !== 'all') ? ' (filtered)' : ''}
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  disabled={safePage <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                  className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
-                >
-                  <ChevronLeft size={13} />
-                </button>
-                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                  const pageNum = totalPages <= 5
-                    ? i + 1
-                    : safePage <= 3
-                    ? i + 1
-                    : safePage >= totalPages - 2
-                    ? totalPages - 4 + i
-                    : safePage - 2 + i;
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setPage(pageNum)}
-                      className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-                        pageNum === safePage
-                          ? 'bg-blue-600 text-white'
-                          : 'text-slate-500 border border-slate-200 hover:bg-white'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-                <button
-                  disabled={safePage >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                  className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
-                >
-                  <ChevronRight size={13} />
-                </button>
-              </div>
-            </div>
+            <PaginationScrollIndicator
+              page={safePage}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              totalItems={filtered.length}
+              pageSize={PAGE_SIZE}
+              itemName="productions"
+            />
           </div>
 
         {/* Archived Productions Section */}

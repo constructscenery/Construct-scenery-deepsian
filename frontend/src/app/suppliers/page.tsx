@@ -21,6 +21,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { EmptyStateRow } from '@/components/EmptyState';
+import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
 
 const PAGE_SIZE = 10;
 
@@ -367,50 +368,14 @@ export default function SuppliersPage() {
               <>
                 <div className="overflow-x-auto"><table className="w-full text-sm min-w-[1000px]"><thead><tr className="bg-slate-50 text-left border-b border-slate-100">{['Supplier', 'Category', 'Location', 'PO Number', 'Title', 'Production', 'Date', 'Status', 'Net', 'Gross'].map(h => <th key={h} className="px-4 py-3 text-xs font-semibold text-slate-500">{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{pagedHistoryRows.map(po => <tr key={po.id}><td className="px-4 py-3 text-slate-800 font-medium">{po.supplier_name}</td><td className="px-4 py-3 text-slate-600">{po.supplier_category || '—'}</td><td className="px-4 py-3 text-slate-600">{po.supplier_location || '—'}</td><td className="px-4 py-3 text-slate-800 font-medium">{po.po_number}</td><td className="px-4 py-3 text-slate-600">{po.title || '—'}</td><td className="px-4 py-3 text-slate-700"><Link href={`/productions/${po.production_id}`} className="text-blue-600 hover:underline">{po.production_name}</Link><div className="text-xs text-slate-400">{po.production_status}</div></td><td className="px-4 py-3 text-slate-600">{new Date(po.date_of_po).toLocaleDateString('en-GB')}</td><td className="px-4 py-3 text-slate-600 capitalize">{po.status.replace(/_/g, ' ')}</td><td className="px-4 py-3 text-slate-700">£{Number(po.net_amount).toFixed(2)}</td><td className="px-4 py-3 text-slate-700">£{Number(po.gross_amount).toFixed(2)}</td></tr>)}</tbody></table></div>
                 {/* Pagination */}
-                <div className="px-4 py-2 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
-                  <span className="text-slate-400 text-xs">
-                    Showing {historyRows.length === 0 ? 0 : (safeHistoryPage - 1) * PAGE_SIZE + 1}–
-                    {Math.min(safeHistoryPage * PAGE_SIZE, historyRows.length)} of {historyRows.length} purchase orders
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      disabled={safeHistoryPage <= 1}
-                      onClick={() => setHistoryPage((p) => p - 1)}
-                      className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
-                    >
-                      <ChevronLeft size={13} />
-                    </button>
-                    {Array.from({ length: Math.min(totalHistoryPages, 5) }, (_, i) => {
-                      const pageNum = totalHistoryPages <= 5
-                        ? i + 1
-                        : safeHistoryPage <= 3
-                        ? i + 1
-                        : safeHistoryPage >= totalHistoryPages - 2
-                        ? totalHistoryPages - 4 + i
-                        : safeHistoryPage - 2 + i;
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setHistoryPage(pageNum)}
-                          className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-                            pageNum === safeHistoryPage
-                              ? 'bg-blue-600 text-white'
-                              : 'text-slate-500 border border-slate-200 hover:bg-white'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-                    <button
-                      disabled={safeHistoryPage >= totalHistoryPages}
-                      onClick={() => setHistoryPage((p) => p + 1)}
-                      className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
-                    >
-                      <ChevronRight size={13} />
-                    </button>
-                  </div>
-                </div>
+                <PaginationScrollIndicator
+                  page={safeHistoryPage}
+                  totalPages={totalHistoryPages}
+                  onPageChange={setHistoryPage}
+                  totalItems={historyRows.length}
+                  pageSize={PAGE_SIZE}
+                  itemName="purchase orders"
+                />
               </>
             )}
           </div>
@@ -622,50 +587,14 @@ export default function SuppliersPage() {
             </div>
 
             {/* Pagination */}
-            <div className="px-4 py-2 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
-              <span className="text-slate-400 text-xs">
-                Showing {filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–
-                {Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length} suppliers
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  disabled={safePage <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                  className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
-                >
-                  <ChevronLeft size={13} />
-                </button>
-                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                  const pageNum = totalPages <= 5
-                    ? i + 1
-                    : safePage <= 3
-                    ? i + 1
-                    : safePage >= totalPages - 2
-                    ? totalPages - 4 + i
-                    : safePage - 2 + i;
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setPage(pageNum)}
-                      className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-                        pageNum === safePage
-                          ? 'bg-blue-600 text-white'
-                          : 'text-slate-500 border border-slate-200 hover:bg-white'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-                <button
-                  disabled={safePage >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                  className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
-                >
-                  <ChevronRight size={13} />
-                </button>
-              </div>
-            </div>
+            <PaginationScrollIndicator
+              page={safePage}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              totalItems={filtered.length}
+              pageSize={PAGE_SIZE}
+              itemName="suppliers"
+            />
           </div>
         </>}
       </main>

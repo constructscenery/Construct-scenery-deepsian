@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import TopBar from '@/components/TopBar';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -36,8 +36,10 @@ import {
   Archive,
   RotateCcw,
   ChevronDown,
+  Building2,
 } from 'lucide-react';
 import { EmptyStateRow } from '@/components/EmptyState';
+import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
 
 const PAGE_SIZE = 10;
 
@@ -397,6 +399,27 @@ export default function PurchaseOrdersPage() {
   const [viewMode, setViewMode] = useState<'purchasing' | 'accounting'>('purchasing');
   const [viewFullPO, setViewFullPO] = useState<PurchaseOrder | null>(null);
   const [supplierOverviewModal, setSupplierOverviewModal] = useState<string | null>(null);
+
+  // Accounting tab supplier spend card states
+  const [accountingSelectedSupplier, setAccountingSelectedSupplier] = useState<string>('');
+  const [accountingSupplierSearch, setAccountingSupplierSearch] = useState<string>('');
+  const [accountingSupplierDropdownOpen, setAccountingSupplierDropdownOpen] = useState(false);
+  const accountingSupplierDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        accountingSupplierDropdownRef.current &&
+        !accountingSupplierDropdownRef.current.contains(e.target as Node)
+      ) {
+        setAccountingSupplierDropdownOpen(false);
+      }
+    };
+    if (accountingSupplierDropdownOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      return () => document.removeEventListener('mousedown', handleOutsideClick);
+    }
+  }, [accountingSupplierDropdownOpen]);
 
   const [invoiceModal, setInvoiceModal] = useState<PurchaseOrder | null>(null);
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
@@ -759,6 +782,54 @@ export default function PurchaseOrdersPage() {
     (p) => p.status === 'submitted' || p.status === 'invoice_received',
   ).length;
   const totalCommitted = pos.reduce((s, p) => s + parseFloat(p.gross_amount || '0'), 0);
+
+  const accountingSuppliersSummary = useMemo(() => {
+    const map = new Map<string, { name: string; poCount: number; gross: number }>();
+    pos.forEach((p) => {
+      const name = p.supplier_name?.trim();
+      if (!name) return;
+      const existing = map.get(name) || { name, poCount: 0, gross: 0 };
+      existing.poCount += 1;
+      existing.gross += parseFloat(p.gross_amount || '0');
+      map.set(name, existing);
+    });
+
+    suppliersList.forEach((s) => {
+      const name = s.name?.trim();
+      if (name && !map.has(name)) {
+        map.set(name, { name, poCount: 0, gross: 0 });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.gross - a.gross || a.name.localeCompare(b.name));
+  }, [pos, suppliersList]);
+
+  const filteredAccountingSuppliers = useMemo(() => {
+    const q = accountingSupplierSearch.trim().toLowerCase();
+    if (!q) return accountingSuppliersSummary;
+    return accountingSuppliersSummary.filter((s) => s.name.toLowerCase().includes(q));
+  }, [accountingSuppliersSummary, accountingSupplierSearch]);
+
+  const accountingSupplierSpendData = useMemo(() => {
+    const target = accountingSelectedSupplier.trim().toLowerCase();
+    const relevant = target
+      ? pos.filter((p) => p.supplier_name && p.supplier_name.trim().toLowerCase() === target)
+      : pos;
+
+    const totalGross = relevant.reduce((sum, p) => sum + parseFloat(p.gross_amount || '0'), 0);
+    const totalNet = relevant.reduce((sum, p) => sum + parseFloat(p.net_amount || '0'), 0);
+    const totalVAT = relevant.reduce((sum, p) => sum + parseFloat(p.vat || '0'), 0);
+    const count = relevant.length;
+
+    return {
+      totalGross,
+      totalNet,
+      totalVAT,
+      count,
+      isFiltered: Boolean(target),
+      supplierName: accountingSelectedSupplier,
+    };
+  }, [pos, accountingSelectedSupplier]);
 
   async function handleAction(id: string, key: string, fn: () => Promise<void>, setError: (e: string) => void) {
     setActionLoading(`${id}:${key}`);
@@ -1808,50 +1879,163 @@ export default function PurchaseOrdersPage() {
           </div>
 
           {/* Pagination */}
-          <div className="px-4 py-2 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
-            <span className="text-slate-400 text-xs">
-              Showing {filteredPos.length === 0 ? 0 : (safePage - 1) * pageSize + 1}–
-              {Math.min(safePage * pageSize, filteredPos.length)} of {filteredPos.length} purchase orders
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                disabled={safePage <= 1}
-                onClick={() => setPage((p) => p - 1)}
-                className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
-              >
-                <ChevronLeft size={13} />
-              </button>
-              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                const pageNum = totalPages <= 5
-                  ? i + 1
-                  : safePage <= 3
-                    ? i + 1
-                    : safePage >= totalPages - 2
-                      ? totalPages - 4 + i
-                      : safePage - 2 + i;
-                return (
+          <PaginationScrollIndicator
+            page={safePage}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            totalItems={filteredPos.length}
+            pageSize={pageSize}
+            itemName="purchase orders"
+          />
+        </div>
+
+        {/* Accounting Supplier Spend Summary Card (Bottom Right) */}
+        {viewMode === 'accounting' && (
+          <div className="flex justify-end pt-2 pb-4">
+            <div className="w-full sm:w-[360px] md:w-[380px] bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3 transition-all">
+              {/* Card Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                    <Building2 size={15} />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-normal text-slate-800">Total Spent on Suppliers</h3>
+                    <p className="text-[11px] font-normal text-slate-400">
+                      {accountingSelectedSupplier
+                        ? `Accumulated spend for ${accountingSelectedSupplier}`
+                        : 'All suppliers combined'}
+                    </p>
+                  </div>
+                </div>
+                {accountingSelectedSupplier && (
                   <button
-                    key={pageNum}
-                    onClick={() => setPage(pageNum)}
-                    className={`px-2.5 py-1 text-xs rounded-md transition-colors ${pageNum === safePage
-                        ? 'bg-blue-600 text-white'
-                        : 'text-slate-500 border border-slate-200 hover:bg-white'
-                      }`}
+                    type="button"
+                    onClick={() => {
+                      setAccountingSelectedSupplier('');
+                      setAccountingSupplierSearch('');
+                    }}
+                    className="text-[11px] font-normal text-blue-600 hover:text-blue-800 transition-colors"
                   >
-                    {pageNum}
+                    Reset
                   </button>
-                );
-              })}
-              <button
-                disabled={safePage >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-                className="p-1.5 text-slate-500 border border-slate-200 rounded-md hover:bg-white disabled:opacity-40 transition-colors"
-              >
-                <ChevronRight size={13} />
-              </button>
+                )}
+              </div>
+
+              {/* Supplier Search Box with label */}
+              <div className="relative" ref={accountingSupplierDropdownRef}>
+                <label className="block text-[11px] font-normal text-slate-500 mb-1">
+                  Supplier
+                </label>
+                <div className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
+                  <Search size={13} className="text-slate-400 flex-shrink-0" />
+                  <input
+                    type="text"
+                    value={accountingSupplierSearch}
+                    onChange={(e) => {
+                      setAccountingSupplierSearch(e.target.value);
+                      setAccountingSupplierDropdownOpen(true);
+                    }}
+                    onFocus={() => setAccountingSupplierDropdownOpen(true)}
+                    placeholder={accountingSelectedSupplier || "Search supplier..."}
+                    className="bg-transparent text-xs font-normal text-slate-700 placeholder-slate-400 outline-none w-full"
+                  />
+                  {(accountingSupplierSearch || accountingSelectedSupplier) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAccountingSelectedSupplier('');
+                        setAccountingSupplierSearch('');
+                        setAccountingSupplierDropdownOpen(false);
+                      }}
+                      className="text-slate-400 hover:text-slate-600 p-0.5"
+                      title="Clear supplier"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown list (pops upward above input) */}
+                {accountingSupplierDropdownOpen && (
+                  <div className="absolute left-0 right-0 bottom-full mb-1 max-h-52 overflow-y-auto bg-white rounded-lg border border-slate-200 shadow-lg z-50 py-1 text-xs divide-y divide-slate-50">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAccountingSelectedSupplier('');
+                        setAccountingSupplierSearch('');
+                        setAccountingSupplierDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 flex items-center justify-between hover:bg-slate-50 font-normal transition-colors ${
+                        !accountingSelectedSupplier ? 'text-blue-600 bg-blue-50/50' : 'text-slate-600'
+                      }`}
+                    >
+                      <span>All Suppliers</span>
+                      <span className="text-[10px] text-slate-400">Total Spend</span>
+                    </button>
+
+                    {filteredAccountingSuppliers.length === 0 ? (
+                      <div className="px-3 py-2 text-slate-400 text-center text-xs">
+                        No matching suppliers
+                      </div>
+                    ) : (
+                      filteredAccountingSuppliers.map((sup) => (
+                        <button
+                          key={sup.name}
+                          type="button"
+                          onClick={() => {
+                            setAccountingSelectedSupplier(sup.name);
+                            setAccountingSupplierSearch(sup.name);
+                            setAccountingSupplierDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 flex items-center justify-between hover:bg-slate-50 font-normal transition-colors ${
+                            accountingSelectedSupplier === sup.name ? 'text-blue-600 bg-blue-50/50' : 'text-slate-700'
+                          }`}
+                        >
+                          <span className="truncate pr-2">{sup.name}</span>
+                          <span className="text-[10px] text-slate-400 flex-shrink-0">
+                            {sup.poCount} {sup.poCount === 1 ? 'PO' : 'POs'}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Accumulated Spend Showcase */}
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 space-y-2">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-xs font-normal text-slate-500">Gross Spent (inc. VAT)</span>
+                  <span className="text-base font-normal text-slate-900">
+                    {fmt(accountingSupplierSpendData.totalGross)}
+                  </span>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200/60 grid grid-cols-3 gap-2">
+                  <div className="text-left">
+                    <p className="text-[10px] font-normal text-slate-400">Net Spent</p>
+                    <p className="text-xs font-normal text-slate-700 mt-0.5">
+                      {fmt(accountingSupplierSpendData.totalNet)}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] font-normal text-slate-400">Total VAT</p>
+                    <p className="text-xs font-normal text-slate-700 mt-0.5">
+                      {fmt(accountingSupplierSpendData.totalVAT)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-normal text-slate-400">Total POs</p>
+                    <p className="text-xs font-normal text-slate-700 mt-0.5">
+                      {accountingSupplierSpendData.count}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </main>
 
       {/* Import CSV Modal */}

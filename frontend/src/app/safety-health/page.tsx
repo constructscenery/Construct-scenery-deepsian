@@ -5,7 +5,8 @@ import TopBar from '@/components/TopBar';
 import PublicQr from '@/components/PublicQr';
 import { useAuth } from '@/contexts/AuthContext';
 import { productionsApi, safetyHealthApi, type Production, type SafetyHealthDocument, type SafetyHealthDocumentType } from '@/lib/api';
-import { Check, Copy, Download, ExternalLink, FileText, HeartPulse, Pencil, QrCode, Search, Upload, X } from 'lucide-react';
+import { Check, ChevronDown, Copy, Download, ExternalLink, FileText, HeartPulse, Pencil, QrCode, Search, Trash2, Upload, X } from 'lucide-react';
+import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
 
 const tabs: Array<{ type: SafetyHealthDocumentType; label: string; description: string }> = [
   { type: 'risk_template', label: 'Risk Assessment Template', description: 'The standard Word template available for download and completion.' },
@@ -47,6 +48,18 @@ export default function SafetyHealthPage() {
   const [linkCopied, setLinkCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const [openActionDropdownId, setOpenActionDropdownId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = () => setOpenActionDropdownId(null);
+    if (openActionDropdownId) {
+      document.addEventListener('click', handleOutsideClick);
+      return () => document.removeEventListener('click', handleOutsideClick);
+    }
+  }, [openActionDropdownId]);
+
   const isGuest = user?.role === 'guest';
   const isUploader = Boolean(user) && !isGuest;
 
@@ -63,10 +76,18 @@ export default function SafetyHealthPage() {
 
   useEffect(() => { loadDocuments(); productionsApi.list().then(setProductions).catch(() => setProductions([])); }, [loadDocuments]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [activeType, coshhStatus, search]);
+
   const filtered = useMemo(() => {
     const query = search.toLowerCase();
     return documents.filter(doc => !query || [doc.file_name, doc.location || '', doc.production_name || '', ...doc.tags].some(value => value.toLowerCase().includes(query)));
   }, [documents, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const pagedDocs = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   function openUpload(documentToReplace: SafetyHealthDocument | null = null) {
     setEditingDocument(documentToReplace);
@@ -148,13 +169,13 @@ export default function SafetyHealthPage() {
           {activeType === 'coshh' && <div className="mt-5 flex items-center gap-1 border-b border-slate-200"><button onClick={() => setCoshhStatus('active')} className={`px-3 py-2 text-sm border-b-2 ${coshhStatus === 'active' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600'}`}>Active COSHH</button><button onClick={() => setCoshhStatus('pending_alteration')} className={`px-3 py-2 text-sm border-b-2 ${coshhStatus === 'pending_alteration' ? 'border-amber-600 text-amber-700' : 'border-transparent text-slate-600'}`}>Pending Alteration</button></div>}
           <div className="mt-5 flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2"><Search size={15} className="text-slate-400" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search file name, location, production, or tags..." className="bg-transparent outline-none text-sm w-full" /></div>
           {error && <p className="mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 overflow-x-auto min-h-[280px] pb-12">
             <table className="w-full text-sm min-w-[900px]">
-              <thead><tr className="bg-slate-50 text-left">{['Document', 'Date', ...(activeType === 'insurance' ? ['Expiry Date', 'Compliance', 'Email Alert'] : []), 'Location', 'Production', 'Tags', 'Access', 'Actions'].map(header => <th key={header} className="px-3 py-3 text-xs font-semibold text-slate-500">{header}</th>)}</tr></thead>
+              <thead><tr className="bg-slate-50 text-left">{['Document', 'Date', ...(activeType === 'insurance' ? ['Expiry Date', 'Compliance', 'Email Alert'] : []), 'Location', 'Production', 'Tags', 'Access', 'Actions'].map(header => <th key={header} className="px-3 py-3 text-xs font-normal text-slate-500">{header}</th>)}</tr></thead>
               <tbody className="divide-y divide-slate-100">
-                {loading ? <tr><td colSpan={activeType === 'insurance' ? 10 : 7} className="px-3 py-10 text-center text-slate-400">Loading documents…</td></tr> : filtered.length === 0 ? <tr><td colSpan={activeType === 'insurance' ? 10 : 7} className="px-3 py-10 text-center text-slate-400">No documents found.</td></tr> : filtered.map(doc => (
+                {loading ? <tr><td colSpan={activeType === 'insurance' ? 10 : 7} className="px-3 py-10 text-center text-slate-400">Loading documents…</td></tr> : pagedDocs.length === 0 ? <tr><td colSpan={activeType === 'insurance' ? 10 : 7} className="px-3 py-10 text-center text-slate-400">No documents found.</td></tr> : pagedDocs.map((doc, idx) => (
                   <tr key={doc.id}>
-                    <td className="px-3 py-3 text-slate-800 font-medium">{doc.file_name}</td>
+                    <td className="px-3 py-3 text-slate-800 font-normal">{doc.file_name}</td>
                     <td className="px-3 py-3 text-slate-600">{doc.assessment_date || '—'}</td>
                     {activeType === 'insurance' && <>
                       <td className="px-3 py-3 whitespace-nowrap text-slate-600">{doc.expiry_date || 'Not Set'}</td>
@@ -165,21 +186,113 @@ export default function SafetyHealthPage() {
                     <td className="px-3 py-3 text-slate-600">{doc.production_name || '—'}</td>
                     <td className="px-3 py-3"><div className="flex flex-wrap gap-1">{doc.tags.map(tag => <span key={tag} className="text-xs bg-slate-100 text-slate-600 rounded px-2 py-1">{tag}</span>)}</div></td>
                     <td className="px-3 py-3">{doc.public_token ? <span className="text-xs text-emerald-700">Public QR</span> : <span className="text-xs text-slate-400">Authenticated</span>}</td>
-                    <td className="px-3 py-3">
-                      <button onClick={() => safetyHealthApi.download(doc.id, doc.file_name)} className="flex items-center gap-1 text-blue-600 text-xs"><Download size={13} /> Download</button>
-                      {!isGuest && (
-                        <>
-                          <button onClick={() => openUpload(doc)} className="flex items-center gap-1 text-amber-700 text-xs mt-1"><Pencil size={13} /> Edit</button>
-                          <button onClick={() => handleDelete(doc)} className="flex items-center gap-1 text-red-600 text-xs mt-1"><X size={13} /> Delete</button>
-                        </>
-                      )}
-                      {doc.public_token && <><button onClick={() => setQrTarget({ url: safetyHealthApi.publicUrl(doc.public_token!), label: doc.file_name, filename: `${doc.file_name}-qr.png` })} className="flex items-center gap-1 text-emerald-700 text-xs mt-1"><QrCode size={13} /> View QR</button><a href={safetyHealthApi.publicUrl(doc.public_token)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-emerald-700 text-xs mt-1"><ExternalLink size={13} /> Public link</a></>}
+                    <td className="px-3 py-3 text-right whitespace-nowrap">
+                      <div className="relative inline-block text-left">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenActionDropdownId(openActionDropdownId === doc.id ? null : doc.id);
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-normal text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-2xs"
+                        >
+                          <span>Actions</span>
+                          <ChevronDown size={12} className="text-slate-400" />
+                        </button>
+
+                        {openActionDropdownId === doc.id && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className={`absolute right-0 ${idx >= pagedDocs.length - 2 && pagedDocs.length > 3 ? 'bottom-full mb-1' : 'top-full mt-1'} w-44 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50 text-xs divide-y divide-slate-100`}
+                          >
+                            <div className="py-0.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenActionDropdownId(null);
+                                  safetyHealthApi.download(doc.id, doc.file_name);
+                                }}
+                                className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors"
+                              >
+                                <Download size={13} className="text-slate-400" />
+                                <span>Download</span>
+                              </button>
+                              {!isGuest && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionDropdownId(null);
+                                    openUpload(doc);
+                                  }}
+                                  className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors"
+                                >
+                                  <Pencil size={13} className="text-amber-500" />
+                                  <span>Edit</span>
+                                </button>
+                              )}
+                            </div>
+                            {doc.public_token && (
+                              <div className="py-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionDropdownId(null);
+                                    setQrTarget({
+                                      url: safetyHealthApi.publicUrl(doc.public_token!),
+                                      label: doc.file_name,
+                                      filename: `${doc.file_name}-qr.png`,
+                                    });
+                                  }}
+                                  className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-emerald-700 hover:bg-emerald-50 font-normal transition-colors"
+                                >
+                                  <QrCode size={13} className="text-emerald-600" />
+                                  <span>View QR</span>
+                                </button>
+                                <a
+                                  href={safetyHealthApi.publicUrl(doc.public_token)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={() => setOpenActionDropdownId(null)}
+                                  className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-emerald-700 hover:bg-emerald-50 font-normal transition-colors"
+                                >
+                                  <ExternalLink size={13} className="text-emerald-600" />
+                                  <span>Public Link</span>
+                                </a>
+                              </div>
+                            )}
+                            {!isGuest && (
+                              <div className="py-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionDropdownId(null);
+                                    handleDelete(doc);
+                                  }}
+                                  className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-red-600 hover:bg-red-50 font-normal transition-colors"
+                                >
+                                  <Trash2 size={13} className="text-red-500" />
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          <PaginationScrollIndicator
+            page={safePage}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            totalItems={filtered.length}
+            pageSize={PAGE_SIZE}
+            itemName={activeType === 'coshh' ? 'certificates' : 'documents'}
+          />
         </>}
       </section>
       {showUpload && (
