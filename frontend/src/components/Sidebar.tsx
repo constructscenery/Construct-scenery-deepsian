@@ -122,7 +122,7 @@ export default function Sidebar() {
                 <span className="truncate">{group.label}</span>
               </div>
 
-              {/* Sub tabs / options items: reversed to smaller 10px size, lowercase */}
+              {/* Sub tabs / options items: uppercase */}
               <div className="space-y-0.5">
                 {group.items.map(({ href, label, icon: Icon }) => {
                   const active = href === activeHref;
@@ -130,7 +130,7 @@ export default function Sidebar() {
                     <Link
                       key={href}
                       href={href}
-                      className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-medium lowercase transition-all duration-150 ${active
+                      className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-medium uppercase tracking-wider transition-all duration-150 ${active
                         ? 'bg-blue-600 text-white shadow-sm'
                         : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                         }`}
@@ -138,7 +138,7 @@ export default function Sidebar() {
                       {sidebarIcons && (
                         <Icon size={13} className="flex-shrink-0" />
                       )}
-                      <span className="flex-1 truncate">{label.toLowerCase()}</span>
+                      <span className="flex-1 truncate">{label.toUpperCase()}</span>
                       {active && <ChevronRight size={11} className="opacity-70 flex-shrink-0" />}
                     </Link>
                   );
