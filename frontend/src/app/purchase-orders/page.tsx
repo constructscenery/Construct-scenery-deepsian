@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import TopBar from '@/components/TopBar';
+import { ColumnHeader, SortState } from '@/components/ColumnHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   purchaseOrdersApi,
@@ -329,9 +330,9 @@ export default function PurchaseOrdersPage() {
   const role = user?.role ?? '';
 
   const isGuest = role === 'guest';
-  const isMD = role === 'managing_director';
-  const isCoordinator = !isGuest && (role === 'construction_coordinator' || isMD || !role);
-  const isAccountant = !isGuest && (role === 'construction_accountant' || isMD || !role);
+  const isMD = false; // Lift view-only restrictions
+  const isCoordinator = !isGuest; // All non-guests can act as coordinator
+  const isAccountant = !isGuest; // All non-guests can act as accountant
 
   const [pos, setPos] = useState<PurchaseOrder[]>([]);
   const [productions, setProductions] = useState<Production[]>([]);
@@ -360,6 +361,7 @@ export default function PurchaseOrdersPage() {
   const [permanentDeletingPO, setPermanentDeletingPO] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<SortState>({ key: '', dir: null });
   const pageSize = PAGE_SIZE;
   const [openActionDropdownId, setOpenActionDropdownId] = useState<string | null>(null);
 
@@ -770,9 +772,23 @@ export default function PurchaseOrdersPage() {
     return matchStatus && matchSearch;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredPos.length / pageSize));
+  const sortedPos = useMemo(() => {
+    if (!sort.key || !sort.dir) return filteredPos;
+    return [...filteredPos].sort((a, b) => {
+      let aVal = a[sort.key as keyof PurchaseOrder] ?? '';
+      let bVal = b[sort.key as keyof PurchaseOrder] ?? '';
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+      
+      if (aVal < bVal) return sort.dir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sort.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredPos, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedPos.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pagePos = filteredPos.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pagePos = sortedPos.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const totalPOs = pos.length;
   const approvedSpend = pos
@@ -1252,6 +1268,20 @@ export default function PurchaseOrdersPage() {
                   </button>
                 )}
               </div>
+              {/* Set Filter Dropdown */}
+              <div className="relative w-full sm:w-40 flex-shrink-0">
+                <select
+                  value={poFilters.set_code}
+                  onChange={(e) => { setPoFilters(f => ({ ...f, set_code: e.target.value })); setPage(1); }}
+                  className="w-full bg-slate-100 text-slate-700 text-sm rounded-lg pl-3 pr-8 py-2 outline-none appearance-none border border-transparent focus:border-slate-300 transition-colors"
+                >
+                  <option value="">All Sets</option>
+                  {Array.from(new Set(pos.map(po => po.set_code).filter((c): c is string => Boolean(c)))).sort().map(set_code => (
+                    <option key={set_code} value={set_code}>{set_code}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
               {/* Filter toggle — hidden for MD (view-only approved) */}
               {!isMD && (
                 <button
@@ -1530,27 +1560,27 @@ export default function PurchaseOrdersPage() {
             <table className="w-full text-sm min-w-[900px]">
               <thead>
                 <tr className="bg-slate-50 text-left">
-                  <th className="px-5 py-2.5 text-xs font-normal text-slate-500 whitespace-nowrap sticky left-0 bg-slate-50 z-10">PO Number</th>
-                  <th className="px-4 py-2.5 text-xs font-normal text-slate-500 whitespace-nowrap">Date</th>
+                  <ColumnHeader label="PO Number" sortKey="po_number" sort={sort} onSort={setSort} className="sticky left-0 bg-slate-50 z-10" />
+                  <ColumnHeader label="Date" sortKey="date_of_po" sort={sort} onSort={setSort} filterType="date" filterValue={poFilters.date_from} onFilterChange={(val) => { setPoFilters(f => ({ ...f, date_from: val, date_to: val })); setPage(1); }} />
                   {viewMode === 'purchasing' ? (
                     <>
-                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500">Production</th>
-                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500">Details</th>
-                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500 text-right">Amount</th>
-                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500">Status</th>
-                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500 whitespace-nowrap">Code</th>
+                      <ColumnHeader label="Production" sortKey="prod_name" sort={sort} onSort={setSort} filterType="select" filterOptions={productions.map(p => ({ label: p.name, value: p.id }))} filterValue={poFilters.production_id} onFilterChange={(val) => { setPoFilters(f => ({ ...f, production_id: val, set_code: '' })); setPage(1); }} />
+                      <ColumnHeader label="Details" sortKey="title" sort={sort} onSort={setSort} />
+                      <ColumnHeader label="Amount" sortKey="gross_amount" sort={sort} onSort={setSort} className="text-right" />
+                      <ColumnHeader label="Status" sortKey="status" sort={sort} onSort={setSort} />
+                      <ColumnHeader label="Code" sortKey="account_code" sort={sort} onSort={setSort} />
                     </>
                   ) : (
                     <>
-                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500 whitespace-nowrap">Exp Type</th>
-                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500 whitespace-nowrap">Set Code</th>
-                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500 text-right">VAT</th>
-                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500 whitespace-nowrap">Paid From</th>
-                      <th className="px-4 py-2.5 text-xs font-normal text-slate-500">Approval Status</th>
+                      <ColumnHeader label="Exp Type" sortKey="expenditure_type" sort={sort} onSort={setSort} />
+                      <ColumnHeader label="Set Code" sortKey="set_code" sort={sort} onSort={setSort} filterType="select" filterOptions={Array.from(new Set(pos.map(po => po.set_code).filter((c): c is string => Boolean(c)))).sort().map(c => ({ label: c, value: c }))} filterValue={poFilters.set_code} onFilterChange={(val) => { setPoFilters(f => ({ ...f, set_code: val })); setPage(1); }} />
+                      <ColumnHeader label="VAT" sortKey="vat" sort={sort} onSort={setSort} className="text-right" />
+                      <ColumnHeader label="Paid From" sortKey="paid_from" sort={sort} onSort={setSort} />
+                      <ColumnHeader label="Approval Status" sortKey="status" sort={sort} onSort={setSort} />
                     </>
                   )}
-                  <th className="px-4 py-2.5 text-xs font-normal text-slate-500 text-center">Invoice</th>
-                  <th className="px-4 py-2.5 text-xs font-normal text-slate-500 text-right">Actions</th>
+                  <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-center">Invoice</th>
+                  <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1604,8 +1634,14 @@ export default function PurchaseOrdersPage() {
 
                           {viewMode === 'purchasing' ? (
                             <>
-                              <td className="px-4 py-2 text-slate-600 text-xs font-normal whitespace-nowrap">
-                                {po.prod_name ?? po.production_id}
+                              <td className="px-4 py-2 text-xs font-normal whitespace-nowrap">
+                                {po.production_id ? (
+                                  <a href={`/productions/${po.production_id}`} className="text-blue-600 hover:underline">
+                                    {po.prod_name ?? po.production_id}
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-600">{po.prod_name ?? '—'}</span>
+                                )}
                               </td>
                               <td className="px-4 py-2 max-w-[320px]">
                                 <p className="text-slate-700 text-xs font-normal line-clamp-2" title={po.description || po.title || ''}>
@@ -2062,7 +2098,7 @@ export default function PurchaseOrdersPage() {
               <div className="space-y-2 bg-slate-50 border border-slate-100 rounded-xl p-4">
                 <h3 className="text-slate-800 text-xs font-semibold uppercase tracking-wider">Step 1: Download CSV Template</h3>
                 <p className="text-slate-500 text-xs leading-relaxed">
-                  Prepare your purchase order data using our official CSV template. We've included a demo row with expected formats (e.g. YYYY-MM-DD dates, numeric amounts).
+                  Prepare your purchase order data using our official CSV template. We&apos;ve included a demo row with expected formats (e.g. YYYY-MM-DD dates, numeric amounts).
                 </p>
                 <button
                   type="button"

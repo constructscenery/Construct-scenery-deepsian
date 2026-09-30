@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
+import { ColumnHeader, SortState } from '@/components/ColumnHeader';
 import {
   Plus, Search, Calendar, CheckCircle2, Clock, AlertTriangle,
   ChevronLeft, ChevronRight, X, Loader2, Archive, ArchiveRestore, Trash2, Clapperboard,
@@ -379,6 +380,7 @@ export default function ProductionsPage() {
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState('');
   const [page, setPage]                   = useState(1);
+  const [sort, setSort]                   = useState<SortState>({ key: '', dir: null });
   const [search, setSearch]               = useState('');
   const [activeTab, setActiveTab]         = useState<ProductionStatus | 'all'>('all');
   const [showArchived, setShowArchived]   = useState(false);
@@ -491,11 +493,25 @@ export default function ProductionsPage() {
       p.status,
     ].some(v => v != null && String(v).toLowerCase().includes(q));
     return matchesTab && matchesSearch;
+    return matchesTab && matchesSearch;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const sortedProductions = useMemo(() => {
+    if (!sort.key || !sort.dir) return filtered;
+    return [...filtered].sort((a, b) => {
+      let aVal = a[sort.key as keyof Production] ?? '';
+      let bVal = b[sort.key as keyof Production] ?? '';
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+      if (aVal < bVal) return sort.dir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sort.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filtered, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedProductions.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const pagedProductions = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pagedProductions = sortedProductions.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const counts = {
     active_build:   productions.filter(p => p.status === 'active_build').length,
@@ -593,12 +609,12 @@ export default function ProductionsPage() {
             <table className="w-full text-sm min-w-[700px]">
               <thead>
                 <tr className="bg-slate-50 text-left">
-                  <th className="px-5 py-3 text-xs font-semibold text-slate-500 sticky left-0 bg-slate-50 z-10">Production</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Type</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Contract</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Status</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Dates</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Sets Progress</th>
+                  <ColumnHeader label="Production" sortKey="name" sort={sort} onSort={setSort} className="sticky left-0 bg-slate-50 z-10" />
+                  <ColumnHeader label="Type" sortKey="type" sort={sort} onSort={setSort} />
+                  <ColumnHeader label="Contract" sortKey="contract_type" sort={sort} onSort={setSort} />
+                  <ColumnHeader label="Status" sortKey="status" sort={sort} onSort={setSort} />
+                  <ColumnHeader label="Dates" sortKey="start_date" sort={sort} onSort={setSort} />
+                  <ColumnHeader label="Sets Progress" sortKey="set_count" sort={sort} onSort={setSort} />
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500"></th>
                 </tr>
               </thead>

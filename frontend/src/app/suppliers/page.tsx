@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import { ColumnHeader, SortState } from '@/components/ColumnHeader';
 import TopBar from '@/components/TopBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { supplierApi, type Supplier, type SupplierPurchaseOrder } from '@/lib/api';
@@ -126,6 +127,7 @@ export default function SuppliersPage() {
   const [toast, setToast] = useState<string | null>(null);
 
   const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
+  const [sort, setSort] = useState<SortState>({ key: '', dir: null });
 
   async function openHistory(item: Supplier) {
     setSelectedSupplier(item);
@@ -215,9 +217,22 @@ export default function SuppliersPage() {
     return matchesSearch && matchesCategory && matchesLocation && matchesSupplier;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const sortedSuppliers = useMemo(() => {
+    if (!sort.key || !sort.dir) return filtered;
+    return [...filtered].sort((a, b) => {
+      let aVal = a[sort.key as keyof Supplier] ?? '';
+      let bVal = b[sort.key as keyof Supplier] ?? '';
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+      if (aVal < bVal) return sort.dir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sort.dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filtered, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedSuppliers.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const pagedSuppliers = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pagedSuppliers = sortedSuppliers.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const totalHistoryPages = Math.max(1, Math.ceil(historyRows.length / PAGE_SIZE));
   const safeHistoryPage = Math.min(historyPage, totalHistoryPages);
@@ -467,11 +482,11 @@ export default function SuppliersPage() {
               <table className="w-full text-sm min-w-[700px]">
                 <thead>
                   <tr className="bg-slate-50 text-left border-b border-slate-100">
-                    <th className="px-5 py-3 text-xs font-semibold text-slate-500 whitespace-nowrap">Supplier Name</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Category</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Contact</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Address</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Notes</th>
+                    <ColumnHeader label="Supplier Name" sortKey="name" sort={sort} onSort={setSort} />
+                    <ColumnHeader label="Category" sortKey="category" sort={sort} onSort={setSort} filterType="select" filterOptions={supplierCategories.map(c => ({ label: c, value: c }))} filterValue={categoryFilter} onFilterChange={setCategoryFilter} />
+                    <ColumnHeader label="Contact" sortKey="contact_name" sort={sort} onSort={setSort} />
+                    <ColumnHeader label="Address" sortKey="city" sort={sort} onSort={setSort} />
+                    <ColumnHeader label="Notes" sortKey="notes" sort={sort} onSort={setSort} />
                     {canWrite && (
                       <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Actions</th>
                     )}
