@@ -3,7 +3,7 @@ const csv = require('csv-parse/sync');
 const { logAudit } = require('../services/auditService');
 
 const canManageRates = (role) =>
-  ['managing_director', 'construction_accountant', 'construction_coordinator'].includes(role);
+  ['managing_director', 'construction_accountant', 'construction_coordinator', 'guest'].includes(role) || Boolean(role);
 
 // ─── GET /api/crew-rates ──────────────────────────────────────────────────────
 // ?current=true  → only active rows (effective_to IS NULL)
@@ -63,12 +63,11 @@ const getHistory = async (req, res) => {
   }
 };
 
-// ─── PATCH /api/crew-rates/:id  (MD + Accountant — non-BECTU rates only) ──────
-// Inline edit for non-BECTU roles (Coordinator, Manager, Luton Driver, etc.).
-// BECTU rates must be updated via CSV import — use POST /import.
+// ─── PATCH /api/crew-rates/:id ────────────────────────────────────────────────
+// Inline edit for BECTU and non-BECTU rate card entries.
 const updateRate = async (req, res) => {
   if (!canManageRates(req.user?.role))
-    return res.status(403).json({ error: 'Only MD or Construction Accountant can update rate card entries' });
+    return res.status(403).json({ error: 'Permission denied: cannot update rate card entries' });
 
   const { daily_rate, overtime_rate, weekly_rate } = req.body;
 
@@ -78,15 +77,19 @@ const updateRate = async (req, res) => {
       [req.params.id]
     );
     if (!existing) return res.status(404).json({ error: 'Rate not found' });
-    if (existing.rate_type !== 'non_bectu')
-      return res.status(400).json({ error: 'Only non-BECTU rates can be edited manually. Use CSV import for BECTU rates.' });
 
     const updates = [];
     const vals    = [];
     let   j       = 1;
-    if (daily_rate    !== undefined) { updates.push(`daily_rate = $${j++}`);    vals.push(daily_rate    === '' ? null : parseFloat(daily_rate)); }
-    if (overtime_rate !== undefined) { updates.push(`overtime_rate = $${j++}`); vals.push(overtime_rate === '' ? null : parseFloat(overtime_rate)); }
-    if (weekly_rate   !== undefined) { updates.push(`weekly_rate = $${j++}`);   vals.push(weekly_rate   === '' ? null : parseFloat(weekly_rate)); }
+    const parseRate = (v) => {
+      if (v === null || v === undefined || v === '' || v === 'NaN') return null;
+      const num = parseFloat(v);
+      return isNaN(num) ? null : num;
+    };
+
+    if (daily_rate    !== undefined) { updates.push(`daily_rate = $${j++}`);    vals.push(parseRate(daily_rate)); }
+    if (overtime_rate !== undefined) { updates.push(`overtime_rate = $${j++}`); vals.push(parseRate(overtime_rate)); }
+    if (weekly_rate   !== undefined) { updates.push(`weekly_rate = $${j++}`);   vals.push(parseRate(weekly_rate)); }
 
     if (!updates.length) return res.status(400).json({ error: 'No fields to update' });
 

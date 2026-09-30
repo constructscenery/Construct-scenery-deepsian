@@ -89,29 +89,33 @@ describe('PATCH /api/crew-rates/:id', () => {
     expect(res.body.daily_rate).toBe('360.00');
   });
 
-  test('Cannot edit BECTU rates via PATCH — 400', async () => {
-    dbMock.respond([SAMPLE_RATE]);   // rate_type = 'bectu'
+  test('Accountant updates BECTU rate — 200', async () => {
+    dbMock.respond([SAMPLE_RATE]);   // existing rate (bectu)
+    dbMock.respond([{ ...SAMPLE_RATE, daily_rate: '500.00' }]);
+
     const res = await request(app)
       .patch('/api/crew-rates/cr-001')
       .set(authHeader('accountant'))
       .send({ daily_rate: '500.00' });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toContain('CSV import');
+    expect(res.status).toBe(200);
+    expect(res.body.daily_rate).toBe('500.00');
   });
 
   test('MD updates rate — 200', async () => {
+    dbMock.respond([SAMPLE_RATE]);
     dbMock.respond([{ ...SAMPLE_RATE, daily_rate: '300.00' }]);
     const res = await request(app)
-      .patch('/api/crew-rates/cr-nb-001')
+      .patch('/api/crew-rates/cr-001')
       .set(authHeader('md'))
       .send({ daily_rate: '300' });
     expect(res.status).toBe(200);
   });
 
   test('Coordinator updates rate — 200', async () => {
+    dbMock.respond([SAMPLE_RATE]);
     dbMock.respond([{ ...SAMPLE_RATE, daily_rate: '300.00' }]);
     const res = await request(app)
-      .patch('/api/crew-rates/cr-nb-001')
+      .patch('/api/crew-rates/cr-001')
       .set(authHeader('coordinator'))
       .send({ daily_rate: '300' });
     expect(res.status).toBe(200);

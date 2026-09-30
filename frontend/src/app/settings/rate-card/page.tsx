@@ -9,8 +9,11 @@ import {
   Pencil, Check, X, Upload, Loader2, AlertCircle, RefreshCw,
 } from 'lucide-react';
 
-const fmt = (v: string | null) =>
-  v == null ? '—' : `£${parseFloat(v).toFixed(2)}`;
+const fmt = (v: string | number | null | undefined) => {
+  if (v == null || v === '' || v === 'NaN') return '—';
+  const n = typeof v === 'number' ? v : parseFloat(String(v));
+  return isNaN(n) ? '—' : `£${n.toFixed(2)}`;
+};
 
 // Group rates by trade
 function groupByTrade(rates: CrewRate[]) {
@@ -193,9 +196,9 @@ export default function RateCardPage() {
   const [error, setError] = useState('');
   const [showImport, setShowImport] = useState(false);
 
-  // Inline edit state for non-BECTU rows
+  // Inline edit state for rates (both BECTU and non-BECTU)
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState({ daily_rate: '', overtime_rate: '' });
+  const [editValues, setEditValues] = useState({ daily_rate: '', overtime_rate: '', weekly_rate: '' });
   const [saving, setSaving] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'current' | 'history'>('current');
@@ -236,18 +239,29 @@ export default function RateCardPage() {
 
   const startEdit = (rate: CrewRate) => {
     setEditingId(rate.id);
+    const toVal = (v: string | null) => {
+      if (v == null || v === '' || v === 'NaN') return '';
+      const n = parseFloat(v);
+      return isNaN(n) ? '' : n.toFixed(2);
+    };
     setEditValues({
-      daily_rate:    rate.daily_rate    ? parseFloat(rate.daily_rate).toFixed(2)    : '',
-      overtime_rate: rate.overtime_rate ? parseFloat(rate.overtime_rate).toFixed(2) : '',
+      daily_rate:    toVal(rate.daily_rate),
+      overtime_rate: toVal(rate.overtime_rate),
+      weekly_rate:   toVal(rate.weekly_rate),
     });
   };
 
   const saveEdit = async (id: string) => {
     setSaving(true);
     try {
+      const cleanVal = (v: string) => {
+        if (!v || v.trim() === '' || isNaN(parseFloat(v))) return null;
+        return v.trim();
+      };
       const updated = await crewRatesApi.update(id, {
-        daily_rate:    editValues.daily_rate    || null,
-        overtime_rate: editValues.overtime_rate || null,
+        daily_rate:    cleanVal(editValues.daily_rate),
+        overtime_rate: cleanVal(editValues.overtime_rate),
+        weekly_rate:   cleanVal(editValues.weekly_rate),
       });
       setRates(prev => prev.map(r => r.id === id ? updated : r));
       setEditingId(null);
@@ -385,7 +399,7 @@ export default function RateCardPage() {
                         className="w-24 border border-blue-300 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-400"
                       />
                     ) : (
-                      <span className={r.daily_rate ? 'text-slate-800 font-medium' : 'text-slate-300 italic'}>
+                      <span className={fmt(r.daily_rate) !== '—' ? 'text-slate-800 font-medium' : 'text-slate-300 italic'}>
                         {fmt(r.daily_rate)}
                       </span>
                     )}
@@ -399,7 +413,7 @@ export default function RateCardPage() {
                         className="w-24 border border-blue-300 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-400"
                       />
                     ) : (
-                      <span className={r.overtime_rate ? 'text-slate-600' : 'text-slate-300 italic'}>
+                      <span className={fmt(r.overtime_rate) !== '—' ? 'text-slate-600' : 'text-slate-300 italic'}>
                         {fmt(r.overtime_rate)}
                       </span>
                     )}
@@ -430,19 +444,19 @@ export default function RateCardPage() {
           </table>
         </div>
 
-        {/* BECTU Rates — read-only, grouped by trade */}
+        {/* BECTU Rates — editable, grouped by trade */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
             <div>
               <h2 className="text-slate-900 font-semibold text-sm">BECTU/Pact Rates — 2026/27</h2>
-              <p className="text-slate-400 text-xs mt-0.5">Read-only. Use &quot;Import New Year Rates&quot; to add a new card.</p>
+              <p className="text-slate-400 text-xs mt-0.5">Union-agreed rates. Edit daily, OT, and weekly rates below, or use &quot;Import New Year Rates&quot; for bulk updates.</p>
             </div>
             <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
               {rates.filter(r => r.rate_type === 'bectu').length} rates active
             </span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[500px]">
+            <table className="w-full text-sm min-w-[550px]">
               <thead>
                 <tr className="bg-slate-50 text-left">
                   <th className="px-5 py-2.5 text-xs font-semibold text-slate-500">Trade</th>
@@ -450,11 +464,12 @@ export default function RateCardPage() {
                   <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-right">Daily (£)</th>
                   <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-right">OT / hr (£)</th>
                   <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-right">Weekly (£)</th>
+                  <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 w-16"></th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? Array.from({ length: 8 }).map((_, i) => (
-                  <tr key={i} className="border-t border-slate-100">{Array.from({ length: 5 }).map((_, j) => (
+                  <tr key={i} className="border-t border-slate-100">{Array.from({ length: 6 }).map((_, j) => (
                     <td key={j} className="px-4 py-3"><div className="h-4 bg-slate-100 rounded animate-pulse" /></td>
                   ))}</tr>
                 )) : bectuTrades.map(([trade, tradeRates]) => (
@@ -466,9 +481,80 @@ export default function RateCardPage() {
                           : <span className="text-slate-300 text-xs">↳</span>}
                       </td>
                       <td className="px-4 py-2.5 text-slate-600 text-xs">{r.rank}</td>
-                      <td className="px-4 py-2.5 text-slate-800 text-right font-medium">{fmt(r.daily_rate)}</td>
-                      <td className="px-4 py-2.5 text-slate-600 text-right">{fmt(r.overtime_rate)}</td>
-                      <td className="px-4 py-2.5 text-slate-500 text-right text-xs">{r.weekly_rate ? fmt(r.weekly_rate) : '—'}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        {editingId === r.id ? (
+                          <input
+                            type="number" step="0.01" min="0"
+                            value={editValues.daily_rate}
+                            onChange={e => setEditValues(v => ({ ...v, daily_rate: e.target.value }))}
+                            className="w-24 border border-blue-300 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          />
+                        ) : (
+                          <span className={fmt(r.daily_rate) !== '—' ? 'text-slate-800 font-medium' : 'text-slate-300 italic'}>
+                            {fmt(r.daily_rate)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        {editingId === r.id ? (
+                          <input
+                            type="number" step="0.01" min="0"
+                            value={editValues.overtime_rate}
+                            onChange={e => setEditValues(v => ({ ...v, overtime_rate: e.target.value }))}
+                            className="w-24 border border-blue-300 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          />
+                        ) : (
+                          <span className={fmt(r.overtime_rate) !== '—' ? 'text-slate-600' : 'text-slate-300 italic'}>
+                            {fmt(r.overtime_rate)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-xs">
+                        {editingId === r.id ? (
+                          <input
+                            type="number" step="0.01" min="0"
+                            placeholder="—"
+                            value={editValues.weekly_rate}
+                            onChange={e => setEditValues(v => ({ ...v, weekly_rate: e.target.value }))}
+                            className="w-24 border border-blue-300 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          />
+                        ) : (
+                          <span className={fmt(r.weekly_rate) !== '—' ? 'text-slate-500' : 'text-slate-300'}>
+                            {fmt(r.weekly_rate)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {editingId === r.id ? (
+                          <div className="flex items-center gap-1 justify-end">
+                            <button
+                              onClick={() => saveEdit(r.id)}
+                              disabled={saving}
+                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
+                              title="Save"
+                            >
+                              {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                            </button>
+                            <button
+                              onClick={() => setEditingId(null)}
+                              className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors"
+                              title="Cancel"
+                            >
+                              <X size={13} />
+                            </button>
+                          </div>
+                        ) : canWrite ? (
+                          <div className="flex justify-end">
+                            <button
+                              onClick={() => startEdit(r)}
+                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Edit rate"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                          </div>
+                        ) : null}
+                      </td>
                     </tr>
                   ))
                 ))}

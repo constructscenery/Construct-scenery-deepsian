@@ -1024,7 +1024,7 @@ export const crewRatesApi = {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return request<CrewRate[]>(`/api/crew-rates${qs}`);
   },
-  update: (id: string, data: { daily_rate?: string | null; overtime_rate?: string | null }) =>
+  update: (id: string, data: { daily_rate?: string | null; overtime_rate?: string | null; weekly_rate?: string | null }) =>
     request<CrewRate>(`/api/crew-rates/${id}`, { method: 'PATCH', body: data }),
   importCSV: (formData: FormData) =>
     fetch('/api/crew-rates/import', {

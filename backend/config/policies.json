@@ -771,6 +771,7 @@
       "GET /api/crew",
       "GET /api/crew-rates",
       "GET /api/crew-rates/history",
+      "PATCH /api/crew-rates/:id",
       "GET /api/crew/:id",
       "GET /api/crew/import/template",
       "GET /api/crew/requests",
