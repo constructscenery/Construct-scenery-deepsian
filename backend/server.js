@@ -304,6 +304,25 @@ async function start() {
 
   try {
     await db.query(`
+      CREATE TABLE IF NOT EXISTS weekly_timesheet_documents (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        production_id UUID NOT NULL REFERENCES productions(id) ON DELETE CASCADE,
+        week_ending_date DATE NOT NULL,
+        file_url TEXT NOT NULL,
+        file_name TEXT NOT NULL,
+        file_size INTEGER,
+        uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        uploaded_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_weekly_timesheet_docs ON weekly_timesheet_documents(production_id, week_ending_date);
+    `);
+    console.log('✅ Schema guard: weekly_timesheet_documents table ensured');
+  } catch (err) {
+    console.error('⚠️  Schema guard failed (weekly_timesheet_documents table):', err.message);
+  }
+
+  try {
+    await db.query(`
       ALTER TABLE audit_log ALTER COLUMN user_id DROP NOT NULL;
       ALTER TABLE audit_log 
         ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'general',

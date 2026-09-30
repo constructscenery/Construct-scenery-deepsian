@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import TopBar from '@/components/TopBar';
 import { timesheetsApi, crewApi, type Timesheet } from '@/lib/api';
-import { ChevronLeft, Save, Loader2, AlertCircle } from 'lucide-react';
+import { ChevronLeft, Save, Loader2, AlertCircle, Trash2 } from 'lucide-react';
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const MEAL_OPTIONS = [
@@ -83,6 +83,7 @@ export default function TimesheetDetailPage() {
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
   const [isDirty, setIsDirty] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -104,6 +105,27 @@ export default function TimesheetDetailPage() {
     if (returnProductionId) qs.set('production_id', returnProductionId);
     if (returnWeekEnding) qs.set('week_ending_date', returnWeekEnding);
     router.push(qs.toString() ? `/timesheets?${qs.toString()}` : '/timesheets');
+  };
+
+  const handleDelete = async () => {
+    if (!ts) return;
+    const name = `${ts.first_name ?? ''} ${ts.last_name ?? ''}`.trim() || 'Crew member';
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete this timesheet for ${name} (week ending ${fmtDate(ts.week_ending_date)})? This will remove all day entries and cannot be undone.`
+    );
+    if (!confirmed) return;
+    setDeleting(true);
+    setError('');
+    try {
+      await timesheetsApi.delete(id);
+      const qs = new URLSearchParams();
+      if (returnProductionId) qs.set('production_id', returnProductionId);
+      if (returnWeekEnding) qs.set('week_ending_date', returnWeekEnding);
+      router.push(qs.toString() ? `/timesheets?${qs.toString()}` : '/timesheets');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to delete timesheet');
+      setDeleting(false);
+    }
   };
 
   const load = useCallback(async () => {
@@ -344,8 +366,18 @@ export default function TimesheetDetailPage() {
             <div className="flex items-center gap-3">
               {error && <span className="text-red-600 text-sm flex items-center gap-1.5"><AlertCircle size={14} />{error}</span>}
               <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting || saving}
+                className="flex items-center gap-1.5 text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 text-sm px-3.5 py-2 rounded-lg font-medium transition-colors disabled:opacity-60 shadow-sm"
+                title="Permanently delete this timesheet"
+              >
+                {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                Delete Timesheet
+              </button>
+              <button
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || deleting}
                 className="flex items-center gap-2 bg-slate-100 text-slate-700 text-sm px-4 py-2 rounded-lg font-medium hover:bg-slate-200 disabled:opacity-60 shadow-sm transition-colors border border-slate-200"
               >
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}

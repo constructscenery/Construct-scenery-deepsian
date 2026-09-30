@@ -463,6 +463,18 @@ export type Timesheet = {
   attendance_days?: Array<{ day: string; worked: boolean }>;
 };
 
+export type WeeklyTimesheetDocument = {
+  id: string;
+  production_id: string;
+  week_ending_date: string;
+  file_url: string;
+  file_name: string;
+  file_size?: number;
+  uploaded_at: string;
+  uploader_first_name?: string | null;
+  uploader_last_name?: string | null;
+};
+
 export const timesheetsApi = {
   list: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
@@ -471,10 +483,31 @@ export const timesheetsApi = {
   getById: (id: string) => request<Timesheet>(`/api/timesheets/${id}`, { cache: 'no-store' }),
   create: (data: { crew_member_id: string; production_id: string; week_ending_date: string }) =>
     request<Timesheet>('/api/timesheets', { method: 'POST', body: data }),
+  delete: (id: string) =>
+    request<{ success: boolean; message: string }>(`/api/timesheets/${id}`, { method: 'DELETE' }),
   submit: (id: string) =>
     request<{ message: string; timesheet: Timesheet }>(`/api/timesheets/${id}/submit`, { method: 'POST' }),
   bulkDistribute: (data: { week_ending_date: string; production_id?: string }) =>
     request<{ message: string }>('/api/timesheets/bulk-distribute', { method: 'POST', body: data }),
+  getWeeklyDocuments: (params: { production_id: string; week_ending_date: string }) => {
+    const qs = '?' + new URLSearchParams(params).toString();
+    return request<WeeklyTimesheetDocument[]>(`/api/timesheets/weekly-documents${qs}`, { cache: 'no-store' });
+  },
+  uploadWeeklyDocument: async (formData: FormData): Promise<WeeklyTimesheetDocument> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cs_token') : null;
+    const res = await fetch('/api/timesheets/weekly-documents', {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || data.error || 'Upload failed');
+    return data;
+  },
+  deleteWeeklyDocument: (id: string) =>
+    request<{ success: boolean; message: string }>(`/api/timesheets/weekly-documents/${id}`, { method: 'DELETE' }),
 };
 
 export type GatewayError = {
@@ -1249,6 +1282,106 @@ export const crewImportApi = {
       body: formData,
     }).then(async r => { if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as { error?: string }).error ?? r.statusText); }
       return r.json() as Promise<{ total_rows: number; created: number; skipped: number; created_records: Array<{ row: number; crew_number: string; first_name: string; last_name: string }>; skipped_records: Array<{ row: number; first_name: string; last_name: string; reason: string }> }>; }),
+};
+
+// ─── Timesheet Import API ─────────────────────────────────────────────────────
+export type TimesheetImportPreviewRow = {
+  row: number;
+  valid: boolean;
+  errors: string[];
+  action: 'create' | 'update';
+  is_duplicate: boolean;
+  existing_timesheet_id: string | null;
+  crew_member_id: string | null;
+  crew_number: string;
+  crew_name: string;
+  crew_trade: string;
+  crew_rank: string;
+  production_id: string | null;
+  production_name: string;
+  week_ending_date: string;
+  rank_override: string | null;
+  rate_override: number | null;
+  daily_rate: number;
+  overtime_rate: number;
+  days_worked: number;
+  overtime_hours: number;
+  weekly_rate: number;
+  sixth_day_payment: number;
+  seventh_day_payment: number;
+  overtime_amount: number;
+  meal_allowance_total: number;
+  mileage_and_travel: number;
+  gross_total: number;
+  vat: number;
+  grand_total: number;
+  entries: Array<{
+    date: string;
+    day_of_week: string;
+    full_day_worked: boolean;
+    overtime_hours: number;
+    set_number: string | null;
+  }>;
+};
+
+export type TimesheetImportResult = {
+  total_rows: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  created_records: Array<{
+    row: number;
+    timesheet_id: string;
+    crew_number: string;
+    crew_name: string;
+    production_name: string;
+    week_ending_date: string;
+    gross_total: number;
+  }>;
+  updated_records: Array<{
+    row: number;
+    timesheet_id: string;
+    crew_number: string;
+    crew_name: string;
+    production_name: string;
+    week_ending_date: string;
+    gross_total: number;
+  }>;
+  skipped_records: Array<{
+    row: number;
+    crew_name: string;
+    production_name: string;
+    week_ending_date: string;
+    reason: string;
+  }>;
+};
+
+export const timesheetImportApi = {
+  preview: (formData: FormData) =>
+    fetch('/api/timesheets/import/preview', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('cs_token') ?? '' : ''}` },
+      body: formData,
+    }).then(async r => {
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        throw new Error((e as { error?: string }).error ?? r.statusText);
+      }
+      return r.json() as Promise<{ total_rows: number; valid_rows: number; invalid_rows: number; preview: TimesheetImportPreviewRow[] }>;
+    }),
+
+  import: (formData: FormData) =>
+    fetch('/api/timesheets/import', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('cs_token') ?? '' : ''}` },
+      body: formData,
+    }).then(async r => {
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        throw new Error((e as { error?: string }).error ?? r.statusText);
+      }
+      return r.json() as Promise<TimesheetImportResult>;
+    }),
 };
 
 // ─── App Settings API ─────────────────────────────────────────────────────────

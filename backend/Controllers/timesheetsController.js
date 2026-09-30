@@ -5,6 +5,7 @@ const { generateTimesheetPdf }     = require('../services/timesheetPdfService');
 const { generateVerificationPack } = require('../services/verificationPackService');
 const { generateTimesheetListPdf } = require('../services/timesheetListPdfService');
 const { logAudit }                 = require('../services/auditService');
+const csvParse                     = require('csv-parse/sync');
 
 // ─── Helper: record an outbound email to email_log ────────────────────────────
 const logEmail = async (module, relatedRecordId, recipientEmail, recipientName, success, errorMessage = null) => {
@@ -1478,6 +1479,714 @@ const getVerificationPack = async (req, res) => {
   }
 };
 
+// ─── DELETE /api/timesheets/:id ──────────────────────────────────────────────
+// Permanently deletes a timesheet and its associated entries
+const deleteTimesheet = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows: [ts] } = await db.query(
+      `SELECT t.id, t.week_ending_date, t.production_id, t.status,
+              cm.first_name, cm.last_name, cm.crew_number
+       FROM timesheets t
+       LEFT JOIN crew_members cm ON t.crew_member_id = cm.id
+       WHERE t.id = $1`,
+      [id]
+    );
+
+    if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
+
+    // Check if locked in processed pay run
+    const { rows: processedPayRuns } = await db.query(
+      `SELECT pr.id, pr.week_ending_date
+       FROM pay_run_items pri
+       JOIN pay_runs pr ON pri.pay_run_id = pr.id
+       WHERE pri.timesheet_id = $1 AND pr.status = 'processed'`,
+      [id]
+    );
+
+    if (processedPayRuns.length > 0) {
+      return res.status(409).json({
+        error: 'CANNOT_DELETE_PROCESSED_TIMESHEET',
+        message: `Cannot delete timesheet: it is part of a processed pay run for week ending "${processedPayRuns[0].week_ending_date}". Adjust or revert the pay run first.`,
+      });
+    }
+
+    // Unlink or delete from draft/pending pay runs
+    await db.query('DELETE FROM pay_run_items WHERE timesheet_id = $1', [id]);
+
+    // Delete associated entries
+    await db.query('DELETE FROM timesheet_entries WHERE timesheet_id = $1', [id]);
+
+    // Delete timesheet
+    await db.query('DELETE FROM timesheets WHERE id = $1', [id]);
+
+    const crewName = `${ts.first_name || ''} ${ts.last_name || ''}`.trim() || 'Crew member';
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      productionId: ts.production_id,
+      category: 'payroll',
+      action: 'timesheet_deleted',
+      entityType: 'timesheet',
+      entityId: id,
+      details: `Permanently deleted timesheet for ${crewName} (${ts.crew_number || 'N/A'}) w/e ${ts.week_ending_date}`,
+      metadata: {
+        timesheet_id: id,
+        crew_name: crewName,
+        week_ending_date: ts.week_ending_date,
+        production_id: ts.production_id,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: `Timesheet for ${crewName} deleted successfully`,
+    });
+  } catch (err) {
+    console.error('deleteTimesheet error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─── GET /api/timesheets/weekly-documents ────────────────────────────────────
+// Lists paper / hard copy timesheet documents uploaded for a specific week and production
+const getWeeklyDocuments = async (req, res) => {
+  const { production_id, week_ending_date } = req.query;
+  if (!production_id || !week_ending_date) {
+    return res.status(400).json({ error: 'production_id and week_ending_date are required' });
+  }
+
+  try {
+    const { rows } = await db.query(
+      `SELECT d.id, d.production_id, d.week_ending_date, d.file_url, d.file_name, d.file_size, d.uploaded_at,
+              split_part(u.full_name, ' ', 1) AS uploader_first_name,
+              CASE WHEN position(' ' in u.full_name) > 0 THEN substring(u.full_name from position(' ' in u.full_name) + 1) ELSE '' END AS uploader_last_name
+       FROM weekly_timesheet_documents d
+       LEFT JOIN users u ON d.uploaded_by = u.id
+       WHERE d.production_id = $1 AND d.week_ending_date = $2
+       ORDER BY d.uploaded_at DESC`,
+      [production_id, week_ending_date]
+    );
+
+    res.json(rows);
+  } catch (err) {
+    console.error('getWeeklyDocuments error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─── POST /api/timesheets/weekly-documents ───────────────────────────────────
+// Uploads a PDF or hard copy timesheet document for a specific week and production
+const uploadWeeklyDocument = async (req, res) => {
+  const { production_id, week_ending_date } = req.body;
+
+  if (!production_id || !week_ending_date) {
+    return res.status(400).json({ error: 'production_id and week_ending_date are required' });
+  }
+
+  if (!req.file) {
+    return res.status(400).json({ error: 'Please select a document file to upload (PDF preferred)' });
+  }
+
+  try {
+    const { url, size } = await fileStorage.store(req.file);
+
+    const { rows: [doc] } = await db.query(
+      `INSERT INTO weekly_timesheet_documents
+         (production_id, week_ending_date, file_url, file_name, file_size, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [production_id, week_ending_date, url, req.file.originalname, size, req.user?.id || null]
+    );
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      productionId: production_id,
+      category: 'payroll',
+      action: 'weekly_timesheet_document_uploaded',
+      entityType: 'weekly_timesheet_document',
+      entityId: doc.id,
+      details: `Uploaded paper timesheet hard copy "${req.file.originalname}" for week ending ${week_ending_date}`,
+      metadata: {
+        document_id: doc.id,
+        production_id,
+        week_ending_date,
+        file_name: req.file.originalname,
+      },
+    });
+
+    res.status(201).json(doc);
+  } catch (err) {
+    console.error('uploadWeeklyDocument error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─── DELETE /api/timesheets/weekly-documents/:id ─────────────────────────────
+const deleteWeeklyDocument = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows: [doc] } = await db.query(
+      `SELECT * FROM weekly_timesheet_documents WHERE id = $1`,
+      [id]
+    );
+
+    if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+    await db.query(`DELETE FROM weekly_timesheet_documents WHERE id = $1`, [id]);
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      productionId: doc.production_id,
+      category: 'payroll',
+      action: 'weekly_timesheet_document_deleted',
+      entityType: 'weekly_timesheet_document',
+      entityId: id,
+      details: `Deleted paper timesheet document "${doc.file_name}" for week ending ${doc.week_ending_date}`,
+      metadata: {
+        document_id: id,
+        production_id: doc.production_id,
+        week_ending_date: doc.week_ending_date,
+      },
+    });
+
+    res.json({ success: true, message: 'Document deleted successfully' });
+  } catch (err) {
+    console.error('deleteWeeklyDocument error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─── CSV IMPORT FOR TIMESHEETS ───────────────────────────────────────────────
+const TIMESHEET_IMPORT_TEMPLATE_HEADER =
+  'Production,Crew Number,First Name,Last Name,Week Ending Date,Rank Override,Rate Override,' +
+  'Mon Worked,Mon OT,Mon Set,Tue Worked,Tue OT,Tue Set,Wed Worked,Wed OT,Wed Set,Thu Worked,Thu OT,Thu Set,Fri Worked,Fri OT,Fri Set,Sat Worked,Sat OT,Sat Set,Sun Worked,Sun OT,Sun Set,' +
+  'Travel,Mileage,Per Diem,Ad Hoc Reimbursement,Meal Breakfast Count,Meal Lunch Count,Meal Supper Count,Notes\r\n' +
+  '"Wicked (Part 1)","CS-0001","John","Smith","2026-10-04","","","Y","0","Main Stage","Y","1.5","Main Stage","Y","0","Stage 2","Y","0","Stage 2","Y","2.0","Stage 2","N","0","","N","0","","0.00","0.00","0.00","0.00","0","5","0","Example: 5 days worked, 3.5 hrs OT, 5 lunches"';
+
+const cleanImportVal = (val) => {
+  if (val === null || val === undefined) return '';
+  return String(val).trim().replace(/^["']|["']$/g, '').trim();
+};
+
+const normalizeImportDate = (raw) => {
+  if (!raw) return null;
+  const s = cleanImportVal(raw);
+  const ukMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (ukMatch) {
+    return `${ukMatch[3]}-${ukMatch[2].padStart(2, '0')}-${ukMatch[1].padStart(2, '0')}`;
+  }
+  const isoMatch = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`;
+  }
+  return null;
+};
+
+const isImportSunday = (isoDate) => {
+  const d = new Date(isoDate + 'T00:00:00Z');
+  return !isNaN(d.getTime()) && d.getUTCDay() === 0;
+};
+
+const isImportTrue = (val) => {
+  if (val === null || val === undefined) return false;
+  const s = cleanImportVal(val).toLowerCase();
+  return ['y', 'yes', 'true', '1', 'worked', 'w'].includes(s);
+};
+
+const parseImportNum = (val, def = 0) => {
+  if (val === null || val === undefined || val === '') return def;
+  const cleaned = cleanImportVal(val).replace(/[£$,\s]/g, '');
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? def : parsed;
+};
+
+const getImportWeekDays = (weekEndingDate) => {
+  const sun = new Date(weekEndingDate + 'T00:00:00Z');
+  const offsets = [
+    { name: 'Monday', offset: -6, prefix: 'Mon' },
+    { name: 'Tuesday', offset: -5, prefix: 'Tue' },
+    { name: 'Wednesday', offset: -4, prefix: 'Wed' },
+    { name: 'Thursday', offset: -3, prefix: 'Thu' },
+    { name: 'Friday', offset: -2, prefix: 'Fri' },
+    { name: 'Saturday', offset: -1, prefix: 'Sat' },
+    { name: 'Sunday', offset: 0, prefix: 'Sun' },
+  ];
+  return offsets.map(o => {
+    const d = new Date(sun);
+    d.setUTCDate(d.getUTCDate() + o.offset);
+    return {
+      day_of_week: o.name,
+      date: d.toISOString().split('T')[0],
+      prefix: o.prefix,
+    };
+  });
+};
+
+const resolveImportRate = (bectuRates, trade, rank, rateYear) => {
+  if (!trade || !rank) return { daily_rate: 0, overtime_rate: 0 };
+  const exact = bectuRates.find(r => r.trade === trade && r.rank === rank && r.rate_year === rateYear);
+  if (exact) return { daily_rate: parseFloat(exact.daily_rate || 0), overtime_rate: parseFloat(exact.overtime_rate || 0) };
+
+  const matches = bectuRates
+    .filter(r => r.trade === trade && r.rank === rank)
+    .sort((a, b) => new Date(b.effective_from || 0) - new Date(a.effective_from || 0));
+  if (matches.length) {
+    return { daily_rate: parseFloat(matches[0].daily_rate || 0), overtime_rate: parseFloat(matches[0].overtime_rate || 0) };
+  }
+  return { daily_rate: 0, overtime_rate: 0 };
+};
+
+const parseImportTimesheetRow = (row, idx, context) => {
+  const rowNum = idx + 2;
+  const errors = [];
+
+  // 1. Production
+  const prodRaw = cleanImportVal(row['Production'] || row['Production Name'] || row['Production ID'] || row['Production Code'] || context.defaultProductionId);
+  let production = null;
+  if (prodRaw) {
+    const rawTrimmed = prodRaw.toLowerCase();
+    production = context.productions.find(p => p.id === prodRaw || (p.name && p.name.toLowerCase() === rawTrimmed));
+  }
+  if (!production) {
+    errors.push(`Row ${rowNum}: Production "${prodRaw || ''}" not found`);
+  } else {
+    if (production.status === 'pre_production') errors.push(`Row ${rowNum}: Production "${production.name}" is in Pre-Production`);
+    if (production.status === 'complete') errors.push(`Row ${rowNum}: Production "${production.name}" is completed`);
+    if (production.status === 'archived') errors.push(`Row ${rowNum}: Production "${production.name}" is archived`);
+  }
+
+  // 2. Crew Member
+  const crewNum = cleanImportVal(row['Crew Number'] || row['Crew #']).toLowerCase();
+  const email = cleanImportVal(row['Email']).toLowerCase();
+  const firstName = cleanImportVal(row['First Name']).toLowerCase();
+  const lastName = cleanImportVal(row['Last Name']).toLowerCase();
+  const rawFullName = cleanImportVal(row['Name'] || row['Crew Name']) || `${firstName} ${lastName}`.trim();
+  const fullName = rawFullName.toLowerCase();
+
+  let crew = null;
+  if (crewNum) {
+    crew = context.crewMembers.find(c => (c.crew_number || '').trim().toLowerCase() === crewNum);
+  }
+  if (!crew && email) {
+    crew = context.crewMembers.find(c => (c.email || '').trim().toLowerCase() === email);
+  }
+  if (!crew && firstName && lastName) {
+    crew = context.crewMembers.find(c => (c.first_name || '').trim().toLowerCase() === firstName && (c.last_name || '').trim().toLowerCase() === lastName);
+  }
+  if (!crew && fullName) {
+    crew = context.crewMembers.find(c => `${(c.first_name || '').trim()} ${(c.last_name || '').trim()}`.toLowerCase() === fullName);
+  }
+
+  if (!crew) {
+    errors.push(`Row ${rowNum}: Crew member "${cleanImportVal(row['Crew Number']) || rawFullName || 'Unknown'}" not found in database`);
+  } else if (!crew.is_active) {
+    errors.push(`Row ${rowNum}: Crew member ${crew.first_name} ${crew.last_name} is inactive`);
+  }
+
+  // 3. Week Ending Date
+  const rawWed = cleanImportVal(row['Week Ending Date'] || row['Week Ending'] || row['Week Ending (Sunday)'] || context.defaultWeekEndingDate);
+  const wed = normalizeImportDate(rawWed);
+  if (!wed) {
+    errors.push(`Row ${rowNum}: Invalid week ending date "${rawWed || ''}"`);
+  } else if (!isImportSunday(wed)) {
+    errors.push(`Row ${rowNum}: Week ending date "${wed}" is not a Sunday`);
+  }
+
+  // Batch duplicate check
+  const batchKey = `${crew?.id || 'nocrew'}|${production?.id || 'noprod'}|${wed || 'nowed'}`;
+  if (context.seenBatchKeys.has(batchKey)) {
+    errors.push(`Row ${rowNum}: Duplicate row in file for crew ${crew?.first_name || ''} ${crew?.last_name || ''} on week ending ${wed}`);
+  } else if (crew && production && wed) {
+    context.seenBatchKeys.add(batchKey);
+  }
+
+  // Check DB existing timesheet
+  let existingTimesheet = null;
+  if (crew && production && wed) {
+    existingTimesheet = context.existingTimesheets.find(
+      t => t.crew_member_id === crew.id && t.production_id === production.id && t.week_ending_date === wed
+    );
+    if (existingTimesheet) {
+      if (existingTimesheet.status === 'finalised') {
+        errors.push(`Row ${rowNum}: Timesheet is finalised and locked`);
+      }
+      if (context.processedTsIds.has(existingTimesheet.id)) {
+        errors.push(`Row ${rowNum}: Timesheet is locked in a processed pay run`);
+      }
+    }
+  }
+
+  // 4. Daily attendance parsing
+  const daysInfo = wed && isImportSunday(wed) ? getImportWeekDays(wed) : [];
+  const hasGranularDays = daysInfo.some(d => {
+    return row[`${d.prefix} Worked`] !== undefined || row[`${d.day_of_week} Worked`] !== undefined;
+  });
+
+  const generalDaysWorked = parseInt(row['Days Worked'] || '0', 10);
+  const generalOT = parseImportNum(row['Total OT'] || row['Overtime Hours'] || row['OT Hours']);
+  const generalSet = row['Set'] || row['Set Number'] || null;
+
+  const entries = daysInfo.map((d, dayIdx) => {
+    let worked = false;
+    let otHours = 0;
+    let setNum = null;
+
+    if (hasGranularDays) {
+      worked = isImportTrue(row[`${d.prefix} Worked`] ?? row[`${d.day_of_week} Worked`] ?? row[d.prefix]);
+      otHours = parseImportNum(row[`${d.prefix} OT`] ?? row[`${d.day_of_week} OT`] ?? row[`${d.prefix} Overtime`]);
+      setNum = row[`${d.prefix} Set`] ?? row[`${d.day_of_week} Set`] ?? generalSet;
+    } else if (generalDaysWorked > 0) {
+      worked = dayIdx < generalDaysWorked;
+      if (dayIdx === Math.min(generalDaysWorked, 5) - 1) {
+        otHours = generalOT;
+      }
+      setNum = generalSet;
+    }
+
+    return {
+      date: d.date,
+      day_of_week: d.day_of_week,
+      full_day_worked: worked,
+      overtime_hours: otHours,
+      set_number: setNum ? String(setNum).trim() : null,
+      site: null,
+      travel: 0,
+      meal_breakfast: false,
+      meal_lunch: false,
+      meal_supper: false,
+      meal_allowance_breakfast: null,
+      meal_allowance_lunch: null,
+      meal_allowance_supper: null,
+      mileage: 0,
+      per_diem: 0,
+      ad_hoc_reimbursement: 0,
+    };
+  });
+
+  // 5. Rates & Calculations
+  const rankOverride = cleanImportVal(row['Rank Override']) || null;
+  const rateOverride = cleanImportVal(row['Rate Override']) ? parseImportNum(row['Rate Override']) : null;
+  const effectiveRank = rankOverride || crew?.crew_rank || '';
+  const rateYear = wed ? getRateYear(wed) : '';
+
+  const rates = (crew && crew.crew_trade)
+    ? resolveImportRate(context.bectuRates, crew.crew_trade, effectiveRank, rateYear)
+    : { daily_rate: 0, overtime_rate: 0 };
+
+  const dailyRate = rateOverride != null ? rateOverride : rates.daily_rate;
+  const otRate = rates.overtime_rate || (dailyRate > 0 ? (dailyRate / 9.5 * 1.5) : 0);
+
+  const workedEntries = entries.filter(e => e.full_day_worked);
+  const saturday = entries.find(e => e.day_of_week === 'Saturday' && e.full_day_worked);
+  const sunday = entries.find(e => e.day_of_week === 'Sunday' && e.full_day_worked);
+  const stdDays = workedEntries.filter(e => !['Saturday', 'Sunday'].includes(e.day_of_week)).length;
+
+  const weeklyRate = dailyRate * stdDays;
+  const sixthDayPayment = saturday ? dailyRate * 1.5 : 0;
+  const seventhDayPayment = sunday ? dailyRate * 2.0 : 0;
+  const totalOtHours = entries.reduce((s, e) => s + e.overtime_hours, 0);
+  const overtimeAmount = totalOtHours * otRate;
+
+  // Allowances
+  const travel = parseImportNum(row['Travel']);
+  const mileage = parseImportNum(row['Mileage']);
+  const perDiem = parseImportNum(row['Per Diem']);
+  const adHoc = parseImportNum(row['Ad Hoc Reimbursement'] || row['Ad Hoc']);
+
+  const breakfastCount = parseImportNum(row['Meal Breakfast Count'] || row['Breakfast Count'] || row['Breakfast']);
+  const lunchCount = parseImportNum(row['Meal Lunch Count'] || row['Lunch Count'] || row['Lunch']);
+  const supperCount = parseImportNum(row['Meal Supper Count'] || row['Supper Count'] || row['Supper']);
+  const mealAllowance = (breakfastCount * MEAL_RATES.breakfast) + (lunchCount * MEAL_RATES.lunch) + (supperCount * MEAL_RATES.supper);
+
+  const mileageAndTravel = travel + mileage + perDiem + adHoc;
+  const grossTotal = weeklyRate + sixthDayPayment + seventhDayPayment + overtimeAmount + mealAllowance + mileageAndTravel;
+  const isVatRegistered = crew?.employment_status === 'self_employed' && !!crew?.vat_registration_number;
+  const vat = isVatRegistered ? grossTotal * 0.20 : 0;
+  const grandTotal = grossTotal + vat;
+
+  return {
+    row: rowNum,
+    valid: errors.length === 0,
+    errors,
+    action: existingTimesheet ? 'update' : 'create',
+    is_duplicate: Boolean(existingTimesheet),
+    existing_timesheet_id: existingTimesheet?.id || null,
+    crew_member_id: crew?.id || null,
+    crew_number: crew?.crew_number || row['Crew Number'] || '',
+    crew_name: crew ? `${crew.first_name} ${crew.last_name}` : (row['Crew Name'] || `${row['First Name'] || ''} ${row['Last Name'] || ''}`.trim() || 'Unknown'),
+    crew_trade: crew?.crew_trade || '',
+    crew_rank: effectiveRank,
+    production_id: production?.id || null,
+    production_name: production?.name || row['Production'] || '',
+    week_ending_date: wed || rawWed || '',
+    rank_override: rankOverride,
+    rate_override: rateOverride,
+    daily_rate: dailyRate,
+    overtime_rate: otRate,
+    days_worked: workedEntries.length,
+    overtime_hours: totalOtHours,
+    weekly_rate: weeklyRate,
+    sixth_day_payment: sixthDayPayment,
+    seventh_day_payment: seventhDayPayment,
+    overtime_amount: overtimeAmount,
+    meal_allowance_total: mealAllowance,
+    mileage_and_travel: mileageAndTravel,
+    travel,
+    mileage,
+    per_diem: perDiem,
+    ad_hoc_reimbursement: adHoc,
+    gross_total: grossTotal,
+    vat,
+    grand_total: grandTotal,
+    entries,
+  };
+};
+
+const getImportTemplate = (_req, res) => {
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="timesheets_import_template.csv"');
+  res.send(TIMESHEET_IMPORT_TEMPLATE_HEADER);
+};
+
+const previewImport = async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No CSV file provided' });
+
+  let records;
+  try {
+    records = csvParse.parse(req.file.buffer.toString(), { columns: true, skip_empty_lines: true, trim: true });
+  } catch (e) {
+    return res.status(400).json({ error: `CSV parse error: ${e.message}` });
+  }
+  if (!records.length) return res.status(400).json({ error: 'CSV is empty' });
+
+  const { rows: productions } = await db.query('SELECT id, name, status FROM productions');
+  const { rows: crewMembers } = await db.query(
+    'SELECT id, crew_number, first_name, last_name, email, crew_trade, crew_rank, employment_status, vat_registration_number, is_active FROM crew_members'
+  );
+  const { rows: bectuRates } = await db.query(
+    'SELECT trade, rank, rate_year, daily_rate, overtime_rate, effective_from FROM bectu_rates'
+  );
+  const { rows: existingTimesheets } = await db.query(
+    'SELECT id, crew_member_id, production_id, week_ending_date::text, status FROM timesheets'
+  );
+  const { rows: processedItems } = await db.query(
+    `SELECT pri.timesheet_id
+     FROM pay_run_items pri
+     JOIN pay_runs pr ON pri.pay_run_id = pr.id
+     WHERE pr.status = 'processed'`
+  );
+  const processedTsIds = new Set(processedItems.map(p => p.timesheet_id));
+
+  const context = {
+    productions,
+    crewMembers,
+    bectuRates,
+    existingTimesheets,
+    processedTsIds,
+    defaultProductionId: req.body?.production_id || req.query?.production_id || null,
+    defaultWeekEndingDate: req.body?.week_ending_date || req.query?.week_ending_date || null,
+    seenBatchKeys: new Set(),
+  };
+
+  const preview = records.map((row, idx) => parseImportTimesheetRow(row, idx, context));
+
+  res.json({
+    total_rows: preview.length,
+    valid_rows: preview.filter(r => r.valid).length,
+    invalid_rows: preview.filter(r => !r.valid).length,
+    preview,
+  });
+};
+
+const importCSV = async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No CSV file provided' });
+
+  let records;
+  try {
+    records = csvParse.parse(req.file.buffer.toString(), { columns: true, skip_empty_lines: true, trim: true });
+  } catch (e) {
+    return res.status(400).json({ error: `CSV parse error: ${e.message}` });
+  }
+  if (!records.length) return res.status(400).json({ error: 'CSV is empty' });
+
+  const { rows: productions } = await db.query('SELECT id, name, status FROM productions');
+  const { rows: crewMembers } = await db.query(
+    'SELECT id, crew_number, first_name, last_name, email, crew_trade, crew_rank, employment_status, vat_registration_number, is_active FROM crew_members'
+  );
+  const { rows: bectuRates } = await db.query(
+    'SELECT trade, rank, rate_year, daily_rate, overtime_rate, effective_from FROM bectu_rates'
+  );
+  const { rows: existingTimesheets } = await db.query(
+    'SELECT id, crew_member_id, production_id, week_ending_date::text, status FROM timesheets'
+  );
+  const { rows: processedItems } = await db.query(
+    `SELECT pri.timesheet_id
+     FROM pay_run_items pri
+     JOIN pay_runs pr ON pri.pay_run_id = pr.id
+     WHERE pr.status = 'processed'`
+  );
+  const processedTsIds = new Set(processedItems.map(p => p.timesheet_id));
+
+  const context = {
+    productions,
+    crewMembers,
+    bectuRates,
+    existingTimesheets,
+    processedTsIds,
+    defaultProductionId: req.body?.production_id || req.query?.production_id || null,
+    defaultWeekEndingDate: req.body?.week_ending_date || req.query?.week_ending_date || null,
+    seenBatchKeys: new Set(),
+  };
+
+  const parsedRows = records.map((row, idx) => parseImportTimesheetRow(row, idx, context));
+  const validRows = parsedRows.filter(r => r.valid);
+  const skipped = parsedRows
+    .filter(r => !r.valid)
+    .map(r => ({
+      row: r.row,
+      crew_name: r.crew_name,
+      production_name: r.production_name,
+      week_ending_date: r.week_ending_date,
+      reason: r.errors.join('; '),
+    }));
+
+  const created = [];
+  const updated = [];
+
+  if (validRows.length) {
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+
+      for (const item of validRows) {
+        let timesheetId;
+
+        if (item.action === 'update' && item.existing_timesheet_id) {
+          timesheetId = item.existing_timesheet_id;
+          await client.query(
+            `UPDATE timesheets SET
+               rank_override = $1, rate_override = $2,
+               weekly_rate = $3, sixth_day_payment = $4, seventh_day_payment = $5,
+               overtime_amount = $6, meal_allowance_total = $7, mileage_and_travel = $8,
+               vat = $9, gross_total = $10, grand_total = $11,
+               updated_at = NOW()
+             WHERE id = $12`,
+            [
+              item.rank_override, item.rate_override,
+              item.weekly_rate, item.sixth_day_payment, item.seventh_day_payment,
+              item.overtime_amount, item.meal_allowance_total, item.mileage_and_travel,
+              item.vat, item.gross_total, item.grand_total,
+              timesheetId,
+            ]
+          );
+          await client.query('DELETE FROM timesheet_entries WHERE timesheet_id = $1', [timesheetId]);
+          updated.push({
+            row: item.row,
+            timesheet_id: timesheetId,
+            crew_number: item.crew_number,
+            crew_name: item.crew_name,
+            production_name: item.production_name,
+            week_ending_date: item.week_ending_date,
+            gross_total: item.gross_total,
+          });
+        } else {
+          const { rows: [newTs] } = await client.query(
+            `INSERT INTO timesheets
+               (crew_member_id, production_id, week_ending_date, status, created_by,
+                rank_override, rate_override, weekly_rate, sixth_day_payment, seventh_day_payment,
+                overtime_amount, meal_allowance_total, mileage_and_travel, vat, gross_total, grand_total)
+             VALUES ($1,$2,$3,'draft',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+             RETURNING id`,
+            [
+              item.crew_member_id, item.production_id, item.week_ending_date, req.user?.id || null,
+              item.rank_override, item.rate_override,
+              item.weekly_rate, item.sixth_day_payment, item.seventh_day_payment,
+              item.overtime_amount, item.meal_allowance_total, item.mileage_and_travel,
+              item.vat, item.gross_total, item.grand_total,
+            ]
+          );
+          timesheetId = newTs.id;
+          created.push({
+            row: item.row,
+            timesheet_id: timesheetId,
+            crew_number: item.crew_number,
+            crew_name: item.crew_name,
+            production_name: item.production_name,
+            week_ending_date: item.week_ending_date,
+            gross_total: item.gross_total,
+          });
+        }
+
+        // Insert daily entries (Mon-Sun)
+        if (item.entries && item.entries.length) {
+          const vph = item.entries.map((_, i) => {
+            const b = i * 17;
+            return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7},$${b+8},$${b+9},$${b+10},$${b+11},$${b+12},$${b+13},$${b+14},$${b+15},$${b+16},$${b+17})`;
+          }).join(',');
+
+          await client.query(
+            `INSERT INTO timesheet_entries
+               (timesheet_id, date, day_of_week, full_day_worked, overtime_hours,
+                set_number, site, travel, meal_breakfast, meal_lunch, meal_supper,
+                meal_allowance_breakfast, meal_allowance_lunch, meal_allowance_supper,
+                mileage, per_diem, ad_hoc_reimbursement)
+             VALUES ${vph}`,
+            item.entries.flatMap(e => [
+              timesheetId, e.date, e.day_of_week, e.full_day_worked, e.overtime_hours,
+              e.set_number, e.site, e.travel, e.meal_breakfast, e.meal_lunch, e.meal_supper,
+              e.meal_allowance_breakfast, e.meal_allowance_lunch, e.meal_allowance_supper,
+              e.mileage, e.per_diem, e.ad_hoc_reimbursement,
+            ])
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+
+      await logAudit({
+        userId: req.user?.id,
+        userName: req.user?.full_name,
+        userRole: req.user?.role,
+        productionId: validRows[0]?.production_id || null,
+        category: 'payroll',
+        action: 'timesheets_imported',
+        entityType: 'timesheet',
+        entityId: null,
+        details: `Imported ${created.length} new and updated ${updated.length} timesheets via CSV`,
+        metadata: {
+          total_rows: records.length,
+          created_count: created.length,
+          updated_count: updated.length,
+          skipped_count: skipped.length,
+        },
+      });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      console.error('importCSV transaction error:', err);
+      return res.status(500).json({ error: `Import failed: ${err.message}` });
+    } finally {
+      client.release();
+    }
+  }
+
+  res.status(201).json({
+    total_rows: records.length,
+    created: created.length,
+    updated: updated.length,
+    skipped: skipped.length,
+    created_records: created,
+    updated_records: updated,
+    skipped_records: skipped,
+  });
+};
+
 module.exports = {
   getAllTimesheets, exportTimesheetsCSV, exportTimesheetsPDF,
   createTimesheet, getTimesheetById,
@@ -1485,4 +2194,7 @@ module.exports = {
   bulkDistribute, resendTimesheet, sendSingleTimesheet, submitTimesheet,
   attachInvoice, chaseInvoices, verifyTimesheet,
   generateVerificationPackPdf, generateVerificationPackCombinedPdf, getVerificationPack, getTimesheetVerificationPack, getDraftPdf,
+  deleteTimesheet, getWeeklyDocuments, uploadWeeklyDocument, deleteWeeklyDocument,
+  getImportTemplate, previewImport, importCSV,
 };
+

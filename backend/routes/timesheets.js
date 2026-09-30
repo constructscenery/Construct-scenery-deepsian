@@ -20,7 +20,14 @@ const exportRateLimit = (req, res, next) => {
   next();
 };
 
+const multer     = require('multer');
+const csvUpload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
 // NOTE: specific paths BEFORE /:id to avoid Express matching them as IDs
+router.get('/import/template',                                ctrl.getImportTemplate);
+router.post('/import/preview', csvUpload.single('csv'),       requireRole(...ALL_ROLES), ctrl.previewImport);
+router.post('/import',         csvUpload.single('csv'),       requireRole(...ALL_ROLES), ctrl.importCSV);
+
 router.post('/bulk-distribute',   requireRole(...ALL_ROLES), ctrl.bulkDistribute);
 router.post('/chase-invoices',    requireRole(...ALL_ROLES), ctrl.chaseInvoices);
 router.post('/verification-pack', requireRole(...ALL_ROLES), ctrl.generateVerificationPackPdf);
@@ -31,10 +38,15 @@ router.get('/:id/draft-pdf',      requireRole(...ALL_ROLES), ctrl.getDraftPdf);
 router.get('/export/csv',         exportRateLimit, ctrl.exportTimesheetsCSV);
 router.get('/export/pdf',         exportRateLimit, ctrl.exportTimesheetsPDF);
 
+router.get('/weekly-documents',          ctrl.getWeeklyDocuments);
+router.post('/weekly-documents',         upload.single('file'), requireRole(...ALL_ROLES), ctrl.uploadWeeklyDocument);
+router.delete('/weekly-documents/:id',   requireRole(...ALL_ROLES), ctrl.deleteWeeklyDocument);
+
 router.get('/',                  ctrl.getAllTimesheets);
 router.post('/',                 requireRole(...ALL_ROLES), ctrl.createTimesheet);
 router.get('/:id',               ctrl.getTimesheetById);
 router.patch('/:id',             requireRole(...ALL_ROLES), ctrl.patchTimesheet);
+router.delete('/:id',            requireRole(...ALL_ROLES), ctrl.deleteTimesheet);
 router.put('/:id/entries',       requireRole(...ALL_ROLES), ctrl.saveEntries);
 router.post('/:id/resend',       requireRole(...ALL_ROLES), ctrl.resendTimesheet);
 router.post('/:id/send',         requireRole(...ALL_ROLES), ctrl.sendSingleTimesheet);

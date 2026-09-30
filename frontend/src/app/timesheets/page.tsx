@@ -1,17 +1,18 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import TopBar from '@/components/TopBar';
 import Link from 'next/link';
 import {
   ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Loader2,
   Mail, Paperclip, ShieldCheck, X, Plus, ExternalLink, UserX, Send, FileText,
-  ChevronDown, Download,
+  ChevronDown, Download, Search, Trash2, FileUp, FileSpreadsheet,
 } from 'lucide-react';
+import TimesheetImportModal from './TimesheetImportModal';
 import {
   timesheetsApi, productionsApi, crewApi,
-  Timesheet, TimesheetStatus, Production, GatewayError, CrewMember,
+  Timesheet, TimesheetStatus, Production, GatewayError, CrewMember, WeeklyTimesheetDocument,
 } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyStateRow } from '@/components/EmptyState';
@@ -215,63 +216,563 @@ function GatewayErrorBanner({ gatewayErr, onClose }: { gatewayErr: GatewayError;
 
 // ─── New Timesheet Modal ──────────────────────────────────────────────────────
 
-function NewTimesheetModal({ productions, weekEndingDate, onClose, onCreated }: {
-  productions: Production[]; weekEndingDate: string; onClose: () => void; onCreated: () => void;
+function NewTimesheetModal({
+  productions,
+  weekEndingDate,
+  initialProductionId,
+  onClose,
+  onCreated,
+}: {
+  productions: Production[];
+  weekEndingDate: string;
+  initialProductionId?: string;
+  onClose: () => void;
+  onCreated: () => void;
 }) {
-  const [productionId, setProductionId] = useState(productions[0]?.id ?? '');
-  const [allCrew, setAllCrew] = useState<CrewMember[]>([]);
-  const [crewId, setCrewId]   = useState('');
-  const [saving, setSaving]   = useState(false);
-  const [gatewayErr, setGatewayErr] = useState<GatewayError | null>(null);
+  const [productionId, setProductionId] = useState(initialProductionId || productions[0]?.id || '');
+  const [allCrew, setAllCrew]           = useState<CrewMember[]>([]);
+  const [crewSearch, setCrewSearch]     = useState('');
+  const [crewId, setCrewId]             = useState('');
+  const [saving, setSaving]             = useState(false);
+  const [gatewayErr, setGatewayErr]     = useState<GatewayError | null>(null);
 
-  useEffect(() => { crewApi.list({ is_active: 'true' }).then(setAllCrew).catch(() => {}); }, []);
+  useEffect(() => {
+    crewApi.list({ is_active: 'true' }).then(setAllCrew).catch(() => {});
+  }, []);
+
+  const selectedCrew = allCrew.find(c => c.id === crewId);
+
+  const filteredCrew = useMemo(() => {
+    if (!crewSearch.trim()) return allCrew;
+    const q = crewSearch.toLowerCase();
+    return allCrew.filter(c => {
+      const name = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
+      const num = (c.crew_number || '').toLowerCase();
+      const trade = (c.crew_trade || '').toLowerCase();
+      const rank = (c.crew_rank || '').toLowerCase();
+      return name.includes(q) || num.includes(q) || trade.includes(q) || rank.includes(q);
+    });
+  }, [allCrew, crewSearch]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!crewId || !productionId) return;
-    setSaving(true); setGatewayErr(null);
+    setSaving(true);
+    setGatewayErr(null);
     try {
-      await timesheetsApi.create({ crew_member_id: crewId, production_id: productionId, week_ending_date: weekEndingDate });
+      await timesheetsApi.create({
+        crew_member_id: crewId,
+        production_id: productionId,
+        week_ending_date: weekEndingDate,
+      });
       onCreated();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';
-      const codes = ['CREW_NOT_FOUND','CREW_INACTIVE','CREW_RECORD_INCOMPLETE','NO_PRODUCTION_ENGAGEMENT','RATE_NOT_CONFIGURED','PRODUCTION_NOT_ACTIVE'] as const;
+      const codes = [
+        'CREW_NOT_FOUND',
+        'CREW_INACTIVE',
+        'CREW_RECORD_INCOMPLETE',
+        'NO_PRODUCTION_ENGAGEMENT',
+        'RATE_NOT_CONFIGURED',
+        'PRODUCTION_NOT_ACTIVE',
+      ] as const;
       const matchCode = codes.find(k => msg.includes(k));
       const crew = allCrew.find(c => c.id === crewId);
-      setGatewayErr({ error_code: matchCode ?? 'CREW_NOT_FOUND', error: msg, crew_member_id: crewId, crew_name: crew ? `${crew.first_name} ${crew.last_name}` : undefined });
-    } finally { setSaving(false); }
+      setGatewayErr({
+        error_code: matchCode ?? 'CREW_NOT_FOUND',
+        error: msg,
+        crew_member_id: crewId,
+        crew_name: crew ? `${crew.first_name} ${crew.last_name}` : undefined,
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const inp = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500';
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <div><h2 className="text-slate-900 font-semibold text-sm">New Timesheet</h2><p className="text-slate-400 text-xs mt-0.5">Week ending: {weekEndingDate}</p></div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+          <div>
+            <h2 className="text-slate-900 font-semibold text-sm">New Timesheet</h2>
+            <p className="text-slate-400 text-xs mt-0.5">Week ending: {weekEndingDate}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={16} />
+          </button>
         </div>
         <form onSubmit={submit} className="px-5 py-4 space-y-4">
           {gatewayErr && <GatewayErrorBanner gatewayErr={gatewayErr} onClose={() => setGatewayErr(null)} />}
+
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Production</label>
             <select className={inp} value={productionId} onChange={e => setProductionId(e.target.value)}>
-              {productions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {productions.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
             </select>
           </div>
+
+          {/* Searchable crew selection */}
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Crew Member *</label>
-            <select className={inp} value={crewId} onChange={e => setCrewId(e.target.value)}>
-              <option value="">— Select crew member —</option>
-              {allCrew.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name} ({c.crew_number}) — {c.crew_trade ?? ''}</option>)}
-            </select>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-medium text-slate-700">Crew Member *</label>
+              {allCrew.length > 0 && (
+                <span className="text-[11px] text-slate-400">{allCrew.length} available</span>
+              )}
+            </div>
+
+            {selectedCrew ? (
+              <div className="flex items-center justify-between p-3 bg-teal-50/70 border border-teal-200 rounded-lg">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-teal-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+                    {getInitials(selectedCrew.first_name, selectedCrew.last_name)}
+                  </div>
+                  <div>
+                    <p className="text-slate-900 font-semibold text-sm">
+                      {selectedCrew.first_name} {selectedCrew.last_name}
+                    </p>
+                    <p className="text-slate-500 text-xs">
+                      {selectedCrew.crew_number} · {selectedCrew.crew_trade || 'Trade'} {selectedCrew.crew_rank ? `(${selectedCrew.crew_rank})` : ''}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setCrewId(''); setCrewSearch(''); }}
+                  className="text-xs text-teal-700 hover:text-teal-900 font-semibold px-2.5 py-1 bg-white border border-teal-200 rounded-md hover:bg-teal-50 transition-colors"
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={crewSearch}
+                    onChange={e => setCrewSearch(e.target.value)}
+                    placeholder="Search crew by name, number, trade, or rank..."
+                    className="w-full pl-9 pr-8 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+                    autoFocus
+                  />
+                  {crewSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setCrewSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filtered list with scrolling */}
+                <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-lg bg-slate-50/40">
+                  {filteredCrew.length === 0 ? (
+                    <div className="py-6 px-3 text-center text-xs text-slate-400">
+                      {crewSearch ? `No crew members found matching "${crewSearch}"` : 'No active crew members found'}
+                    </div>
+                  ) : (
+                    filteredCrew.map(c => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => { setCrewId(c.id); }}
+                        className="w-full text-left px-3 py-2 hover:bg-teal-50 transition-colors flex items-center justify-between gap-2 group"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-7 h-7 rounded-full bg-slate-200 group-hover:bg-teal-200 group-hover:text-teal-800 text-slate-600 font-semibold text-[11px] flex items-center justify-center flex-shrink-0 transition-colors">
+                            {getInitials(c.first_name, c.last_name)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-slate-900 font-medium text-xs truncate">
+                              {c.first_name} {c.last_name}
+                            </p>
+                            <p className="text-slate-400 text-[11px] truncate">
+                              {c.crew_trade || 'Trade unassigned'} {c.crew_rank ? `· ${c.crew_rank}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[11px] font-mono font-medium text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200 flex-shrink-0">
+                          {c.crew_number}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-          <div className="flex justify-end gap-3 pt-1">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-600">Cancel</button>
-            <button type="submit" disabled={saving || !crewId} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:opacity-60">
-              {saving ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Create
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !crewId}
+              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors shadow-sm"
+            >
+              {saving ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+              Create Timesheet
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Delete Timesheet Confirmation Modal ──────────────────────────────────────
+
+interface DeleteTimesheetModalProps {
+  timesheet: Timesheet;
+  onClose: () => void;
+  onDeleted: () => void;
+}
+
+function DeleteTimesheetModal({ timesheet, onClose, onDeleted }: DeleteTimesheetModalProps) {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState('');
+  const crewName = `${timesheet.first_name || ''} ${timesheet.last_name || ''}`.trim() || 'Crew Member';
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setError('');
+    try {
+      await timesheetsApi.delete(timesheet.id);
+      onDeleted();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to delete timesheet');
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 text-red-600 mb-3">
+          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+            <Trash2 size={20} className="text-red-600" />
+          </div>
+          <div>
+            <h2 className="text-slate-900 font-semibold text-base">Delete Timesheet</h2>
+            <p className="text-slate-400 text-xs">Permanently remove this timesheet</p>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg p-3 flex items-start gap-2">
+            <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <p className="text-slate-600 text-sm mb-3 leading-relaxed">
+          Are you sure you want to permanently delete the timesheet for <strong className="text-slate-900">{crewName}</strong> ({timesheet.crew_trade || 'Crew'}) for week ending <strong className="text-slate-900">{timesheet.week_ending_date}</strong>?
+        </p>
+        <p className="text-slate-500 text-xs mb-6">
+          This will permanently remove all daily hours and attendance entries for this week. This action cannot be undone.
+        </p>
+
+        <div className="flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={deleting}
+            className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-60 shadow-sm"
+          >
+            {deleting && <Loader2 size={14} className="animate-spin" />}
+            Delete Timesheet
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Weekly Hard Copies (Paper Timesheets) Modal ──────────────────────────────
+
+interface WeeklyHardCopiesModalProps {
+  productionId: string;
+  productionName: string;
+  weekEndingDate: string;
+  onClose: () => void;
+  onUpdated: () => void;
+}
+
+function WeeklyHardCopiesModal({
+  productionId,
+  productionName,
+  weekEndingDate,
+  onClose,
+  onUpdated,
+}: WeeklyHardCopiesModalProps) {
+  const [docs, setDocs]           = useState<WeeklyTimesheetDocument[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [file, setFile]           = useState<File | null>(null);
+  const [error, setError]         = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [dragging, setDragging]   = useState(false);
+  const fileInputRef              = useRef<HTMLInputElement>(null);
+
+  const fetchDocs = useCallback(async () => {
+    if (!productionId || !weekEndingDate) return;
+    setLoading(true);
+    try {
+      const data = await timesheetsApi.getWeeklyDocuments({
+        production_id: productionId,
+        week_ending_date: weekEndingDate,
+      });
+      setDocs(data);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load documents');
+    } finally {
+      setLoading(false);
+    }
+  }, [productionId, weekEndingDate]);
+
+  useEffect(() => {
+    fetchDocs();
+  }, [fetchDocs]);
+
+  useEffect(() => {
+    if (!successMsg) return;
+    const t = setTimeout(() => setSuccessMsg(''), 3000);
+    return () => clearTimeout(t);
+  }, [successMsg]);
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const dropped = e.dataTransfer.files[0];
+    if (dropped) setFile(dropped);
+  };
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) {
+      setError('Please select a PDF document to upload.');
+      return;
+    }
+    setUploading(true);
+    setError('');
+    setSuccessMsg('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('production_id', productionId);
+      fd.append('week_ending_date', weekEndingDate);
+      await timesheetsApi.uploadWeeklyDocument(fd);
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setSuccessMsg('Paper timesheet hard copy uploaded successfully');
+      await fetchDocs();
+      onUpdated();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (docId: string, docName: string) => {
+    if (!window.confirm(`Are you sure you want to delete paper timesheet "${docName}"?`)) return;
+    setDeletingId(docId);
+    setError('');
+    try {
+      await timesheetsApi.deleteWeeklyDocument(docId);
+      await fetchDocs();
+      onUpdated();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const fmtFileSize = (bytes?: number) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div>
+            <h2 className="text-slate-900 font-semibold text-base flex items-center gap-2">
+              <FileText size={18} className="text-blue-600" /> Paper Timesheets (Hard Copies)
+            </h2>
+            <p className="text-slate-500 text-xs mt-0.5">
+              {productionName || 'Production'} · Week Ending {weekEndingDate}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors text-lg leading-none">&times;</button>
+        </div>
+
+        <div className="p-6 overflow-y-auto space-y-5">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg p-3 flex items-start gap-2">
+              <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {successMsg && (
+            <div className="bg-green-50 border border-green-200 text-green-700 text-xs rounded-lg p-3 flex items-center gap-2">
+              <CheckCircle2 size={14} className="flex-shrink-0" />
+              <span>{successMsg}</span>
+            </div>
+          )}
+
+          {/* Upload Form */}
+          <form onSubmit={handleUpload} className="space-y-3">
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              Upload Paper Document (PDF)
+            </label>
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+              className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-colors ${
+                dragging
+                  ? 'border-blue-500 bg-blue-50'
+                  : file
+                  ? 'border-green-400 bg-green-50/50'
+                  : 'border-slate-200 hover:border-blue-400 bg-slate-50/50'
+              }`}
+            >
+              {file ? (
+                <div>
+                  <CheckCircle2 size={24} className="text-green-500 mx-auto mb-1.5" />
+                  <p className="text-slate-800 text-sm font-medium">{file.name}</p>
+                  <p className="text-slate-400 text-xs mt-0.5">{fmtFileSize(file.size)} · Click or drop to change</p>
+                </div>
+              ) : (
+                <div>
+                  <Paperclip size={24} className="text-slate-400 mx-auto mb-1.5" />
+                  <p className="text-slate-700 text-sm font-medium">Click to select PDF or drag &amp; drop here</p>
+                  <p className="text-slate-400 text-xs mt-0.5">Scanned paper timesheets (PDF, JPEG, PNG — max 25MB)</p>
+                </div>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,application/pdf"
+              className="hidden"
+              onChange={e => setFile(e.target.files?.[0] ?? null)}
+            />
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={uploading || !file}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+              >
+                {uploading ? <Loader2 size={13} className="animate-spin" /> : <FileUp size={13} />}
+                Upload Hard Copy
+              </button>
+            </div>
+          </form>
+
+          {/* List of uploaded documents */}
+          <div className="space-y-3 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Uploaded Paper Timesheets ({docs.length})
+              </h3>
+            </div>
+
+            {loading ? (
+              <div className="space-y-2">
+                {Array(2).fill(0).map((_, i) => (
+                  <div key={i} className="h-14 bg-slate-100 animate-pulse rounded-lg" />
+                ))}
+              </div>
+            ) : docs.length === 0 ? (
+              <div className="bg-slate-50 rounded-xl border border-slate-200/60 p-6 text-center text-slate-400">
+                <FileText size={28} className="mx-auto text-slate-300 mb-2" />
+                <p className="text-xs font-medium text-slate-600">No paper timesheets uploaded for this week yet</p>
+                <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
+                  Upload scanned paper timesheets using the box above so physical signatures and documents are archived together.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                {docs.map(doc => (
+                  <div key={doc.id} className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-lg bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0 border border-red-100 font-bold text-xs">
+                        PDF
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate" title={doc.file_name}>
+                          {doc.file_name}
+                        </p>
+                        <p className="text-xs text-slate-400 flex items-center gap-2">
+                          <span>{new Date(doc.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                          {doc.file_size && <span>· {fmtFileSize(doc.file_size)}</span>}
+                          {(doc.uploader_first_name || doc.uploader_last_name) && (
+                            <span>· by {doc.uploader_first_name} {doc.uploader_last_name}</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <a
+                        href={doc.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 text-xs px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition-colors"
+                      >
+                        <Download size={12} /> View
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(doc.id, doc.file_name)}
+                        disabled={deletingId === doc.id}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete hard copy"
+                      >
+                        {deletingId === doc.id ? <Loader2 size={13} className="animate-spin text-red-600" /> : <Trash2 size={13} />}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 transition-colors"
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -325,8 +826,13 @@ export default function TimesheetsPage() {
   const [statusFilter, setStatusFilter] = useState<TimesheetStatus | 'all'>('all');
   const [invoiceFilter, setInvoiceFilter] = useState<'all' | 'yes' | 'no'>('all');
   const [tradeFilter, setTradeFilter] = useState('');
-  const [crewSearch, setCrewSearch] = useState('');
-  const [showNewTs, setShowNewTs]   = useState(false);
+  const [crewSearch, setCrewSearch]   = useState('');
+  const [showNewTs, setShowNewTs]     = useState(false);
+  const [deleteTsModal, setDeleteTsModal] = useState<Timesheet | null>(null);
+  const [showHardCopiesModal, setShowHardCopiesModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [weeklyDocs, setWeeklyDocs] = useState<WeeklyTimesheetDocument[]>([]);
+  const [weeklyDocsLoading, setWeeklyDocsLoading] = useState(false);
   const [sendingId, setSendingId]   = useState<string | null>(null);
   
   // Sorting state
@@ -337,13 +843,20 @@ export default function TimesheetsPage() {
   useEffect(() => {
     productionsApi.list()
       .then(data => {
-        setProductions(data);
-        if (!urlProductionId && data.length > 0) {
+        // Sort active productions first, then completed/archived
+        const sorted = [...data].sort((a, b) => {
+          if (a.status === 'active_build' && b.status !== 'active_build') return -1;
+          if (b.status === 'active_build' && a.status !== 'active_build') return 1;
+          return a.name.localeCompare(b.name);
+        });
+        setProductions(sorted);
+        if (!urlProductionId && sorted.length > 0) {
           const stored = localStorage.getItem('cs_last_production_id');
-          if (stored && data.some(p => p.id === stored)) {
+          if (stored && sorted.some(p => p.id === stored)) {
             setSelectedProd(stored);
           } else {
-            setSelectedProd(data[0].id);
+            const active = sorted.find(p => p.status === 'active_build');
+            setSelectedProd(active ? active.id : sorted[0].id);
           }
         }
       })
@@ -393,6 +906,24 @@ export default function TimesheetsPage() {
   }, [selectedProd, weekEndingISO]);
 
   useEffect(() => { loadSheets(); }, [loadSheets]);
+
+  const loadWeeklyDocs = useCallback(async () => {
+    if (!selectedProd) return;
+    setWeeklyDocsLoading(true);
+    try {
+      const data = await timesheetsApi.getWeeklyDocuments({
+        production_id: selectedProd,
+        week_ending_date: weekEndingISO,
+      });
+      setWeeklyDocs(data);
+    } catch {
+      // silently ignore
+    } finally {
+      setWeeklyDocsLoading(false);
+    }
+  }, [selectedProd, weekEndingISO]);
+
+  useEffect(() => { loadWeeklyDocs(); }, [loadWeeklyDocs]);
 
   useEffect(() => {
     if (!selectedProd) return;
@@ -772,6 +1303,7 @@ export default function TimesheetsPage() {
         <NewTimesheetModal
           productions={productions}
           weekEndingDate={weekEndingISO}
+          initialProductionId={selectedProd}
           onClose={() => setShowNewTs(false)}
           onCreated={() => { setShowNewTs(false); loadSheets(); }}
         />
@@ -782,6 +1314,48 @@ export default function TimesheetsPage() {
           crewName={attachModal.name}
           onClose={() => setAttachModal(null)}
           onAttached={() => { setAttachModal(null); loadSheets(); }}
+        />
+      )}
+      {deleteTsModal && (
+        <DeleteTimesheetModal
+          timesheet={deleteTsModal}
+          onClose={() => setDeleteTsModal(null)}
+          onDeleted={() => {
+            const name = `${deleteTsModal.first_name || ''} ${deleteTsModal.last_name || ''}`.trim() || 'Crew member';
+            setDeleteTsModal(null);
+            loadSheets();
+            setPackMsg(`Timesheet for ${name} deleted successfully`);
+          }}
+        />
+      )}
+      {showHardCopiesModal && (
+        <WeeklyHardCopiesModal
+          productionId={selectedProd}
+          productionName={selectedProdName}
+          weekEndingDate={weekEndingISO}
+          onClose={() => setShowHardCopiesModal(false)}
+          onUpdated={() => { loadWeeklyDocs(); }}
+        />
+      )}
+      {showImportModal && (
+        <TimesheetImportModal
+          productions={productions}
+          defaultProductionId={selectedProd}
+          defaultWeekEndingDate={weekEndingISO}
+          onClose={() => setShowImportModal(false)}
+          onComplete={(info) => {
+            if (info?.productionId) {
+              setSelectedProd(info.productionId);
+              localStorage.setItem('cs_last_production_id', info.productionId);
+            }
+            if (info?.weekEndingDate) {
+              const [y, m, d] = info.weekEndingDate.split('-').map(Number);
+              const newD = new Date(Date.UTC(y, m - 1, d));
+              setWeekEnding(newD);
+            }
+            setBulkMsg('Timesheets imported successfully');
+            loadSheets();
+          }}
         />
       )}
 
@@ -821,7 +1395,9 @@ export default function TimesheetsPage() {
               >
                 {productions.length === 0 && <option value="">Loading…</option>}
                 {productions.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.name} {p.status !== 'active_build' ? `(${p.status === 'complete' ? 'Completed' : p.status})` : ''}
+                  </option>
                 ))}
               </select>
             </div>
@@ -835,6 +1411,28 @@ export default function TimesheetsPage() {
                   {bulkMsg || chaseMsg}
                 </span>
               )}
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="flex items-center gap-2 text-slate-700 text-sm border border-slate-200 bg-white rounded-lg px-3 py-2 hover:bg-slate-50 shadow-sm transition-colors font-medium"
+                title="Import timesheets in bulk from CSV / Excel"
+              >
+                <FileSpreadsheet size={14} className="text-emerald-600" />
+                Import CSV
+              </button>
+              <button
+                onClick={() => setShowHardCopiesModal(true)}
+                disabled={!selectedProd}
+                className="flex items-center gap-2 text-slate-700 text-sm border border-slate-200 bg-white rounded-lg px-3 py-2 hover:bg-slate-50 shadow-sm disabled:opacity-60 transition-colors font-medium"
+                title="Upload & view scanned paper timesheets for this week"
+              >
+                <FileUp size={14} className="text-slate-500" />
+                Paper Copies
+                {weeklyDocs.length > 0 && (
+                  <span className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0.2 rounded-full font-semibold">
+                    {weeklyDocs.length}
+                  </span>
+                )}
+              </button>
               <button
                 onClick={handleChase}
                 disabled={chasing || !selectedProd}
@@ -863,14 +1461,27 @@ export default function TimesheetsPage() {
         </div>
 
         {/* Stats row */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'Crew on Sheet',      value: loading ? null : crewOnSheet,                   sub: selectedProdName || 'this production' },
             { label: 'Invoices Received',  value: loading ? null : `${invoicesReceived} / ${crewOnSheet}`, sub: `${crewOnSheet - invoicesReceived} outstanding` },
             { label: 'Total Net',          value: loading ? null : `£${totalNet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, sub: 'non-draft timesheets' },
+            {
+              label: 'Paper Hard Copies',
+              value: loading || weeklyDocsLoading ? null : `${weeklyDocs.length} PDF${weeklyDocs.length === 1 ? '' : 's'}`,
+              sub: weeklyDocs.length > 0 ? 'Click to view / manage' : 'Click to upload PDF',
+              onClick: () => setShowHardCopiesModal(true),
+            },
           ].map(s => (
-            <div key={s.label} className="bg-white rounded-xl border border-slate-200 px-5 py-4 shadow-sm">
-              <p className="text-slate-500 text-xs font-medium">{s.label}</p>
+            <div
+              key={s.label}
+              onClick={s.onClick}
+              className={`bg-white rounded-xl border border-slate-200 px-5 py-4 shadow-sm ${s.onClick ? 'cursor-pointer hover:border-blue-300 transition-colors group' : ''}`}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-slate-500 text-xs font-medium">{s.label}</p>
+                {s.onClick && <FileUp size={13} className="text-slate-400 group-hover:text-blue-600 transition-colors" />}
+              </div>
               {s.value === null
                 ? <div className="h-7 w-16 bg-slate-100 rounded animate-pulse mt-1 mb-0.5" />
                 : <p className="text-slate-900 text-xl font-bold mt-1">{s.value}</p>}
@@ -1210,6 +1821,15 @@ export default function TimesheetsPage() {
                                     {ts.invoice_attachment_url ? 'Replace Invoice' : 'Attach Invoice'}
                                   </button>
                                 )}
+                                {/* Delete Timesheet Completely */}
+                                <button
+                                  onClick={() => setDeleteTsModal(ts)}
+                                  title={`Delete timesheet completely for ${fullName}`}
+                                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors font-medium"
+                                >
+                                  <Trash2 size={12} />
+                                  Delete
+                                </button>
                               </div>
                             </td>
                           )}
