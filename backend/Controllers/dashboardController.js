@@ -161,17 +161,20 @@ const getForecastingVariance = async () => {
         [f.production_id]
       ),
     ]);
-    const actual        = [
-      ...pos.map(p => parseFloat(p.net_amount || 0)),
-      ...tss.map(t => parseFloat(t.grand_total || 0)),
-    ].reduce((s, v) => s + v, 0);
-    const forecastTotal = parseFloat(f.total_forecast_cost || 0);
-    const variance      = actual - forecastTotal;
+    const actual_materials = pos.map(p => parseFloat(p.net_amount || 0)).reduce((s, v) => s + v, 0);
+    const actual_labour    = tss.map(t => parseFloat(t.grand_total || 0)).reduce((s, v) => s + v, 0);
+    const actual          = actual_materials + actual_labour;
+    const forecastTotal   = parseFloat(f.total_forecast_cost || 0);
+    const variance        = actual - forecastTotal;
     return {
       forecast_name:       f.name,
       production:          f.prod_name,
       forecast_total:      forecastTotal,
+      forecast_labour:     parseFloat(f.total_labour_cost || 0),
+      forecast_materials:  parseFloat(f.total_materials_cost || 0),
       actual_cost:         actual,
+      actual_labour:       actual_labour,
+      actual_materials:    actual_materials,
       variance_gbp:        variance,
       variance_percentage: (forecastTotal > 0 ? (variance / forecastTotal) * 100 : 0).toFixed(1),
       status: variance > 0 ? 'over_forecast' : variance < 0 ? 'under_forecast' : 'on_track',

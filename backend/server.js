@@ -340,6 +340,10 @@ async function start() {
     console.error('⚠️  Schema guard failed (audit_log table):', err.message);
   }
 
+  // ── Forecasting Addendum 4 Schema Guard ──────────────────────────────────────
+  const { ensureForecastingTables } = require('./services/forecastingSchemaGuard');
+  await ensureForecastingTables();
+
   // ── Daily handover alert cron — 07:00 UTC every day ──────────────────────────
   const { runHandoverAlerts } = require('./Controllers/productionsController');
   cron.schedule('0 7 * * *', async () => {

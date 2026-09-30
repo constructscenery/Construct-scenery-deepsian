@@ -15,6 +15,7 @@ import {
 } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import ProductionHireEquipmentPanel from '@/components/ProductionHireEquipmentPanel';
+import ProductionForecastingPanel from '@/components/forecasting/ProductionForecastingPanel';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1623,6 +1624,13 @@ export default function ProductionDetailPage() {
             })()}
           </div>
         </div>
+
+        {/* Forecasting & Labour Flow (Module 5 & Addendum 4) */}
+        <ProductionForecastingPanel
+          productionId={id}
+          productionName={production.name}
+          canManage={canEdit && !isArchived}
+        />
 
         {/* Hire Equipment Tracker (Module 8) */}
         <ProductionHireEquipmentPanel

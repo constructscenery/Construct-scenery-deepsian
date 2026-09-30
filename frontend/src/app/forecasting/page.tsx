@@ -4,13 +4,22 @@ import { useState, useEffect, useCallback } from 'react';
 import TopBar from '@/components/TopBar';
 import {
   Calculator, Save, Plus, Trash2, X, Loader2, Search, Pencil,
+  TrendingUp, Users, Calendar, Download, Eye, Layers, Lock, FileSpreadsheet
 } from 'lucide-react';
 import {
-  forecastingApi, productionsApi,
+  forecastingApi, productionsApi, costForecastsApi, labourFlowsApi, dashboardApi,
   type Forecast, type PercentometerRatio, type CatalogueItem, type Production,
+  type CostForecast, type LabourFlow, type DashboardData
 } from '@/lib/api';
+import {
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer
+} from 'recharts';
 import { useAuth } from '@/contexts/AuthContext';
 import RequireRole from '@/components/RequireRole';
+import CostForecastEditor from '@/components/forecasting/CostForecastEditor';
+import LabourFlowEditor from '@/components/forecasting/LabourFlowEditor';
+import NewCostForecastModal from '@/components/forecasting/NewCostForecastModal';
+import NewLabourFlowModal from '@/components/forecasting/NewLabourFlowModal';
 
 const fmtGBP = (n: number) =>
   new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 2 }).format(n);
@@ -43,14 +52,56 @@ function ForecastingContent() {
   const isMD = !isGuest;
   const isAccountant = !isGuest;
 
-  const [activeTab, setActiveTab] = useState<'percentometer' | 'catalogue' | 'scenarios'>('percentometer');
+  const [activeTab, setActiveTab] = useState<'cost_forecasts' | 'labour_flows' | 'percentometer' | 'scenarios'>('cost_forecasts');
 
   // ── Productions (shared) ──────────────────────────────────────────────────────
   const [productions, setProductions] = useState<Production[]>([]);
 
   useEffect(() => {
-    productionsApi.list().then(setProductions).catch(() => {});
+    productionsApi.list().then(setProductions).catch(() => { });
   }, []);
+
+  // ── Tool 1: Cost Forecasts State ──────────────────────────────────────────────
+  const [costForecasts, setCostForecasts] = useState<CostForecast[]>([]);
+  const [costForecastsLoading, setCostForecastsLoading] = useState(false);
+  const [selectedCostForecastId, setSelectedCostForecastId] = useState<string | null>(null);
+  const [showNewCostForecastModal, setShowNewCostForecastModal] = useState(false);
+  const [cfFilterProduction, setCfFilterProduction] = useState<string>('');
+
+  const loadCostForecasts = useCallback(async () => {
+    setCostForecastsLoading(true);
+    try {
+      const data = await costForecastsApi.list(cfFilterProduction ? { production_id: cfFilterProduction } : undefined);
+      setCostForecasts(data);
+    } catch { /* ignore */ } finally {
+      setCostForecastsLoading(false);
+    }
+  }, [cfFilterProduction]);
+
+  useEffect(() => {
+    if (activeTab === 'cost_forecasts') loadCostForecasts();
+  }, [activeTab, loadCostForecasts]);
+
+  // ── Tool 2: Weekly Labour Flows State ─────────────────────────────────────────
+  const [labourFlows, setLabourFlows] = useState<LabourFlow[]>([]);
+  const [labourFlowsLoading, setLabourFlowsLoading] = useState(false);
+  const [selectedLabourFlowId, setSelectedLabourFlowId] = useState<string | null>(null);
+  const [showNewLabourFlowModal, setShowNewLabourFlowModal] = useState(false);
+  const [lfFilterProduction, setLfFilterProduction] = useState<string>('');
+
+  const loadLabourFlows = useCallback(async () => {
+    setLabourFlowsLoading(true);
+    try {
+      const data = await labourFlowsApi.list(lfFilterProduction ? { production_id: lfFilterProduction } : undefined);
+      setLabourFlows(data);
+    } catch { /* ignore */ } finally {
+      setLabourFlowsLoading(false);
+    }
+  }, [lfFilterProduction]);
+
+  useEffect(() => {
+    if (activeTab === 'labour_flows') loadLabourFlows();
+  }, [activeTab, loadLabourFlows]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // SECTION 1: PERCENTOMETER
@@ -69,8 +120,12 @@ function ForecastingContent() {
 
   useEffect(() => {
     forecastingApi.getRatios()
-      .then(data => setRatios(data))
-      .catch(() => {})
+      .then(data => {
+        // Coerce percentage strings from Postgres to numbers
+        const arr = Array.isArray(data) ? data : [];
+        setRatios(arr.map(r => ({ ...r, percentage: parseFloat(String(r.percentage)) })));
+      })
+      .catch(() => { })
       .finally(() => setRatiosLoading(false));
   }, []);
 
@@ -81,8 +136,13 @@ function ForecastingContent() {
     setCalcError('');
     try {
       const res = await forecastingApi.calculate(val);
-      setCalcResults(res.result);
-      setCalcTotal(res.total_estimated_cost);
+      // Backend returns: { breakdown: [{cost_type, percentage, estimated_value}], total_estimated_job_cost }
+      setCalcResults(res.breakdown.map(r => ({
+        cost_type: r.cost_type,
+        percentage: r.percentage,           // already ×100 from backend
+        estimated_cost: r.estimated_value,
+      })));
+      setCalcTotal(res.total_estimated_job_cost);
     } catch (err: unknown) {
       setCalcError(err instanceof Error ? err.message : 'Calculation failed');
     } finally {
@@ -91,64 +151,25 @@ function ForecastingContent() {
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // SECTION 2: CATALOGUE
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  const [catalogue, setCatalogue] = useState<CatalogueItem[]>([]);
-  const [catLoading, setCatLoading] = useState(false);
-  const [catSearch, setCatSearch] = useState('');
-  const [showAddItem, setShowAddItem] = useState(false);
-  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
-
-  const loadCatalogue = useCallback(async () => {
-    setCatLoading(true);
-    try {
-      const data = await forecastingApi.getCatalogue();
-      setCatalogue(data);
-    } catch { /* silent */ }
-    finally { setCatLoading(false); }
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'catalogue') loadCatalogue();
-  }, [activeTab, loadCatalogue]);
-
-  const filteredCatalogue = catalogue.filter(item => {
-    if (!catSearch) return true;
-    const q = catSearch.toLowerCase();
-    return (
-      item.supplier_name.toLowerCase().includes(q) ||
-      item.item_description.toLowerCase().includes(q) ||
-      (item.category ?? '').toLowerCase().includes(q)
-    );
-  });
-
-  const deleteItem = async (id: string) => {
-    if (!confirm('Delete this catalogue item?')) return;
-    setDeletingItemId(id);
-    try {
-      await forecastingApi.deleteCatalogueItem(id);
-      setCatalogue(prev => prev.filter(i => i.id !== id));
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Delete failed');
-    } finally {
-      setDeletingItemId(null);
-    }
-  };
-
-  // ─────────────────────────────────────────────────────────────────────────────
+  // SECTION 2: CATALOGUE (Removed)
+  // ─────────────────────────────────────────────────────────────────────────────  // ─────────────────────────────────────────────────────────────────────────────
   // SECTION 3: SAVED SCENARIOS
   // ─────────────────────────────────────────────────────────────────────────────
 
   const [scenarios, setScenarios] = useState<Forecast[]>([]);
+  const [varianceData, setVarianceData] = useState<DashboardData['forecasting_variance']>([]);
   const [scenLoading, setScenLoading] = useState(false);
   const [deletingScenId, setDeletingScenId] = useState<string | null>(null);
 
   const loadScenarios = useCallback(async () => {
     setScenLoading(true);
     try {
-      const data = await forecastingApi.getAllForecasts();
+      const [data, dash] = await Promise.all([
+        forecastingApi.getAllForecasts(),
+        dashboardApi.get()
+      ]);
       setScenarios(data);
+      setVarianceData(dash.forecasting_variance || []);
     } catch { /* silent */ }
     finally { setScenLoading(false); }
   }, []);
@@ -170,18 +191,115 @@ function ForecastingContent() {
     }
   };
 
+  const [deletingCfId, setDeletingCfId] = useState<string | null>(null);
+  const handleDeleteCostForecast = async (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!confirm('Are you sure you want to delete this cost forecast?')) return;
+    setDeletingCfId(id);
+    try {
+      await costForecastsApi.delete(id);
+      setCostForecasts(prev => prev.filter(c => c.id !== id));
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to delete cost forecast');
+    } finally {
+      setDeletingCfId(null);
+    }
+  };
+
+  const [deletingLfId, setDeletingLfId] = useState<string | null>(null);
+  const handleDeleteLabourFlow = async (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!confirm('Are you sure you want to delete this weekly labour flow?')) return;
+    setDeletingLfId(id);
+    try {
+      await labourFlowsApi.delete(id);
+      setLabourFlows(prev => prev.filter(l => l.id !== id));
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to delete labour flow');
+    } finally {
+      setDeletingLfId(null);
+    }
+  };
+
+  // If a cost forecast is selected, open editor
+  if (selectedCostForecastId) {
+    return (
+      <>
+        <TopBar title="Cost Forecast" subtitle="Addendum 4 — Tool 1: Flexible Cost Plan" />
+        <main className="flex-1 p-4 md:p-6">
+          <CostForecastEditor
+            forecastId={selectedCostForecastId}
+            onBack={() => {
+              setSelectedCostForecastId(null);
+              loadCostForecasts();
+            }}
+            onVersionCreated={(newRev) => {
+              setSelectedCostForecastId(newRev.id);
+              loadCostForecasts();
+            }}
+          />
+        </main>
+      </>
+    );
+  }
+
+  // If a labour flow is selected, open editor
+  if (selectedLabourFlowId) {
+    return (
+      <>
+        <TopBar title="Weekly Labour Flow" subtitle="Addendum 4 — Tool 2: Rolling Weekly Headcount Matrix" />
+        <main className="flex-1 p-4 md:p-6">
+          <LabourFlowEditor
+            flowId={selectedLabourFlowId}
+            onBack={() => {
+              setSelectedLabourFlowId(null);
+              loadLabourFlows();
+            }}
+            onVersionCreated={(newRev) => {
+              setSelectedLabourFlowId(newRev.id);
+              loadLabourFlows();
+            }}
+          />
+        </main>
+      </>
+    );
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Tabs config
   // ─────────────────────────────────────────────────────────────────────────────
 
-  const tabs: { id: typeof activeTab; label: string }[] = [
+  const tabs: { id: typeof activeTab; label: string; count?: number }[] = [
+    { id: 'cost_forecasts', label: 'Cost Forecasts', count: costForecasts.length },
+    { id: 'labour_flows', label: 'Weekly Labour Flow', count: labourFlows.length },
     { id: 'percentometer', label: 'The Percentometer' },
-    { id: 'catalogue', label: 'Supplier Catalogue' },
     { id: 'scenarios', label: 'Saved Scenarios' },
   ];
 
   return (
     <>
+      {showNewCostForecastModal && (
+        <NewCostForecastModal
+          productions={productions}
+          onClose={() => setShowNewCostForecastModal(false)}
+          onCreated={(f) => {
+            setShowNewCostForecastModal(false);
+            loadCostForecasts();
+            setSelectedCostForecastId(f.id);
+          }}
+        />
+      )}
+      {showNewLabourFlowModal && (
+        <NewLabourFlowModal
+          productions={productions}
+          onClose={() => setShowNewLabourFlowModal(false)}
+          onCreated={(lf) => {
+            setShowNewLabourFlowModal(false);
+            loadLabourFlows();
+            setSelectedLabourFlowId(lf.id);
+          }}
+        />
+      )}
       {showSaveModal && (
         <SaveScenarioModal
           carpenterCost={parseFloat(carpenterInput) || null}
@@ -194,33 +312,345 @@ function ForecastingContent() {
         <EditRatiosModal
           ratios={ratios}
           onClose={() => setShowEditRatios(false)}
-          onSaved={updated => { setRatios(updated); setShowEditRatios(false); }}
-        />
-      )}
-      {showAddItem && (
-        <AddCatalogueItemModal
-          onClose={() => setShowAddItem(false)}
-          onSaved={item => { setCatalogue(prev => [item, ...prev]); setShowAddItem(false); }}
+          onSaved={updated => {
+            // Backend returns { message, ratios: [...] } — unwrap the array
+            const arr = Array.isArray(updated) ? updated : (updated as unknown as { ratios: typeof ratios }).ratios;
+            setRatios(arr ?? []);
+            setShowEditRatios(false);
+          }}
         />
       )}
 
-      <TopBar title="Forecasting & Job Costing" subtitle="Labour and materials forecasting with scenario comparison" />
+
+      <TopBar title="Forecasting & Job Costing" subtitle="Labour & material forecasting, BECTU rate cards, and weekly labour flow plans" />
       <main className="flex-1 p-4 md:p-6 space-y-4 md:space-y-5">
 
         {/* Tab bar */}
-        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm w-fit">
+        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm w-fit overflow-x-auto max-w-full">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 text-sm font-normal rounded-lg transition-colors ${
-                activeTab === tab.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-normal rounded-lg transition-colors whitespace-nowrap ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-sm font-medium' : 'text-slate-600 hover:bg-slate-100'
+                }`}
             >
-              {tab.label}
+              <span>{tab.label}</span>
+              {tab.count !== undefined && (
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-blue-700/60 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                  {tab.count}
+                </span>
+              )}
             </button>
           ))}
         </div>
+
+        {/* ── TOOL 1: COST FORECASTS ─────────────────────────────────────────── */}
+        {activeTab === 'cost_forecasts' && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-slate-900 font-semibold text-sm flex items-center gap-2">
+                  <TrendingUp size={16} className="text-blue-600" />
+                  Cost Forecast Plans (Tool 1)
+                </h2>
+                <p className="text-slate-400 text-xs mt-0.5">
+                  Flexible cost plans with daily & weekly views, BECTU crew rates link, and lock versioning
+                </p>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <select
+                  value={cfFilterProduction}
+                  onChange={e => setCfFilterProduction(e.target.value)}
+                  className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-700 outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">All Productions</option>
+                  {productions.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setShowNewCostForecastModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium shadow-sm transition-colors whitespace-nowrap"
+                >
+                  <Plus size={14} /> New Cost Forecast
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-left">
+                    <th className="px-5 py-3 text-xs font-semibold text-slate-500">Plan Title & Version</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Production</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Dates & Duration</th>
+                    <th className="px-3 py-3 text-xs font-semibold text-slate-500 text-center">View</th>
+                    <th className="px-3 py-3 text-xs font-semibold text-slate-500 text-center">Status</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Labour Cost</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Above-The-Line</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Grand Total</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Updated</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {costForecastsLoading ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <tr key={i}>
+                        {Array.from({ length: 10 }).map((_, j) => (
+                          <td key={j} className="px-4 py-3.5">
+                            <div className="h-4 bg-slate-100 rounded animate-pulse" />
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  ) : costForecasts.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="px-5 py-12 text-center">
+                        <TrendingUp size={36} className="mx-auto text-slate-300 mb-2" />
+                        <p className="text-slate-600 text-sm font-medium">No Cost Forecasts yet</p>
+                        <p className="text-slate-400 text-xs mt-1">Create a flexible cost plan linked to live BECTU rates.</p>
+                        <button
+                          onClick={() => setShowNewCostForecastModal(true)}
+                          className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors"
+                        >
+                          <Plus size={13} /> Create Cost Forecast
+                        </button>
+                      </td>
+                    </tr>
+                  ) : (
+                    costForecasts.map(cf => (
+                      <tr
+                        key={cf.id}
+                        onClick={() => setSelectedCostForecastId(cf.id)}
+                        className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
+                      >
+                        <td className="px-5 py-3.5">
+                          <div className="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                            <span>{cf.title}</span>
+                            <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                              v{cf.version}
+                            </span>
+                          </div>
+                          {cf.notes && <p className="text-xs text-slate-400 truncate max-w-xs">{cf.notes}</p>}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-slate-600 font-medium">
+                          {cf.production_name || '—'}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-slate-500 whitespace-nowrap">
+                          {fmtDate(cf.start_date)} – {fmtDate(cf.end_date)}
+                          <span className="ml-1.5 text-slate-400 font-mono">
+                            ({cf.num_weeks ?? Math.max(1, Math.ceil((new Date(cf.end_date).getTime() - new Date(cf.start_date).getTime()) / (7 * 24 * 3600 * 1000)))}w)
+                          </span>
+                        </td>
+                        <td className="px-3 py-3.5 text-center">
+                          <span className="text-[11px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                            {cf.default_view}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
+                          {cf.status === 'locked' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <Lock size={11} /> Locked
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                              Draft
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-right font-medium text-slate-700">
+                          {fmtGBP(Number(cf.total_crew_cost) || 0)}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-right font-medium text-slate-700">
+                          {fmtGBP(Number(cf.total_non_labour_cost) || 0)}
+                        </td>
+                        <td className="px-4 py-3.5 text-sm text-right font-bold text-slate-900">
+                          {fmtGBP(Number(cf.grand_total_cost) || 0)}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-right text-slate-400 whitespace-nowrap">
+                          {fmtDate(cf.updated_at)}
+                        </td>
+                        <td className="px-4 py-3.5 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => setSelectedCostForecastId(cf.id)}
+                              className="p-1.5 text-slate-400 hover:text-blue-600 rounded transition-colors"
+                              title="Open Cost Forecast"
+                            >
+                              <Eye size={15} />
+                            </button>
+                            <button
+                              onClick={(e) => handleDeleteCostForecast(cf.id, e)}
+                              disabled={deletingCfId === cf.id}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded transition-colors disabled:opacity-50"
+                              title="Delete Cost Forecast"
+                            >
+                              {deletingCfId === cf.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── TOOL 2: WEEKLY LABOUR FLOW ──────────────────────────────────────── */}
+        {activeTab === 'labour_flows' && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-slate-900 font-semibold text-sm flex items-center gap-2">
+                  <Users size={16} className="text-indigo-600" />
+                  Weekly Labour Flow Matrices (Tool 2)
+                </h2>
+                <p className="text-slate-400 text-xs mt-0.5">
+                  Rolling weekly headcount matrix across 4 departments with dynamic w/e columns & CSV export
+                </p>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <select
+                  value={lfFilterProduction}
+                  onChange={e => setLfFilterProduction(e.target.value)}
+                  className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-700 outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">All Productions</option>
+                  {productions.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setShowNewLabourFlowModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium shadow-sm transition-colors whitespace-nowrap"
+                >
+                  <Plus size={14} /> New Labour Flow
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-left">
+                    <th className="px-5 py-3 text-xs font-semibold text-slate-500">Plan Title & Version</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Production</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Dates & Duration</th>
+                    <th className="px-3 py-3 text-xs font-semibold text-slate-500 text-center">Status</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Grand Total Cost</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Updated</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {labourFlowsLoading ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <tr key={i}>
+                        {Array.from({ length: 7 }).map((_, j) => (
+                          <td key={j} className="px-4 py-3.5">
+                            <div className="h-4 bg-slate-100 rounded animate-pulse" />
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  ) : labourFlows.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-5 py-12 text-center">
+                        <Users size={36} className="mx-auto text-slate-300 mb-2" />
+                        <p className="text-slate-600 text-sm font-medium">No Weekly Labour Flows yet</p>
+                        <p className="text-slate-400 text-xs mt-1">Create a rolling weekly headcount matrix across departments.</p>
+                        <button
+                          onClick={() => setShowNewLabourFlowModal(true)}
+                          className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium transition-colors"
+                        >
+                          <Plus size={13} /> Create Labour Flow
+                        </button>
+                      </td>
+                    </tr>
+                  ) : (
+                    labourFlows.map(lf => (
+                      <tr
+                        key={lf.id}
+                        onClick={() => setSelectedLabourFlowId(lf.id)}
+                        className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
+                      >
+                        <td className="px-5 py-3.5">
+                          <div className="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                            <span>{lf.title}</span>
+                            <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                              v{lf.version}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-slate-600 font-medium">
+                          {lf.production_name || '—'}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-slate-500 whitespace-nowrap">
+                          {fmtDate(lf.start_date)} – {fmtDate(lf.end_date)}
+                          <span className="ml-1.5 text-slate-400 font-mono">({lf.num_weeks}w)</span>
+                        </td>
+                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
+                          {lf.status === 'locked' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <Lock size={11} /> Locked
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                              Draft
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5 text-sm text-right font-bold text-slate-900">
+                          {fmtGBP(Number(lf.grand_total_cost) || 0)}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-right text-slate-400 whitespace-nowrap">
+                          {fmtDate(lf.updated_at)}
+                        </td>
+                        <td className="px-4 py-3.5 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  await labourFlowsApi.exportCsv(lf.id);
+                                } catch (err: any) {
+                                  alert(err.message || 'Export failed');
+                                }
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 rounded transition-colors"
+                              title="Export CSV"
+                            >
+                              <Download size={15} />
+                            </button>
+                            <button
+                              onClick={() => setSelectedLabourFlowId(lf.id)}
+                              className="p-1.5 text-slate-400 hover:text-blue-600 rounded transition-colors"
+                              title="Open Labour Flow"
+                            >
+                              <Eye size={15} />
+                            </button>
+                            <button
+                              onClick={(e) => handleDeleteLabourFlow(lf.id, e)}
+                              disabled={deletingLfId === lf.id}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded transition-colors disabled:opacity-50"
+                              title="Delete Labour Flow"
+                            >
+                              {deletingLfId === lf.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* ── SECTION 1: PERCENTOMETER ─────────────────────────────────────────── */}
         {activeTab === 'percentometer' && (
@@ -231,7 +661,7 @@ function ForecastingContent() {
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <div>
                   <h2 className="text-slate-900 font-semibold text-sm">The Percentometer</h2>
-                  <p className="text-slate-400 text-xs mt-0.5">Enter a known carpenter cost to estimate all other costs</p>
+                  <p className="text-slate-400 text-xs mt-0.5">Enter the <strong className="text-slate-600">total project cost</strong> for Carpenters — we'll estimate every other department proportionally</p>
                 </div>
                 {(isMD || isAccountant) && (
                   <button
@@ -245,7 +675,10 @@ function ForecastingContent() {
               <div className="p-5">
                 <div className="flex items-end gap-3 mb-5">
                   <div className="flex-1">
-                    <label className="text-xs text-slate-500 font-medium block mb-1">Known Carpenter Cost £</label>
+                    <label className="text-xs text-slate-500 font-medium block mb-1">
+                      Known Carpenter Cost
+                      <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">Total £ — whole project</span>
+                    </label>
                     <div className="flex items-center bg-slate-50 border border-slate-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
                       <span className="px-3 text-slate-500 font-semibold text-sm bg-slate-100 border-r border-slate-300 py-2.5">£</span>
                       <input
@@ -259,6 +692,9 @@ function ForecastingContent() {
                         className="flex-1 px-3 py-2.5 text-slate-900 font-bold text-sm bg-transparent outline-none"
                       />
                     </div>
+                    <p className="text-[11px] text-slate-400 mt-1.5 leading-snug">
+                      💡 Enter the <em>total</em> your Carpenters will cost across the entire production run (e.g. all wages, all weeks combined). No time period is needed — this tool uses historical spend <em>ratios</em> to scale everything else.
+                    </p>
                   </div>
                   <button
                     onClick={handleCalculate}
@@ -322,10 +758,10 @@ function ForecastingContent() {
                           <div className="flex-1 bg-slate-100 rounded-full h-2">
                             <div
                               className={`h-2 rounded-full ${BAR_COLOURS[i % BAR_COLOURS.length]}`}
-                              style={{ width: `${r.percentage}%` }}
+                              style={{ width: `${Math.min(parseFloat(String(r.percentage)) * 100, 100)}%` }}
                             />
                           </div>
-                          <span className="text-slate-500 text-xs w-9 text-right">{r.percentage}%</span>
+                          <span className="text-slate-500 text-xs w-9 text-right">{(parseFloat(String(r.percentage)) * 100).toFixed(1)}%</span>
                         </div>
                         <div className="w-24 text-slate-400 text-xs font-medium text-right">—</div>
                       </div>
@@ -363,13 +799,13 @@ function ForecastingContent() {
                     ) : ratios.map((r, i) => (
                       <tr key={r.cost_type} className="hover:bg-slate-50/50">
                         <td className="px-5 py-2.5 text-slate-700 font-medium">{r.cost_type}</td>
-                        <td className="px-4 py-2.5 text-slate-600 text-right font-semibold">{r.percentage}%</td>
+                        <td className="px-4 py-2.5 text-slate-600 text-right font-semibold">{(parseFloat(String(r.percentage)) * 100).toFixed(2)}%</td>
                         <td className="px-4 py-2.5">
                           <div className="flex justify-end">
                             <div className="w-24 bg-slate-100 rounded-full h-1.5">
                               <div
                                 className={`h-1.5 rounded-full ${BAR_COLOURS[i % BAR_COLOURS.length]}`}
-                                style={{ width: `${Math.min(r.percentage, 100)}%` }}
+                                style={{ width: `${Math.min(parseFloat(String(r.percentage)) * 100, 100)}%` }}
                               />
                             </div>
                           </div>
@@ -382,7 +818,7 @@ function ForecastingContent() {
                       <tr className="bg-slate-50 border-t-2 border-slate-200">
                         <td className="px-5 py-2.5 font-bold text-slate-700">Total</td>
                         <td className="px-4 py-2.5 font-bold text-slate-900 text-right">
-                          {ratios.reduce((s, r) => s + r.percentage, 0)}%
+                          {(ratios.reduce((s, r) => s + parseFloat(String(r.percentage)), 0) * 100).toFixed(2)}%
                         </td>
                         <td />
                       </tr>
@@ -394,114 +830,6 @@ function ForecastingContent() {
           </div>
         )}
 
-        {/* ── SECTION 2: SUPPLIER CATALOGUE ────────────────────────────────────── */}
-        {activeTab === 'catalogue' && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 gap-4 flex-wrap">
-              <div>
-                <h2 className="text-slate-900 font-semibold text-sm">Supplier Catalogue</h2>
-                <p className="text-slate-400 text-xs mt-0.5">Reference pricing for common items</p>
-              </div>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-                <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 w-full sm:w-56">
-                  <Search size={13} className="text-slate-400 flex-shrink-0" />
-                  <input
-                    type="text"
-                    placeholder="Search catalogue..."
-                    value={catSearch}
-                    onChange={e => setCatSearch(e.target.value)}
-                    className="bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none w-full"
-                  />
-                </div>
-                {(isMD || isAccountant) && (
-                  <button
-                    onClick={() => setShowAddItem(true)}
-                    className="flex items-center justify-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-4 py-2 hover:bg-blue-700 transition-colors font-medium whitespace-nowrap"
-                  >
-                    <Plus size={14} /> Add Item
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50">
-                    <th className="px-5 py-2.5 text-xs font-semibold text-slate-500 text-left">Supplier Name</th>
-                    <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-left">Description</th>
-                    <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-center">Unit</th>
-                    <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-right">Unit Price</th>
-                    <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-left">Category</th>
-                    <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-left">Last Used</th>
-                    <th className="px-4 py-2.5" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {catLoading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i}>
-                        {Array.from({ length: 7 }).map((_, j) => (
-                          <td key={j} className="px-4 py-3">
-                            <div className="h-4 bg-slate-100 rounded animate-pulse" />
-                          </td>
-                        ))}
-                      </tr>
-                    ))
-                  ) : filteredCatalogue.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-5 py-10 text-center text-slate-400">
-                        {catSearch ? 'No items match your search.' : 'No catalogue items yet.'}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredCatalogue.map(item => (
-                      <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-5 py-3 text-slate-800 font-medium">{item.supplier_name}</td>
-                        <td className="px-4 py-3 text-slate-600">{item.item_description}</td>
-                        <td className="px-4 py-3 text-slate-500 text-center">{item.unit ?? '—'}</td>
-                        <td className="px-4 py-3 text-slate-900 font-semibold text-right">
-                          {fmtGBP(parseFloat(item.unit_price))}
-                        </td>
-                        <td className="px-4 py-3">
-                          {item.category ? (
-                            <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">
-                              {item.category}
-                            </span>
-                          ) : <span className="text-slate-400">—</span>}
-                        </td>
-                        <td className="px-4 py-3 text-slate-400 text-xs">
-                          {item.last_used_date ? fmtDate(item.last_used_date) : '—'}
-                        </td>
-                        <td className="px-4 py-3">
-                          {(isMD || isAccountant) && (
-                            <button
-                              onClick={() => deleteItem(item.id)}
-                              disabled={deletingItemId === item.id}
-                              className="p-1.5 text-slate-300 hover:text-red-400 transition-colors rounded disabled:opacity-50"
-                              title="Delete item"
-                            >
-                              {deletingItemId === item.id
-                                ? <Loader2 size={13} className="animate-spin" />
-                                : <Trash2 size={13} />
-                              }
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {!catLoading && catalogue.length > 0 && (
-              <div className="px-5 py-3 border-t border-slate-100 bg-slate-50">
-                <span className="text-slate-400 text-xs">
-                  Showing {filteredCatalogue.length} of {catalogue.length} item{catalogue.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* ── SECTION 3: SAVED SCENARIOS ───────────────────────────────────────── */}
         {activeTab === 'scenarios' && (
@@ -545,11 +873,11 @@ function ForecastingContent() {
                   ) : (
                     scenarios.map(s => (
                       <tr key={s.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-5 py-3.5 text-slate-800 font-medium">{s.name}</td>
+                        <td className="px-5 py-3.5 text-slate-800 font-medium">{s.scenario_name}</td>
                         <td className="px-4 py-3.5 text-slate-500 text-xs">{s.prod_name ?? '—'}</td>
-                        <td className="px-4 py-3.5 text-slate-600 text-right">{fmtGBP(s.total_labour_cost)}</td>
-                        <td className="px-4 py-3.5 text-slate-600 text-right">{fmtGBP(s.total_materials_cost)}</td>
-                        <td className="px-4 py-3.5 text-slate-900 font-bold text-right">{fmtGBP(s.total_forecast_cost)}</td>
+                        <td className="px-4 py-3.5 text-slate-600 text-right">{fmtGBP(Number(s.total_labour) || 0)}</td>
+                        <td className="px-4 py-3.5 text-slate-600 text-right">{fmtGBP(Number(s.total_materials) || 0)}</td>
+                        <td className="px-4 py-3.5 text-slate-900 font-bold text-right">{fmtGBP(Number(s.combined_total) || Number(s.percentometer_total) || 0)}</td>
                         <td className="px-4 py-3.5 text-slate-400 text-xs">{fmtDate(s.created_at)}</td>
                         <td className="px-4 py-3.5">
                           <button
@@ -570,6 +898,106 @@ function ForecastingContent() {
                 </tbody>
               </table>
             </div>
+            
+            {/* Chart Section */}
+            {varianceData.length > 0 && (
+              <div className="p-5 border-t border-slate-100 flex flex-col xl:flex-row gap-8">
+                
+                {/* Bar Chart: Predicted vs Actual Totals */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-4">Predicted vs Actual Cost Breakdown</h3>
+                  <div className="h-[350px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={varianceData.map(v => ({
+                          name: v.forecast_name,
+                          'Predicted Labour': v.forecast_labour || 0,
+                          'Actual Labour': v.actual_labour || 0,
+                          'Predicted Materials': v.forecast_materials || 0,
+                          'Actual Materials': v.actual_materials || 0,
+                        }))}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 25 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis 
+                          dataKey="name" 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fontSize: 12, fill: '#64748b' }} 
+                          interval={0}
+                          angle={-25}
+                          textAnchor="end"
+                        />
+                        <YAxis 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fontSize: 12, fill: '#64748b' }} 
+                          tickFormatter={(val) => `£${(val/1000).toFixed(0)}k`} 
+                        />
+                        <RechartsTooltip 
+                          formatter={(value: any) => fmtGBP(value)}
+                          contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                          cursor={{ fill: '#f8fafc' }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
+                        <Bar dataKey="Predicted Labour" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="Actual Labour" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="Predicted Materials" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="Actual Materials" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Line Chart: Weekly Timesheets vs Forecast (MOCK) */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-slate-900">Weekly Labour Burn Rate</h3>
+                    <span className="text-[10px] font-bold tracking-wider uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Preview Mode</span>
+                  </div>
+                  <div className="h-[350px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={[
+                          { week: 'Week 1', 'Forecasted Weekly': 4500, 'Actual Weekly Pay': 4200 },
+                          { week: 'Week 2', 'Forecasted Weekly': 5500, 'Actual Weekly Pay': 6100 },
+                          { week: 'Week 3', 'Forecasted Weekly': 8000, 'Actual Weekly Pay': 7800 },
+                          { week: 'Week 4', 'Forecasted Weekly': 8000, 'Actual Weekly Pay': 9500 },
+                          { week: 'Week 5', 'Forecasted Weekly': 6000, 'Actual Weekly Pay': 6200 },
+                          { week: 'Week 6', 'Forecasted Weekly': 3000, 'Actual Weekly Pay': 2500 },
+                        ]}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 25 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis 
+                          dataKey="week" 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fontSize: 12, fill: '#64748b' }}
+                        />
+                        <YAxis 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fontSize: 12, fill: '#64748b' }} 
+                          tickFormatter={(val) => `£${(val/1000).toFixed(0)}k`} 
+                        />
+                        <RechartsTooltip 
+                          formatter={(value: any) => fmtGBP(value)}
+                          contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
+                        <Line type="monotone" dataKey="Forecasted Weekly" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                        <Line type="monotone" dataKey="Actual Weekly Pay" stroke="#ef4444" strokeWidth={2} activeDot={{ r: 6 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="text-xs text-slate-400 text-center mt-2">
+                    Note: This requires a new backend endpoint to map Labour Flow weeks to finalised Timesheets.
+                  </p>
+                </div>
+
+              </div>
+            )}
           </div>
         )}
 
@@ -677,7 +1105,10 @@ interface EditRatiosModalProps {
 }
 
 function EditRatiosModal({ ratios, onClose, onSaved }: EditRatiosModalProps) {
-  const [draft, setDraft] = useState<PercentometerRatio[]>(ratios.map(r => ({ ...r })));
+  // DB stores 0.42 to mean 42% — convert to display-space (0-100) for editing
+  const [draft, setDraft] = useState<PercentometerRatio[]>(
+    ratios.map(r => ({ ...r, percentage: parseFloat((r.percentage * 100).toFixed(4)) }))
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -688,13 +1119,19 @@ function EditRatiosModal({ ratios, onClose, onSaved }: EditRatiosModalProps) {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const total = draft.reduce((s, r) => s + r.percentage, 0);
-    if (total !== 100) { setError(`Percentages must sum to 100 (currently ${total}%).`); return; }
+    const total = draft.reduce((s, r) => s + (parseFloat(String(r.percentage)) || 0), 0);
+    if (Math.abs(total - 100) > 0.001) { setError(`Percentages must sum to 100% (currently ${total.toFixed(2)}%).`); return; }
     setSaving(true);
     setError('');
     try {
-      const updated = await forecastingApi.updateRatios(draft.map(r => ({ cost_type: r.cost_type, percentage: r.percentage })));
-      onSaved(updated);
+      // Backend returns { message, ratios: [...] } — unwrap before passing up
+      const rawResponse = await forecastingApi.updateRatios(
+        draft.map(r => ({ cost_type: r.cost_type, percentage: parseFloat((r.percentage / 100).toFixed(4)) }))
+      );
+      const arr: PercentometerRatio[] = Array.isArray(rawResponse)
+        ? rawResponse
+        : ((rawResponse as unknown as { ratios: PercentometerRatio[] }).ratios ?? []);
+      onSaved(arr);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save ratios');
     } finally {
@@ -702,7 +1139,7 @@ function EditRatiosModal({ ratios, onClose, onSaved }: EditRatiosModalProps) {
     }
   };
 
-  const total = draft.reduce((s, r) => s + r.percentage, 0);
+  const total = draft.reduce((s, r) => s + (parseFloat(String(r.percentage)) || 0), 0);
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -733,8 +1170,8 @@ function EditRatiosModal({ ratios, onClose, onSaved }: EditRatiosModalProps) {
             ))}
           </div>
           <div className="px-6 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-            <span className={`text-xs font-semibold ${total === 100 ? 'text-green-600' : 'text-amber-600'}`}>
-              Total: {total}%{total !== 100 ? ' (must equal 100%)' : ''}
+          <span className={`text-xs font-semibold ${Math.abs(total - 100) < 0.001 ? 'text-green-600' : 'text-amber-600'}`}>
+              Total: {total.toFixed(2)}%{Math.abs(total - 100) > 0.001 ? ' (must equal 100%)' : ' ✓'}
             </span>
             <div className="flex items-center gap-3">
               <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">Cancel</button>

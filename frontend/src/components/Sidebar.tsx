@@ -8,7 +8,7 @@ import {
   Banknote, ShieldCheck, Truck,
   HeartPulse, Archive, Building2, Package, TrendingUp, History,
   Layers, Users2, ShoppingBag, SlidersHorizontal, ChevronsLeft, ChevronsRight,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, LineChart,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUIPreferences } from '@/contexts/UIPreferencesContext';
@@ -58,6 +58,7 @@ const NAV_GROUPS = [
     label: 'Planning & Finance',
     icon: TrendingUp,
     items: [
+      { href: '/forecasting', label: 'Forecasting', icon: LineChart, roles: ALL_ROLES },
       { href: '/cost-report', label: 'Live Cost Report', icon: BarChart2, roles: ALL_ROLES },
       { href: '/historical-cost-reports', label: 'Report Archive', icon: Archive, roles: ALL_ROLES },
     ],

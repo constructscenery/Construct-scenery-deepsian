@@ -323,7 +323,11 @@ export type DashboardData = {
     forecast_name: string;
     production: string;
     forecast_total: number;
+    forecast_labour: number;
+    forecast_materials: number;
     actual_cost: number;
+    actual_labour: number;
+    actual_materials: number;
     variance_gbp: number;
     variance_percentage: string;
     status: 'over_forecast' | 'under_forecast' | 'on_track';
@@ -934,12 +938,12 @@ export const costReportApi = {
 // ─── Forecasting types ─────────────────────────────────────────────────────────
 export type Forecast = {
   id: string;
-  name: string;
+  scenario_name: string;
   production_id: string | null;
   prod_name?: string;
-  total_labour_cost: number;
-  total_materials_cost: number;
-  total_forecast_cost: number;
+  total_labour: number;
+  total_materials: number;
+  combined_total: number;
   percentometer_carpenter_cost: number | null;
   percentometer_total: number | null;
   created_at: string;
@@ -984,12 +988,12 @@ export const forecastingApi = {
     request<PercentometerRatio[]>('/api/forecasting/percentometer/ratios', {
       method: 'PUT', body: { ratios },
     }),
-  calculate: (carpenter_cost: number) =>
+  calculate: (known_cost: number) =>
     request<{
-      result: Array<{ cost_type: string; percentage: number; estimated_cost: number }>;
-      total_estimated_cost: number;
+      breakdown: Array<{ cost_type: string; percentage: number; estimated_value: number }>;
+      total_estimated_job_cost: number;
     }>('/api/forecasting/percentometer/calculate', {
-      method: 'POST', body: { carpenter_cost },
+      method: 'POST', body: { known_cost, known_cost_type: 'Carpenters' },
     }),
 
   getCatalogue: () => request<CatalogueItem[]>('/api/forecasting/catalogue'),
@@ -1002,6 +1006,191 @@ export const forecastingApi = {
 
   getBectuRates: () =>
     request<Record<string, Record<string, number>>>('/api/forecasting/bectu-rates'),
+};
+
+// ─── Addendum 4: Tool 1 — Cost Forecasts types ──────────────────────────────
+export type CostForecastStatus = 'draft' | 'approved' | 'locked';
+
+export type CostForecastCrewLine = {
+  id: string;
+  cost_forecast_id: string;
+  section: string;
+  trade: string;
+  rank: string;
+  display_label?: string;
+  cost_code: string | null;
+  bectu_rate_id: string | null;
+  unit_rate: string | number;
+  units: string | number;
+  rate_unit: 'daily' | 'weekly';
+  line_total: string | number;
+  sort_order: number;
+};
+
+export type CostForecastNonLabourLine = {
+  id: string;
+  cost_forecast_id: string;
+  category: string;
+  cost_code: string | null;
+  description: string;
+  unit_rate: string | number;
+  quantity: string | number;
+  unit_type: string;
+  line_total: string | number;
+  is_custom: boolean;
+  sort_order: number;
+};
+
+export type CostForecast = {
+  id: string;
+  production_id: string;
+  production_name?: string;
+  production_code?: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  num_weeks?: number;
+  default_view: 'daily' | 'weekly';
+  status: CostForecastStatus;
+  version: number;
+  parent_forecast_id: string | null;
+  locked_at: string | null;
+  locked_by: string | null;
+  locked_by_name?: string | null;
+  rates_snapshot?: unknown;
+  total_crew_cost: string | number;
+  total_non_labour_cost: string | number;
+  grand_total_cost: string | number;
+  notes: string | null;
+  created_by?: string | null;
+  created_by_name?: string | null;
+  created_at: string;
+  updated_at: string;
+  crew_lines?: CostForecastCrewLine[];
+  non_labour_lines?: CostForecastNonLabourLine[];
+};
+
+export const costForecastsApi = {
+  list: (params?: { production_id?: string; status?: string }) => {
+    const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
+    return request<CostForecast[]>(`/api/forecasting/cost-forecasts${qs}`);
+  },
+  getById: (id: string) => request<CostForecast>(`/api/forecasting/cost-forecasts/${id}`),
+  create: (data: {
+    production_id: string;
+    title: string;
+    start_date: string;
+    end_date: string;
+    default_view?: 'daily' | 'weekly';
+    notes?: string;
+  }) => request<CostForecast>('/api/forecasting/cost-forecasts', { method: 'POST', body: data }),
+  update: (id: string, data: {
+    title?: string;
+    start_date?: string;
+    end_date?: string;
+    default_view?: 'daily' | 'weekly';
+    notes?: string;
+    crew_lines?: CostForecastCrewLine[];
+    non_labour_lines?: CostForecastNonLabourLine[];
+  }) => request<CostForecast>(`/api/forecasting/cost-forecasts/${id}`, { method: 'PUT', body: data }),
+  lock: (id: string) => request<CostForecast>(`/api/forecasting/cost-forecasts/${id}/lock`, { method: 'POST' }),
+  version: (id: string) => request<CostForecast>(`/api/forecasting/cost-forecasts/${id}/version`, { method: 'POST' }),
+  delete: (id: string) => request<{ message: string; id: string }>(`/api/forecasting/cost-forecasts/${id}`, { method: 'DELETE' }),
+};
+
+// ─── Addendum 4: Tool 2 — Weekly Labour Flows types ──────────────────────────
+export type LabourFlowWeek = {
+  weekNumber: number;
+  weekMonday: string;
+  weekEndingDate: string;
+  label: string;
+  subLabel: string;
+};
+
+export type LabourFlowRow = {
+  id: string;
+  labour_flow_id: string;
+  section: string;
+  trade: string;
+  rank: string;
+  display_label?: string;
+  cost_code: string | null;
+  bectu_rate_id: string | null;
+  weekly_rate: string | number;
+  headcounts: Record<string, number>;
+  row_total_units: number;
+  row_total_cost: string | number;
+  sort_order: number;
+};
+
+export type LabourFlow = {
+  id: string;
+  production_id: string;
+  production_name?: string;
+  production_code?: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  num_weeks: number;
+  status: CostForecastStatus;
+  version: number;
+  parent_flow_id: string | null;
+  locked_at: string | null;
+  locked_by: string | null;
+  locked_by_name?: string | null;
+  rates_snapshot?: unknown;
+  grand_total_cost: string | number;
+  created_by?: string | null;
+  created_by_name?: string | null;
+  created_at: string;
+  updated_at: string;
+  weeks?: LabourFlowWeek[];
+  rows?: LabourFlowRow[];
+  week_totals?: Record<number, number>;
+  department_weekly_totals?: Record<string, Record<number, number>>;
+};
+
+export const labourFlowsApi = {
+  list: (params?: { production_id?: string; status?: string }) => {
+    const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
+    return request<LabourFlow[]>(`/api/forecasting/labour-flows${qs}`);
+  },
+  getById: (id: string) => request<LabourFlow>(`/api/forecasting/labour-flows/${id}`),
+  create: (data: {
+    production_id: string;
+    title: string;
+    start_date: string;
+    end_date: string;
+  }) => request<LabourFlow>('/api/forecasting/labour-flows', { method: 'POST', body: data }),
+  update: (id: string, data: {
+    title?: string;
+    start_date?: string;
+    end_date?: string;
+    rows?: Array<{ id: string; weekly_rate?: number; headcounts: Record<string, number> }>;
+  }) => request<LabourFlow>(`/api/forecasting/labour-flows/${id}`, { method: 'PUT', body: data }),
+  lock: (id: string) => request<LabourFlow>(`/api/forecasting/labour-flows/${id}/lock`, { method: 'POST' }),
+  version: (id: string) => request<LabourFlow>(`/api/forecasting/labour-flows/${id}/version`, { method: 'POST' }),
+  delete: (id: string) => request<{ message: string; id: string }>(`/api/forecasting/labour-flows/${id}`, { method: 'DELETE' }),
+  /** Authenticated CSV export — uses fetch + blob so the JWT is included in the request. */
+  exportCsv: async (id: string, filename?: string): Promise<void> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cs_token') ?? '' : '';
+    const res = await fetch(`/api/forecasting/labour-flows/${id}/export/csv`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(errBody.error || `Export failed (${res.status})`);
+    }
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = filename || `labour-flow-${id}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
 };
 
 // ─── Crew Rates types ─────────────────────────────────────────────────────────
