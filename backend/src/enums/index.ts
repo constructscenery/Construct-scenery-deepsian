@@ -73,6 +73,12 @@ export enum CrewDocumentType {
   OTHER = 'other',
 }
 
+export enum CrewAvailabilityStatus {
+  AVAILABLE = 'available',
+  BOOKED = 'booked',
+  UNAVAILABLE = 'unavailable',
+}
+
 export enum PaidFrom {
   SUPPLIER_ACCOUNT = 'supplier_account',
   ARBUTHNOT_CURRENT_ACCOUNT = 'arbuthnot_current_account',

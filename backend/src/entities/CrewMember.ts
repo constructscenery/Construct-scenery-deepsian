@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { EmploymentStatus } from '../enums';
+import { EmploymentStatus, CrewAvailabilityStatus } from '../enums';
 import { encryptTransformer } from '../utils/crypto';
 
 @Entity('crew_members')
@@ -67,6 +67,9 @@ export class CrewMember {
 
   @Column({ type: 'boolean', name: 'is_active', default: true })
   isActive: boolean;
+
+  @Column({ type: 'text', name: 'availability_status', default: CrewAvailabilityStatus.AVAILABLE })
+  availabilityStatus: CrewAvailabilityStatus;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

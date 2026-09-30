@@ -7,12 +7,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   ArrowLeft, Pencil, Trash2, Upload, FileText, X, Loader2,
   Building2, CreditCard, Phone, Calendar, Link2, CheckCircle2,
-  Clock, AlertCircle, Plus,
+  Clock, AlertCircle, Plus, ChevronDown, Check,
 } from 'lucide-react';
 import {
   crewApi, productionsApi, crewRatesApi,
   CrewDetail, CrewDocument, CrewProductionHistory, CrewRate,
-  Production, EmploymentStatus,
+  Production, EmploymentStatus, CrewAvailabilityStatus,
 } from '@/lib/api';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -72,6 +72,7 @@ function EditCrewModal({ member, onClose, onSaved }: EditModalProps) {
     emergency_contact_relationship: member.emergency_contact_relationship ?? '',
     emergency_contact_phone:        member.emergency_contact_phone ?? '',
     is_active:                      member.is_active,
+    availability_status:            (member.availability_status || 'available') as CrewAvailabilityStatus,
     company_utr:                    member.company_utr ?? '',
     qualifications:                 member.qualifications ?? [],
   });
@@ -112,6 +113,7 @@ function EditCrewModal({ member, onClose, onSaved }: EditModalProps) {
         date_of_birth:                  form.date_of_birth || null,
         home_address:                   form.home_address || null,
         employment_status:              form.employment_status as EmploymentStatus,
+        availability_status:            form.availability_status,
         crew_trade:                     form.crew_trade || null,
         crew_rank:                      form.crew_rank || null,
         paye_withholding_rate:          form.paye_withholding_rate ? Number(form.paye_withholding_rate) : null,
@@ -176,13 +178,21 @@ function EditCrewModal({ member, onClose, onSaved }: EditModalProps) {
 
           {/* Employment */}
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Employment</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Employment & Availability</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className={lbl}>Employment Status</label>
                 <select className={inp} value={form.employment_status} onChange={set('employment_status')}>
                   <option value="paye">PAYE</option>
                   <option value="self_employed">Self-Employed</option>
+                </select>
+              </div>
+              <div>
+                <label className={lbl}>Availability (Traffic Light)</label>
+                <select className={inp} value={form.availability_status} onChange={set('availability_status')}>
+                  <option value="available">🟢 Available</option>
+                  <option value="booked">🟡 Booked</option>
+                  <option value="unavailable">🔴 Unavailable</option>
                 </select>
               </div>
               <div><label className={lbl}>Withholding Rate (%)</label><input type="number" min={0} max={100} className={inp} value={form.paye_withholding_rate} onChange={set('paye_withholding_rate')} /></div>
@@ -471,7 +481,23 @@ export default function CrewDetailPage() {
   const [showLink, setShowLink]       = useState(false);
   const [uploadContext, setUploadContext] = useState<'crew_identity' | 'crew_contract' | null>(null);
   const [deletingDoc, setDeletingDoc] = useState<string | null>(null);
+  const [updatingAvailability, setUpdatingAvailability] = useState(false);
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const isCoordinator = true;
+
+  const handleUpdateAvailability = async (newStatus: CrewAvailabilityStatus) => {
+    if (!member) return;
+    setUpdatingAvailability(true);
+    setStatusMenuOpen(false);
+    try {
+      await crewApi.updateAvailability(member.id, newStatus);
+      setMember(prev => prev ? { ...prev, availability_status: newStatus } : null);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to update availability');
+    } finally {
+      setUpdatingAvailability(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -591,6 +617,87 @@ export default function CrewDetailPage() {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${m.employment_status === 'paye' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
                         {m.employment_status === 'paye' ? 'PAYE' : 'Self-Employed'}
                       </span>
+
+                      {/* Traffic Light Availability Quick Toggle */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          disabled={updatingAvailability}
+                          onClick={() => setStatusMenuOpen(prev => !prev)}
+                          className={`text-xs px-2.5 py-0.5 rounded-full font-medium flex items-center gap-1.5 transition-all border ${
+                            m.availability_status === 'available' || !m.availability_status
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                              : m.availability_status === 'booked'
+                              ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                              : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                          }`}
+                          title="Click to toggle availability status"
+                        >
+                          {updatingAvailability ? (
+                            <Loader2 size={11} className="animate-spin text-slate-500" />
+                          ) : (
+                            <span className={`w-2 h-2 rounded-full ${
+                              m.availability_status === 'available' || !m.availability_status
+                                ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.9)] animate-pulse'
+                                : m.availability_status === 'booked'
+                                ? 'bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.9)]'
+                                : 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.9)]'
+                            }`} />
+                          )}
+                          <span className="capitalize font-semibold">
+                            {m.availability_status === 'booked'
+                              ? 'Booked'
+                              : m.availability_status === 'unavailable'
+                              ? 'Unavailable'
+                              : 'Available'}
+                          </span>
+                          <ChevronDown size={11} className="opacity-60" />
+                        </button>
+
+                        {statusMenuOpen && (
+                          <div className="absolute left-0 top-full mt-1.5 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 animate-in fade-in">
+                            <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                              Change Availability
+                            </div>
+                            <button
+                              onClick={() => handleUpdateAvailability('available')}
+                              className={`w-full px-3 py-1.5 text-xs text-left hover:bg-emerald-50 flex items-center justify-between transition-colors font-medium ${
+                                m.availability_status === 'available' || !m.availability_status ? 'text-emerald-700 bg-emerald-50/60 font-semibold' : 'text-slate-700'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.8)]" />
+                                Available
+                              </span>
+                              {(m.availability_status === 'available' || !m.availability_status) && <Check size={12} className="text-emerald-600" />}
+                            </button>
+                            <button
+                              onClick={() => handleUpdateAvailability('booked')}
+                              className={`w-full px-3 py-1.5 text-xs text-left hover:bg-amber-50 flex items-center justify-between transition-colors font-medium ${
+                                m.availability_status === 'booked' ? 'text-amber-800 bg-amber-50/60 font-semibold' : 'text-slate-700'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.8)]" />
+                                Booked
+                              </span>
+                              {m.availability_status === 'booked' && <Check size={12} className="text-amber-600" />}
+                            </button>
+                            <button
+                              onClick={() => handleUpdateAvailability('unavailable')}
+                              className={`w-full px-3 py-1.5 text-xs text-left hover:bg-rose-50 flex items-center justify-between transition-colors font-medium ${
+                                m.availability_status === 'unavailable' ? 'text-rose-700 bg-rose-50/60 font-semibold' : 'text-slate-700'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_4px_rgba(244,63,94,0.8)]" />
+                                Unavailable
+                              </span>
+                              {m.availability_status === 'unavailable' && <Check size={12} className="text-rose-600" />}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <p className="text-slate-500 text-sm mt-0.5 font-mono">{m.crew_number}</p>
                     {m.crew_trade && (

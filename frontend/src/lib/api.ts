@@ -634,6 +634,7 @@ export const purchaseOrdersApi = {
 
 // ─── Crew types ────────────────────────────────────────────────────────────────
 export type EmploymentStatus = 'paye' | 'self_employed';
+export type CrewAvailabilityStatus = 'available' | 'booked' | 'unavailable';
 
 export type CrewMember = {
   id: string;
@@ -663,6 +664,7 @@ export type CrewMember = {
   is_archived?: boolean;
   deleted_at?: string | null;
   active_productions?: string[];
+  availability_status?: CrewAvailabilityStatus;
 };
 
 export type CrewDocument = {
@@ -797,6 +799,8 @@ export const crewApi = {
     ),
   restore: (id: string) =>
     request<{ message: string; member: CrewMember }>(`/api/crew/${id}/restore`, { method: 'PATCH' }),
+  updateAvailability: (id: string, availability_status: CrewAvailabilityStatus) =>
+    request<CrewMember>(`/api/crew/${id}/availability`, { method: 'PATCH', body: { availability_status } }),
 
   // ── Registration Requests & Invites ─────────────────────────────────────────
   sendInvite: (data: { email: string; name?: string; message?: string }) =>

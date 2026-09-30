@@ -152,6 +152,27 @@ describe('PUT /api/crew/:id', () => {
   });
 });
 
+// ─── PATCH /api/crew/:id/availability ─────────────────────────────────────────
+describe('PATCH /api/crew/:id/availability', () => {
+  test('updates availability status — returns 200', async () => {
+    dbMock.respond([{ ...SAMPLE_CREW, availability_status: 'booked' }]);
+    const res = await request(app)
+      .patch('/api/crew/cm-001/availability')
+      .set(authHeader('coordinator'))
+      .send({ availability_status: 'booked' });
+    expect(res.status).toBe(200);
+    expect(res.body.availability_status).toBe('booked');
+  });
+
+  test('invalid status → 400', async () => {
+    const res = await request(app)
+      .patch('/api/crew/cm-001/availability')
+      .set(authHeader('coordinator'))
+      .send({ availability_status: 'unknown_status' });
+    expect(res.status).toBe(400);
+  });
+});
+
 // ─── DELETE /api/crew/:id ─────────────────────────────────────────────────────
 describe('DELETE /api/crew/:id', () => {
   test('Coordinator soft-deletes crew member', async () => {

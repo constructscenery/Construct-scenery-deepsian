@@ -6,19 +6,30 @@ import TopBar from '@/components/TopBar';
 import FreelancersTab from './FreelancersTab';
 import CrewImportTab from './CrewImportTab';
 import {
-  Plus, Search, ChevronRight, X, Loader2, Users, UserCheck, Briefcase, Building2, Trash2,
+  Plus, Search, ChevronRight, ChevronDown, X, Loader2, Users, UserCheck, Briefcase, Building2, Trash2,
   Share2, Copy, Check, Send, Mail, Inbox, AlertCircle, Eye, ShieldCheck, Sparkles, CheckCircle2,
   Upload, Archive, RotateCcw,
 } from 'lucide-react';
 import {
   crewApi, productionsApi, crewRatesApi, settingsApi,
   CrewMember, CrewRate, EmploymentStatus, Production, CrewRegistrationRequest,
+  CrewAvailabilityStatus,
 } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUIPreferences } from '@/contexts/UIPreferencesContext';
 import { EmptyStateRow } from '@/components/EmptyState';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+const POPULAR_TRADES = [
+  'Carpenters',
+  'Scenic Painters',
+  'Riggers',
+  'Stagehands',
+  'Sculptors',
+  'Metal Workers',
+  'Machinists',
+];
 
 const AVATAR_COLORS = [
   'bg-blue-500', 'bg-purple-500', 'bg-blue-500', 'bg-pink-500', 'bg-orange-500',
@@ -80,6 +91,7 @@ function RegisterCrewModal({ onClose, onCreated }: RegisterCrewModalProps) {
     emergency_contact_phone: '',
     company_utr: '',
     qualifications: [] as string[],
+    availability_status: 'available' as CrewAvailabilityStatus,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -165,6 +177,7 @@ function RegisterCrewModal({ onClose, onCreated }: RegisterCrewModalProps) {
         emergency_contact_relationship: form.emergency_contact_relationship || null,
         emergency_contact_phone:        form.emergency_contact_phone        || null,
         qualifications:                 form.qualifications,
+        availability_status:            form.availability_status,
       });
       onCreated();
     } catch (err: unknown) {
@@ -240,6 +253,15 @@ function RegisterCrewModal({ onClose, onCreated }: RegisterCrewModalProps) {
                 <label className={labelCls}>Withholding Rate (%)</label>
                 <input type="number" min={0} max={100} className={inputCls} value={form.paye_withholding_rate} onChange={set('paye_withholding_rate')} />
               </div>
+            </div>
+
+            <div className="mt-4">
+              <label className={labelCls}>Availability Status (Traffic Light)</label>
+              <select className={inputCls} value={form.availability_status} onChange={set('availability_status')}>
+                <option value="available">🟢 Available (Ready to book)</option>
+                <option value="booked">🟡 Booked (On active production)</option>
+                <option value="unavailable">🔴 Unavailable (Off-work / Do not call)</option>
+              </select>
             </div>
 
             {tradesLoading ? (
@@ -950,6 +972,11 @@ export default function CrewPage() {
   const [permanentDeleteCrew, setPermanentDeleteCrew] = useState<CrewMember | null>(null);
   const [permanentDeletingCrew, setPermanentDeletingCrew] = useState(false);
 
+  // Traffic light availability & status state
+  const [availabilityFilter, setAvailabilityFilter] = useState<'' | CrewAvailabilityStatus>('');
+  const [updatingAvailabilityId, setUpdatingAvailabilityId] = useState<string | null>(null);
+  const [statusDropdownOpenId, setStatusDropdownOpenId] = useState<string | null>(null);
+
   const [productions, setProductions]       = useState<Production[]>([]);
   const [productionFilter, setProductionFilter] = useState('');
   const [tradeFilter, setTradeFilter]       = useState('');
@@ -1006,10 +1033,11 @@ export default function CrewPage() {
       if (activeTab === 'active')        params.is_active = 'true';
       if (activeTab === 'inactive')      params.is_active = 'false';
       if (activeTab === 'archived')      params.is_archived = 'true';
-      if (search)           params.search       = search;
-      if (productionFilter) params.production_id = productionFilter;
-      if (tradeFilter)      params.crew_trade   = tradeFilter;
-      if (rankFilter)       params.crew_rank    = rankFilter;
+      if (search)              params.search       = search;
+      if (productionFilter)    params.production_id = productionFilter;
+      if (tradeFilter)         params.crew_trade   = tradeFilter;
+      if (rankFilter)          params.crew_rank    = rankFilter;
+      if (availabilityFilter)  params.availability_status = availabilityFilter;
 
       const data = await crewApi.list(Object.keys(params).length ? params : undefined);
       setCrew(data);
@@ -1018,13 +1046,27 @@ export default function CrewPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, search, productionFilter, tradeFilter, rankFilter]);
+  }, [activeTab, search, productionFilter, tradeFilter, rankFilter, availabilityFilter]);
 
   useEffect(() => {
     if (activeTab !== 'requests' && activeTab !== 'freelancers' && activeTab !== 'import') {
       load();
     }
   }, [load, activeTab]);
+
+  const handleUpdateAvailability = async (memberId: string, status: CrewAvailabilityStatus, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setStatusDropdownOpenId(null);
+    setUpdatingAvailabilityId(memberId);
+    try {
+      const updated = await crewApi.updateAvailability(memberId, status);
+      setCrew(prev => prev.map(c => c.id === memberId ? { ...c, availability_status: updated.availability_status ?? status } : c));
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to update availability status');
+    } finally {
+      setUpdatingAvailabilityId(null);
+    }
+  };
 
   const handleDelete = async (c: CrewMember, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1087,6 +1129,9 @@ export default function CrewPage() {
   const activeCrew = crew.filter(c => c.is_active).length;
   const payeCount  = crew.filter(c => c.employment_status === 'paye').length;
   const seCount    = crew.filter(c => c.employment_status === 'self_employed').length;
+  const availableCount   = crew.filter(c => c.availability_status === 'available' || (!c.availability_status && c.is_active)).length;
+  const bookedCount      = crew.filter(c => c.availability_status === 'booked').length;
+  const unavailableCount = crew.filter(c => c.availability_status === 'unavailable' || (!c.availability_status && !c.is_active)).length;
 
   const stats = [
     { label: 'Total Crew',       value: totalCrew,              icon: <Users size={18} className="text-blue-600" />,      bg: 'bg-blue-50',   tab: 'all' as FilterTab },
@@ -1173,7 +1218,7 @@ export default function CrewPage() {
         </div>
 
         {/* Table card */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-visible">
           {/* Toolbar */}
           <div className="px-5 py-3 border-b border-slate-100 space-y-3">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -1198,11 +1243,11 @@ export default function CrewPage() {
                 ))}
               </div>
               {activeTab !== 'freelancers' && activeTab !== 'import' && <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-                <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 w-full sm:w-52">
-                  <Search size={13} className="text-slate-400 flex-shrink-0" />
+                <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 w-full sm:w-72">
+                  <Search size={14} className="text-slate-400 flex-shrink-0" />
                   <input
                     type="text"
-                    placeholder={activeTab === 'requests' ? 'Search requests...' : 'Search crew...'}
+                    placeholder={activeTab === 'requests' ? 'Search requests...' : 'Search name, trade (carpenter, painter, rigger)...'}
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                     className="bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none w-full"
@@ -1241,7 +1286,41 @@ export default function CrewPage() {
               </div>}
             </div>
 
-            {/* Secondary filter row */}
+            {/* Quick Trade Filter Pills (visible on crew tabs) */}
+            {activeTab !== 'freelancers' && activeTab !== 'import' && activeTab !== 'requests' && (
+              <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mr-1">
+                  <Briefcase size={12} className="text-slate-400" /> Quick Trade:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setTradeFilter(''); setRankFilter(''); }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                    !tradeFilter
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  All Trades
+                </button>
+                {POPULAR_TRADES.map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => { setTradeFilter(tradeFilter === t ? '' : t); setRankFilter(''); }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                      tradeFilter === t
+                        ? 'bg-blue-600 text-white shadow-sm font-semibold'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Secondary filter row: Traffic Light Availability & Select Dropdowns */}
             {activeTab === 'freelancers' || activeTab === 'import' ? null : activeTab === 'requests' ? (
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-slate-500 font-medium">Status Filter:</span>
@@ -1260,40 +1339,97 @@ export default function CrewPage() {
                 ))}
               </div>
             ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={productionFilter}
-                  onChange={e => setProductionFilter(e.target.value)}
-                  className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 outline-none focus:ring-1 focus:ring-blue-400"
-                >
-                  <option value="">All productions</option>
-                  {productions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-                <select
-                  value={tradeFilter}
-                  onChange={e => { setTradeFilter(e.target.value); setRankFilter(''); }}
-                  className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 outline-none focus:ring-1 focus:ring-blue-400"
-                >
-                  <option value="">All trades</option>
-                  {allTrades.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <select
-                  value={rankFilter}
-                  onChange={e => setRankFilter(e.target.value)}
-                  disabled={rankOptions.length === 0}
-                  className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-50"
-                >
-                  <option value="">All ranks</option>
-                  {rankOptions.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-                {(productionFilter || tradeFilter || rankFilter) && (
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100">
+                {/* Traffic Light Availability Filter Buttons */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                    Availability:
+                  </span>
                   <button
-                    onClick={() => { setProductionFilter(''); setTradeFilter(''); setRankFilter(''); }}
-                    className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium"
+                    type="button"
+                    onClick={() => setAvailabilityFilter('')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                      availabilityFilter === ''
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
                   >
-                    <X size={11} /> Clear
+                    All Statuses
                   </button>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => setAvailabilityFilter(availabilityFilter === 'available' ? '' : 'available')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                      availabilityFilter === 'available'
+                        ? 'bg-emerald-600 text-white shadow-sm font-semibold'
+                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
+                    <span>Available ({availableCount})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAvailabilityFilter(availabilityFilter === 'booked' ? '' : 'booked')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                      availabilityFilter === 'booked'
+                        ? 'bg-amber-600 text-white shadow-sm font-semibold'
+                        : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.8)]" />
+                    <span>Booked ({bookedCount})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAvailabilityFilter(availabilityFilter === 'unavailable' ? '' : 'unavailable')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                      availabilityFilter === 'unavailable'
+                        ? 'bg-rose-600 text-white shadow-sm font-semibold'
+                        : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.8)]" />
+                    <span>Unavailable ({unavailableCount})</span>
+                  </button>
+                </div>
+
+                {/* Dropdown Filters */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={productionFilter}
+                    onChange={e => setProductionFilter(e.target.value)}
+                    className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 outline-none focus:ring-1 focus:ring-blue-400"
+                  >
+                    <option value="">All productions</option>
+                    {productions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  <select
+                    value={tradeFilter}
+                    onChange={e => { setTradeFilter(e.target.value); setRankFilter(''); }}
+                    className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 outline-none focus:ring-1 focus:ring-blue-400"
+                  >
+                    <option value="">All trades</option>
+                    {allTrades.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <select
+                    value={rankFilter}
+                    onChange={e => setRankFilter(e.target.value)}
+                    disabled={rankOptions.length === 0}
+                    className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-50"
+                  >
+                    <option value="">All ranks</option>
+                    {rankOptions.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                  {(productionFilter || tradeFilter || rankFilter || availabilityFilter || search) && (
+                    <button
+                      onClick={() => { setProductionFilter(''); setTradeFilter(''); setRankFilter(''); setAvailabilityFilter(''); setSearch(''); }}
+                      className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium ml-1"
+                    >
+                      <X size={11} /> Clear All
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1308,7 +1444,7 @@ export default function CrewPage() {
           ) : activeTab === 'freelancers' ? (
             <FreelancersTab />
           ) : activeTab === 'requests' ? (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto lg:overflow-visible pb-32 lg:pb-0">
               <table className="w-full text-sm min-w-[780px]">
                 <thead>
                   <tr className="bg-slate-50 text-left">
@@ -1433,7 +1569,7 @@ export default function CrewPage() {
               </table>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto lg:overflow-visible pb-32 lg:pb-0">
               <table className="w-full text-sm min-w-[780px]">
                 <thead>
                   <tr className="bg-slate-50 text-left">
@@ -1441,7 +1577,7 @@ export default function CrewPage() {
                     <th className="px-4 py-3 text-xs font-semibold text-slate-500">Trade &amp; Rank</th>
                     <th className="px-4 py-3 text-xs font-semibold text-slate-500">Employment</th>
                     <th className="px-4 py-3 text-xs font-semibold text-slate-500">Active Production(s)</th>
-                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Status</th>
+                    <th className="px-4 py-3 text-xs font-semibold text-slate-500">Availability (Traffic Light)</th>
                     <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
@@ -1469,16 +1605,16 @@ export default function CrewPage() {
                           onClick: () => setActiveTab('all'),
                         }}
                       />
-                    ) : (search || productionFilter || tradeFilter || rankFilter) ? (
+                    ) : (search || productionFilter || tradeFilter || rankFilter || availabilityFilter) ? (
                       <EmptyStateRow
                         colSpan={6}
                         icon={AlertCircle}
                         title="No matching crew members"
                         description="No crew members match your active search and filter criteria."
-                        recommendation="Try clearing your search term or resetting the production and trade filters."
+                        recommendation="Try clearing your search term or resetting the production, trade, and availability filters."
                         action={{
                           label: 'Clear Filters',
-                          onClick: () => { setSearch(''); setProductionFilter(''); setTradeFilter(''); setRankFilter(''); },
+                          onClick: () => { setSearch(''); setProductionFilter(''); setTradeFilter(''); setRankFilter(''); setAvailabilityFilter(''); },
                           icon: X,
                         }}
                       />
@@ -1540,16 +1676,95 @@ export default function CrewPage() {
                                 </div>
                               : <span className="text-slate-300 text-xs">—</span>}
                           </td>
-                          <td className="px-4 py-3.5">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                              c.is_archived
-                                ? 'bg-amber-100 text-amber-800'
-                                : c.is_active
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-red-100 text-red-600'
-                            }`}>
-                              {c.is_archived ? 'Archived' : c.is_active ? 'Active' : 'Inactive'}
-                            </span>
+                          {/* Availability (Traffic Light) */}
+                          <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
+                            <div className="relative inline-block">
+                              {c.is_archived ? (
+                                <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-amber-100 text-amber-800 border border-amber-200 inline-flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                                  <span>Archived</span>
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={!canWrite || updatingAvailabilityId === c.id}
+                                  onClick={() => setStatusDropdownOpenId(statusDropdownOpenId === c.id ? null : c.id)}
+                                  className={`text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1.5 transition-all border ${
+                                    c.availability_status === 'available'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'
+                                      : c.availability_status === 'booked'
+                                      ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100 hover:border-amber-300'
+                                      : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 hover:border-rose-300'
+                                  } ${canWrite ? 'cursor-pointer' : 'cursor-default'}`}
+                                  title={canWrite ? "Click to change availability status" : undefined}
+                                >
+                                  {updatingAvailabilityId === c.id ? (
+                                    <Loader2 size={11} className="animate-spin text-slate-500" />
+                                  ) : (
+                                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                                      c.availability_status === 'available'
+                                        ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.9)] animate-pulse'
+                                        : c.availability_status === 'booked'
+                                        ? 'bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.9)]'
+                                        : 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.9)]'
+                                    }`} />
+                                  )}
+                                  <span className="capitalize font-semibold">
+                                    {c.availability_status === 'available'
+                                      ? 'Available'
+                                      : c.availability_status === 'booked'
+                                      ? 'Booked'
+                                      : 'Unavailable'}
+                                  </span>
+                                  {canWrite && <ChevronDown size={11} className="opacity-60" />}
+                                </button>
+                              )}
+
+                              {/* Interactive 1-click status popover menu */}
+                              {statusDropdownOpenId === c.id && canWrite && !c.is_archived && (
+                                <div className="absolute left-0 top-full mt-1.5 w-40 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 animate-in fade-in">
+                                  <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                    Set Availability
+                                  </div>
+                                  <button
+                                    onClick={e => handleUpdateAvailability(c.id, 'available', e)}
+                                    className={`w-full px-3 py-1.5 text-xs text-left hover:bg-emerald-50 flex items-center justify-between transition-colors font-medium ${
+                                      c.availability_status === 'available' ? 'text-emerald-700 bg-emerald-50/60 font-semibold' : 'text-slate-700'
+                                    }`}
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.8)]" />
+                                      Available
+                                    </span>
+                                    {c.availability_status === 'available' && <Check size={12} className="text-emerald-600" />}
+                                  </button>
+                                  <button
+                                    onClick={e => handleUpdateAvailability(c.id, 'booked', e)}
+                                    className={`w-full px-3 py-1.5 text-xs text-left hover:bg-amber-50 flex items-center justify-between transition-colors font-medium ${
+                                      c.availability_status === 'booked' ? 'text-amber-800 bg-amber-50/60 font-semibold' : 'text-slate-700'
+                                    }`}
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.8)]" />
+                                      Booked
+                                    </span>
+                                    {c.availability_status === 'booked' && <Check size={12} className="text-amber-600" />}
+                                  </button>
+                                  <button
+                                    onClick={e => handleUpdateAvailability(c.id, 'unavailable', e)}
+                                    className={`w-full px-3 py-1.5 text-xs text-left hover:bg-rose-50 flex items-center justify-between transition-colors font-medium ${
+                                      c.availability_status === 'unavailable' ? 'text-rose-700 bg-rose-50/60 font-semibold' : 'text-slate-700'
+                                    }`}
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_4px_rgba(244,63,94,0.8)]" />
+                                      Unavailable
+                                    </span>
+                                    {c.availability_status === 'unavailable' && <Check size={12} className="text-rose-600" />}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-3.5">
                             <div className="flex items-center gap-1">

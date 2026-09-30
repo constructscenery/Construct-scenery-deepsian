@@ -83,16 +83,45 @@ const getAllCrew = async (req, res) => {
       params.push(req.query.employment_status);
     }
     if (req.query.crew_trade) {
-      conditions.push(`cm.crew_trade = $${i++}`);
+      conditions.push(`cm.crew_trade ILIKE $${i++}`);
       params.push(req.query.crew_trade);
     }
     if (req.query.crew_rank) {
-      conditions.push(`cm.crew_rank = $${i++}`);
+      conditions.push(`cm.crew_rank ILIKE $${i++}`);
       params.push(req.query.crew_rank);
+    }
+    if (req.query.availability_status) {
+      if (req.query.availability_status === 'available') {
+        conditions.push(`(
+          COALESCE(cm.availability_status, 'available') = 'available'
+          AND cm.is_active = true
+          AND NOT EXISTS (
+            SELECT 1 FROM production_crew pc
+            JOIN productions p ON pc.production_id = p.id
+            WHERE pc.crew_member_id = cm.id AND p.status NOT IN ('archived','complete')
+          )
+        )`);
+      } else if (req.query.availability_status === 'booked') {
+        conditions.push(`(
+          COALESCE(cm.availability_status, 'available') = 'booked'
+          OR (
+            COALESCE(cm.availability_status, 'available') != 'unavailable'
+            AND EXISTS (
+              SELECT 1 FROM production_crew pc
+              JOIN productions p ON pc.production_id = p.id
+              WHERE pc.crew_member_id = cm.id AND p.status NOT IN ('archived','complete')
+            )
+          )
+        )`);
+      } else if (req.query.availability_status === 'unavailable') {
+        conditions.push(`(
+          cm.is_active = false OR cm.availability_status = 'unavailable'
+        )`);
+      }
     }
     if (req.query.search) {
       conditions.push(
-        `(cm.first_name ILIKE $${i} OR cm.last_name ILIKE $${i} OR cm.crew_number ILIKE $${i})`
+        `(cm.first_name ILIKE $${i} OR cm.last_name ILIKE $${i} OR cm.crew_number ILIKE $${i} OR cm.crew_trade ILIKE $${i} OR cm.crew_rank ILIKE $${i})`
       );
       params.push(`%${req.query.search}%`);
       i++;
@@ -108,6 +137,20 @@ const getAllCrew = async (req, res) => {
     const { rows } = await db.query(
       `SELECT cm.id, cm.crew_number, cm.first_name, cm.last_name, cm.email, cm.employment_status,
               cm.crew_trade, cm.crew_rank, cm.company_name, cm.is_active, cm.is_archived,
+              COALESCE(
+                CASE
+                  WHEN cm.is_active = false THEN 'unavailable'
+                  WHEN cm.availability_status = 'unavailable' THEN 'unavailable'
+                  WHEN cm.availability_status = 'booked' THEN 'booked'
+                  WHEN EXISTS (
+                    SELECT 1 FROM production_crew pc
+                    JOIN productions p ON pc.production_id = p.id
+                    WHERE pc.crew_member_id = cm.id AND p.status NOT IN ('archived','complete')
+                  ) THEN 'booked'
+                  ELSE cm.availability_status
+                END,
+                'available'
+              ) AS availability_status,
               COALESCE(
                 (SELECT ARRAY_AGG(p.name ORDER BY p.name)
                  FROM production_crew pc
@@ -245,6 +288,7 @@ const updateCrewMember = async (req, res) => {
     'emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone',
     'qualifications', 'company_utr',
     'is_active',
+    'availability_status',
   ];
   const updates = {};
   allowed.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
@@ -268,6 +312,27 @@ const updateCrewMember = async (req, res) => {
     res.json(decryptCrewMember(rows[0]));
   } catch (err) {
     console.error('updateCrewMember:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─── PATCH /api/crew/:id/availability ─────────────────────────────────────────
+const updateAvailability = async (req, res) => {
+  const { availability_status } = req.body;
+  const valid = ['available', 'booked', 'unavailable'];
+  if (!valid.includes(availability_status)) {
+    return res.status(400).json({ error: `availability_status must be one of: ${valid.join(', ')}` });
+  }
+
+  try {
+    const { rows } = await db.query(
+      `UPDATE crew_members SET availability_status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [availability_status, req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Crew member not found' });
+    res.json(decryptCrewMember(rows[0]));
+  } catch (err) {
+    console.error('updateAvailability:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -653,7 +718,7 @@ const importCSV = async (req, res) => {
 };
 
 module.exports = {
-  getTrades, getAllCrew, createCrewMember, getCrewById, updateCrewMember,
+  getTrades, getAllCrew, createCrewMember, getCrewById, updateCrewMember, updateAvailability,
   deleteCrewMember, restoreCrewMember, addDocument, deleteDocument, linkToProduction,
   getImportTemplate, previewImport, importCSV,
 };

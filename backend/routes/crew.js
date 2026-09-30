@@ -41,6 +41,7 @@ router.get('/:id',                     ctrl.getCrewById);
 router.put('/:id',                     requireRole(...ALL_ROLES), ctrl.updateCrewMember);
 router.delete('/:id',                  requireRole(...ALL_ROLES), ctrl.deleteCrewMember);
 router.patch('/:id/restore',           requireRole(...ALL_ROLES), ctrl.restoreCrewMember);
+router.patch('/:id/availability',      requireRole(...ALL_ROLES), ctrl.updateAvailability);
 router.post('/:id/documents',          upload.single('file'), requireRole(...ALL_ROLES), ctrl.addDocument);
 router.delete('/:id/documents/:docId', requireRole(...ALL_ROLES), ctrl.deleteDocument);
 router.post('/:id/productions',        requireRole(...ALL_ROLES), ctrl.linkToProduction);

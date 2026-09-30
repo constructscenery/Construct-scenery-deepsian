@@ -12,6 +12,13 @@ interface UIPreferencesContextType {
   sidebarIcons: boolean;
   toggleSidebarIcons: () => void;
   setSidebarIcons: (enabled: boolean) => void;
+  // Two-flap sidebar state
+  flap1Open: boolean;
+  flap2Open: boolean;
+  toggleFlap1: () => void;
+  toggleFlap2: () => void;
+  setFlap1Open: (open: boolean) => void;
+  setFlap2Open: (open: boolean) => void;
 }
 
 const UIPreferencesContext = createContext<UIPreferencesContextType | null>(null);
@@ -19,13 +26,17 @@ const UIPreferencesContext = createContext<UIPreferencesContextType | null>(null
 const THEME_KEY = 'cs_theme';
 const SIDEBAR_ICONS_KEY = 'cs_sidebar_icons';
 const MIGRATION_KEY = 'cs_ui_v2';
+const FLAP1_KEY = 'cs_flap1_open';
+const FLAP2_KEY = 'cs_flap2_open';
 
 export function UIPreferencesProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('dark');
   const [sidebarIcons, setSidebarIconsState] = useState<boolean>(false);
+  const [flap1Open, setFlap1OpenState] = useState<boolean>(true);
+  const [flap2Open, setFlap2OpenState] = useState<boolean>(true);
   const [mounted, setMounted] = useState(false);
 
-  // Initialize from localStorage or defaults (night mode & no icons)
+  // Initialize from localStorage or defaults (night mode & no icons & both flaps open)
   useEffect(() => {
     try {
       if (localStorage.getItem(MIGRATION_KEY) !== 'true') {
@@ -46,6 +57,16 @@ export function UIPreferencesProvider({ children }: { children: ReactNode }) {
         setSidebarIconsState(true);
       } else {
         setSidebarIconsState(false);
+      }
+
+      const storedFlap1 = localStorage.getItem(FLAP1_KEY);
+      if (storedFlap1 !== null) {
+        setFlap1OpenState(storedFlap1 === 'true');
+      }
+
+      const storedFlap2 = localStorage.getItem(FLAP2_KEY);
+      if (storedFlap2 !== null) {
+        setFlap2OpenState(storedFlap2 === 'true');
       }
     } catch {
       // LocalStorage access might fail in private browsing
@@ -81,6 +102,26 @@ export function UIPreferencesProvider({ children }: { children: ReactNode }) {
     }
   }, [sidebarIcons, mounted]);
 
+  // Sync flap1 to localStorage
+  useEffect(() => {
+    if (!mounted) return;
+    try {
+      localStorage.setItem(FLAP1_KEY, String(flap1Open));
+    } catch {
+      /* ignore */
+    }
+  }, [flap1Open, mounted]);
+
+  // Sync flap2 to localStorage
+  useEffect(() => {
+    if (!mounted) return;
+    try {
+      localStorage.setItem(FLAP2_KEY, String(flap2Open));
+    } catch {
+      /* ignore */
+    }
+  }, [flap2Open, mounted]);
+
   const toggleTheme = () => {
     setThemeState((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
@@ -97,6 +138,22 @@ export function UIPreferencesProvider({ children }: { children: ReactNode }) {
     setSidebarIconsState(enabled);
   };
 
+  const toggleFlap1 = () => {
+    setFlap1OpenState((prev) => !prev);
+  };
+
+  const toggleFlap2 = () => {
+    setFlap2OpenState((prev) => !prev);
+  };
+
+  const setFlap1Open = (open: boolean) => {
+    setFlap1OpenState(open);
+  };
+
+  const setFlap2Open = (open: boolean) => {
+    setFlap2OpenState(open);
+  };
+
   return (
     <UIPreferencesContext.Provider
       value={{
@@ -107,6 +164,12 @@ export function UIPreferencesProvider({ children }: { children: ReactNode }) {
         sidebarIcons,
         toggleSidebarIcons,
         setSidebarIcons,
+        flap1Open,
+        flap2Open,
+        toggleFlap1,
+        toggleFlap2,
+        setFlap1Open,
+        setFlap2Open,
       }}
     >
       {children}

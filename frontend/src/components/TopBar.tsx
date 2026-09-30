@@ -12,13 +12,17 @@ interface TopBarProps {
   subtitle?: string;
 }
 
-function getInitials(name: string) {
-  return name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase();
+function getInitials(name?: string | null) {
+  if (!name || typeof name !== 'string') return '?';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + (parts[1]?.[0] ?? '')).toUpperCase();
 }
 
 export default function TopBar({ title, subtitle }: TopBarProps) {
   const { user, isGuest } = useAuth();
-  const { isDark, toggleTheme, sidebarIcons, toggleSidebarIcons } = useUIPreferences();
+  const { isDark, toggleTheme, sidebarIcons, toggleSidebarIcons, flap1Open, flap2Open, setFlap1Open, setFlap2Open } = useUIPreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
 
@@ -27,6 +31,28 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
       <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center px-4 md:px-6 gap-3 sticky top-0 z-20">
         {/* Mobile: logo */}
         <img src="/construct scenery logo.png" alt="Construct Scenery Database" className="md:hidden w-7 h-7 rounded-lg object-cover flex-shrink-0" />
+
+        {/* Desktop: Sidebar quick expand triggers if flap 1 or flap 2 is closed */}
+        {!flap1Open ? (
+          <button
+            onClick={() => setFlap1Open(true)}
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-xs font-semibold transition-all cursor-pointer mr-1"
+            title="Open Sidebar (Flap 1)"
+            aria-label="Open Sidebar"
+          >
+            <img src="/the_office_chair_square.png" alt="" className="w-4 h-4 rounded object-cover" />
+            <span>Open Sidebar</span>
+          </button>
+        ) : !flap2Open ? (
+          <button
+            onClick={() => setFlap2Open(true)}
+            className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors cursor-pointer mr-1"
+            title="Expand Navigation Menu (Flap 2)"
+            aria-label="Expand Navigation Menu"
+          >
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">Drawer &gt;</span>
+          </button>
+        ) : null}
 
         {/* Title */}
         <div className="flex-1 min-w-0">
