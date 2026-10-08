@@ -2171,4 +2171,87 @@ export const expenditureTypesApi = {
   list: () => request<ExpenditureType[]>('/api/expenditure-types'),
 };
 
+export type UnitList = {
+  id: string;
+  production_id: string | null;
+  production_name?: string | null;
+  production_code?: string | null;
+  file_name: string;
+  file_url: string;
+  file_key: string | null;
+  file_size: number | string | null;
+  file_mime_type: string | null;
+  date: string | null;
+  name: string | null;
+  email: string | null;
+  phone_number: string | null;
+  company_name: string | null;
+  notes: string | null;
+  uploaded_by: string | null;
+  uploaded_by_name?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const unitListsApi = {
+  list: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<UnitList[]>(`/api/unit-lists${qs}`);
+  },
+  getById: (id: string) => request<UnitList>(`/api/unit-lists/${id}`),
+  upload: (formData: FormData) => fetch('/api/unit-lists', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('cs_token') ?? '' : ''}` },
+    body: formData,
+  }).then(async response => {
+    if (!response.ok) { const error = await response.json().catch(() => ({})); throw new Error(error.error ?? response.statusText); }
+    return response.json() as Promise<UnitList>;
+  }),
+  update: (id: string, formData: FormData | Partial<UnitList>) => {
+    if (formData instanceof FormData) {
+      return fetch(`/api/unit-lists/${id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('cs_token') ?? '' : ''}` },
+        body: formData,
+      }).then(async response => {
+        if (!response.ok) { const error = await response.json().catch(() => ({})); throw new Error(error.error ?? response.statusText); }
+        return response.json() as Promise<UnitList>;
+      });
+    }
+    return request<UnitList>(`/api/unit-lists/${id}`, { method: 'PUT', body: formData });
+  },
+  delete: (id: string) => request<{ message: string; id: string }>(`/api/unit-lists/${id}`, { method: 'DELETE' }),
+  viewUrl: (id: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cs_token') : null;
+    return `/api/unit-lists/${id}/view${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  },
+  viewBlob: async (id: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cs_token') : null;
+    const response = await fetch(`/api/unit-lists/${id}/view`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || 'Unable to open document');
+    }
+    return response.blob();
+  },
+  download: async (id: string, filename: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cs_token') : null;
+    const response = await fetch(`/api/unit-lists/${id}/view`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new Error('Unable to download document');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  },
+};
+
 

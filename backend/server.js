@@ -106,6 +106,7 @@ app.use(checkPolicy);
 app.use('/api/productions',    require('./routes/productions'));
 app.use('/api/purchase-orders', require('./routes/purchaseOrders'));
 app.use('/api/crew',           require('./routes/crew'));
+app.use('/api/unit-lists',     require('./routes/unitLists'));
 app.use('/api/timesheets',     require('./routes/timesheets'));
 app.use('/api/pay-runs',       require('./routes/payRuns'));
 app.use('/api/cost-reports',   require('./routes/costReports'));

@@ -8,7 +8,7 @@ import {
   Banknote, ShieldCheck, Truck,
   HeartPulse, Archive, Building2, Package, TrendingUp, History,
   Layers, Users2, ShoppingBag, SlidersHorizontal, ChevronsLeft, ChevronsRight,
-  PanelLeftClose, PanelLeftOpen, LineChart,
+  PanelLeftClose, PanelLeftOpen, LineChart, FileText,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUIPreferences } from '@/contexts/UIPreferencesContext';
@@ -39,6 +39,7 @@ const NAV_GROUPS = [
     icon: Users2,
     items: [
       { href: '/crew', label: 'Crew', icon: Users, roles: ALL_ROLES },
+      { href: '/unit-lists', label: 'Unit Lists', icon: FileText, roles: ALL_ROLES },
       { href: '/timesheets', label: 'Timesheets', icon: ClipboardList, roles: ALL_ROLES },
       { href: '/pay-runs', label: 'Pay Runs', icon: Banknote, roles: ALL_ROLES },
     ],

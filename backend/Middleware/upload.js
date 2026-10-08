@@ -38,4 +38,18 @@ const documentUpload = multer({
   },
 });
 
-module.exports = { upload, documentUpload };
+// PDF-only upload for Unit Lists
+const pdfUpload = multer({
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (file.mimetype === 'application/pdf' || ext === '.pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed for Unit Lists'));
+    }
+  },
+});
+
+module.exports = { upload, documentUpload, pdfUpload };
