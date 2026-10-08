@@ -114,6 +114,29 @@ WHERE b.trade     = v.trade
   AND b.rank      = v.rank
   AND b.rate_year = '2026/27';
 
+-- ── Insert Apprentice and Improver rates across BECTU trades ──────────────
+INSERT INTO bectu_rates (trade, rank, daily_rate, overtime_rate, weekly_rate, rate_year, rate_type)
+SELECT t.trade, r.rank, r.daily_rate, r.overtime_rate, r.weekly_rate, '2026/27', 'bectu'
+FROM (
+  VALUES
+    ('Carpenters'), ('Machinists'), ('Stagehands'), ('Riggers'),
+    ('Plasterers'), ('Scenic Painters'), ('Sculptors'), ('Metal Workers'),
+    ('Plasterers Lab'), ('Painters Lab'), ('Sculptors Lab'), ('Metal Workers Lab')
+) AS t(trade)
+CROSS JOIN (
+  VALUES
+    ('Improver Year 4',   238.00, 35.70, 1190.00),
+    ('Improver',          238.00, 35.70, 1190.00),
+    ('Apprentice Year 3', 170.00, 25.50,  850.00),
+    ('Apprentice Year 2', 130.00, 19.50,  650.00),
+    ('Apprentice Year 1', 107.00, 16.05,  535.00)
+) AS r(rank, daily_rate, overtime_rate, weekly_rate)
+ON CONFLICT (trade, rank, rate_year) DO UPDATE
+  SET daily_rate    = EXCLUDED.daily_rate,
+      overtime_rate = EXCLUDED.overtime_rate,
+      weekly_rate   = EXCLUDED.weekly_rate,
+      rate_type     = 'bectu';
+
 
 -- ─── VERIFY AFTER RUNNING ────────────────────────────────────────────────────
 -- Run this to confirm all rates updated correctly:

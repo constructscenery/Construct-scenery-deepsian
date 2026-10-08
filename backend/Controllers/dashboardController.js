@@ -142,22 +142,35 @@ const getCrewHeadcountLegacy = async () => {
 };
 
 const getForecastingVariance = async () => {
+  // 1. Legacy forecasts (from percentometer)
   const { rows: forecasts } = await db.query(
     `SELECT f.*, p.name AS prod_name
      FROM forecasts f
      JOIN productions p ON f.production_id = p.id
-     WHERE f.production_id IS NOT NULL`
+     WHERE f.production_id IS NOT NULL AND f.deleted_at IS NULL`
   );
-  if (!forecasts.length) return [];
 
-  return Promise.all(forecasts.map(async f => {
+  // 2. Modern Cost Forecasts & Labour Flows (Addendum 4)
+  const { rows: modernProds } = await db.query(
+    `SELECT DISTINCT p.id AS production_id, p.name AS prod_name
+     FROM productions p
+     WHERE p.id IN (
+       SELECT production_id FROM cost_forecasts WHERE production_id IS NOT NULL
+       UNION
+       SELECT production_id FROM labour_flows WHERE production_id IS NOT NULL
+     )`
+  );
+
+  const legacyProdIds = new Set(forecasts.map(f => f.production_id));
+
+  const legacyItems = await Promise.all(forecasts.map(async f => {
     const [{ rows: pos }, { rows: tss }] = await Promise.all([
       db.query(
         `SELECT net_amount FROM purchase_orders WHERE production_id = $1 AND status = 'approved'`,
         [f.production_id]
       ),
       db.query(
-        `SELECT grand_total FROM timesheets WHERE production_id = $1 AND status = 'finalised'`,
+        `SELECT grand_total FROM timesheets WHERE production_id = $1 AND status != 'rejected' AND grand_total > 0`,
         [f.production_id]
       ),
     ]);
@@ -169,6 +182,7 @@ const getForecastingVariance = async () => {
     return {
       forecast_name:       f.name,
       production:          f.prod_name,
+      production_id:       f.production_id,
       forecast_total:      forecastTotal,
       forecast_labour:     parseFloat(f.total_labour_cost || 0),
       forecast_materials:  parseFloat(f.total_materials_cost || 0),
@@ -180,6 +194,65 @@ const getForecastingVariance = async () => {
       status: variance > 0 ? 'over_forecast' : variance < 0 ? 'under_forecast' : 'on_track',
     };
   }));
+
+  // Add modern forecast items for productions not already covered in legacy forecasts
+  const modernItems = await Promise.all(
+    modernProds
+      .filter(p => !legacyProdIds.has(p.production_id))
+      .map(async p => {
+        const [{ rows: cf }, { rows: lf }, { rows: pos }, { rows: tss }] = await Promise.all([
+          db.query(
+            `SELECT * FROM cost_forecasts WHERE production_id = $1 ORDER BY created_at DESC LIMIT 1`,
+            [p.production_id]
+          ),
+          db.query(
+            `SELECT * FROM labour_flows WHERE production_id = $1 ORDER BY created_at DESC LIMIT 1`,
+            [p.production_id]
+          ),
+          db.query(
+            `SELECT net_amount FROM purchase_orders WHERE production_id = $1 AND status = 'approved'`,
+            [p.production_id]
+          ),
+          db.query(
+            `SELECT grand_total FROM timesheets WHERE production_id = $1 AND status != 'rejected' AND grand_total > 0`,
+            [p.production_id]
+          ),
+        ]);
+
+        const latestCf = cf[0];
+        const latestLf = lf[0];
+
+        const forecast_labour = latestLf
+          ? parseFloat(latestLf.grand_total_cost || 0)
+          : (latestCf ? parseFloat(latestCf.total_crew_cost || 0) : 0);
+        const forecast_materials = latestCf ? parseFloat(latestCf.total_non_labour_cost || 0) : 0;
+        const forecastTotal = forecast_labour + forecast_materials;
+
+        const actual_materials = pos.map(po => parseFloat(po.net_amount || 0)).reduce((s, v) => s + v, 0);
+        const actual_labour = tss.map(t => parseFloat(t.grand_total || 0)).reduce((s, v) => s + v, 0);
+        const actual = actual_materials + actual_labour;
+        const variance = actual - forecastTotal;
+
+        const name = latestLf?.title || latestCf?.title || p.prod_name;
+
+        return {
+          forecast_name:       name,
+          production:          p.prod_name,
+          production_id:       p.production_id,
+          forecast_total:      forecastTotal,
+          forecast_labour:     forecast_labour,
+          forecast_materials:  forecast_materials,
+          actual_cost:         actual,
+          actual_labour:       actual_labour,
+          actual_materials:    actual_materials,
+          variance_gbp:        variance,
+          variance_percentage: (forecastTotal > 0 ? (variance / forecastTotal) * 100 : 0).toFixed(1),
+          status: variance > 0 ? 'over_forecast' : variance < 0 ? 'under_forecast' : 'on_track',
+        };
+      })
+  );
+
+  return [...legacyItems, ...modernItems];
 };
 
 const getProductionPipeline = async () => {

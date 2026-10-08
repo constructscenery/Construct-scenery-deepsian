@@ -637,7 +637,9 @@ function ReviewCandidateModal({
 }: ReviewCandidateModalProps) {
   const tradeRanks = tradesData?.bectu[request.crew_trade] || ['HOD', 'Supervisor', 'Chargehand', request.crew_trade];
 
-  const [rank, setRank] = useState(tradeRanks[tradeRanks.length - 1] || '');
+  const standardCraftRanks = ['Carpenter', 'Machinist', 'Stagehand', 'Rigger', 'Plasterer', 'Painter', 'Sculptor', 'Metal Worker', 'Lab Worker'];
+  const defaultRank = tradeRanks.find(r => standardCraftRanks.includes(r)) || tradeRanks[0] || '';
+  const [rank, setRank] = useState(defaultRank);
   const [withholdingRate, setWithholdingRate] = useState(
     request.employment_status === 'paye' ? defaultPayeRate : '0'
   );

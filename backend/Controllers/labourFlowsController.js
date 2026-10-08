@@ -167,13 +167,17 @@ const getLabourFlowById = async (req, res) => {
 
     for (const row of gridRows) {
       // Sync rate if unlocked and not a custom fixed cost like box rental
-      if (flow.status !== 'locked' && row.bectu_rate_id) {
+      if (flow.status !== 'locked') {
         const rateInfo = resolveRate(bectuRates, row.trade, row.rank);
-        if (rateInfo.weekly_rate > 0 && Math.abs(parseFloat(row.weekly_rate) - rateInfo.weekly_rate) > 0.001) {
+        if (rateInfo.bectu_rate_id && (
+          row.bectu_rate_id !== rateInfo.bectu_rate_id ||
+          Math.abs(parseFloat(row.weekly_rate) - rateInfo.weekly_rate) > 0.001
+        )) {
           row.weekly_rate = rateInfo.weekly_rate;
+          row.bectu_rate_id = rateInfo.bectu_rate_id;
           await db.query(
-            `UPDATE labour_flow_rows SET weekly_rate = $1 WHERE id = $2`,
-            [rateInfo.weekly_rate, row.id]
+            `UPDATE labour_flow_rows SET weekly_rate = $1, bectu_rate_id = $2 WHERE id = $3`,
+            [rateInfo.weekly_rate, rateInfo.bectu_rate_id, row.id]
           );
         }
       }
@@ -236,11 +240,15 @@ const updateLabourFlow = async (req, res) => {
     await client.query('BEGIN');
 
     const { rows: [existing] } = await client.query(
-      `SELECT * FROM labour_flows WHERE id = $1`,
+      `SELECT * FROM labour_flows WHERE id = $1 FOR UPDATE`,
       [req.params.id]
     );
-    if (!existing) return res.status(404).json({ error: 'Weekly Labour Flow not found' });
+    if (!existing) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Weekly Labour Flow not found' });
+    }
     if (existing.status === 'locked') {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Cannot edit a locked labour flow. Create a new revision version.' });
     }
 
@@ -303,18 +311,42 @@ const updateLabourFlow = async (req, res) => {
  * POST /api/forecasting/labour-flows/:id/lock
  */
 const lockLabourFlow = async (req, res) => {
+  const client = await db.connect();
   try {
-    const { rows: [flow] } = await db.query(
-      `SELECT * FROM labour_flows WHERE id = $1`,
+    await client.query('BEGIN');
+    const { rows: [flow] } = await client.query(
+      `SELECT * FROM labour_flows WHERE id = $1 FOR UPDATE`,
       [req.params.id]
     );
-    if (!flow) return res.status(404).json({ error: 'Weekly Labour Flow not found' });
-    if (flow.status === 'locked') return res.status(400).json({ error: 'Labour flow is already locked' });
+    if (!flow || flow.status === 'locked') {
+      await client.query('ROLLBACK');
+      return res.status(flow ? 400 : 404).json({ error: flow ? 'Labour flow is already locked' : 'Weekly Labour Flow not found' });
+    }
 
     // Snapshot current active rates
-    const { rows: bectuRates } = await db.query(
-      `SELECT id, trade, rank, weekly_rate FROM bectu_rates WHERE effective_to IS NULL`
+    const { rows: bectuRates } = await client.query(
+      `SELECT id, trade, rank, daily_rate, weekly_rate FROM bectu_rates WHERE effective_to IS NULL`
     );
+
+    const { rows: gridRows } = await client.query(
+      `SELECT * FROM labour_flow_rows WHERE labour_flow_id = $1`,
+      [req.params.id]
+    );
+    const weeks = calculateWeeks(flow.start_date, flow.end_date);
+    let grandTotal = 0;
+    for (const row of gridRows) {
+      const rate = resolveRate(bectuRates, row.trade, row.rank);
+      const weeklyRate = rate.bectu_rate_id ? rate.weekly_rate : (parseFloat(row.weekly_rate) || 0);
+      const headcounts = typeof row.headcounts === 'string' ? JSON.parse(row.headcounts) : (row.headcounts || {});
+      const units = weeks.reduce((total, week) => total + (parseInt(headcounts[week.weekNumber], 10) || 0), 0);
+      const rowTotal = Number((units * weeklyRate).toFixed(2));
+      grandTotal += rowTotal;
+      await client.query(
+        `UPDATE labour_flow_rows SET weekly_rate = $1, bectu_rate_id = $2,
+         row_total_units = $3, row_total_cost = $4 WHERE id = $5`,
+        [weeklyRate, rate.bectu_rate_id || row.bectu_rate_id, units, rowTotal, row.id]
+      );
+    }
 
     const snapshot = {
       locked_at: new Date().toISOString(),
@@ -322,17 +354,19 @@ const lockLabourFlow = async (req, res) => {
       bectu_rates: bectuRates,
     };
 
-    const { rows: [locked] } = await db.query(
+    const { rows: [locked] } = await client.query(
       `UPDATE labour_flows
        SET status = 'locked',
            locked_at = NOW(),
            locked_by = $1,
            rates_snapshot = $2,
+           grand_total_cost = $4,
            updated_at = NOW()
        WHERE id = $3
        RETURNING *`,
-      [req.user?.id || null, JSON.stringify(snapshot), req.params.id]
+      [req.user?.id || null, JSON.stringify(snapshot), req.params.id, Number(grandTotal.toFixed(2))]
     );
+    await client.query('COMMIT');
 
     await logAudit({
       userId: req.user?.id,
@@ -342,13 +376,16 @@ const lockLabourFlow = async (req, res) => {
       action: 'labour_flow_locked',
       entityType: 'labour_flows',
       entityId: flow.id,
-      details: `Approved & locked Weekly Labour Flow "${flow.title}" (Grand Total: £${flow.grand_total_cost})`,
+      details: `Approved & locked Weekly Labour Flow "${flow.title}" (Grand Total: £${locked.grand_total_cost})`,
     });
 
     res.json(locked);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('lockLabourFlow:', err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 };
 
@@ -531,6 +568,124 @@ const exportLabourFlowCsv = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/forecasting/labour-flows/burn-rate
+ * GET /api/forecasting/labour-flows/:id/burn-rate
+ * Maps each week of a Labour Flow to actual Timesheets for that production.
+ */
+const getLabourBurnRate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { labour_flow_id, production_id } = req.query;
+    const targetFlowId = id || labour_flow_id;
+
+    let flow;
+    if (targetFlowId) {
+      const { rows } = await db.query(
+        `SELECT lf.*, p.name AS production_name
+         FROM labour_flows lf
+         JOIN productions p ON lf.production_id = p.id
+         WHERE lf.id = $1`,
+        [targetFlowId]
+      );
+      flow = rows[0];
+    } else if (production_id) {
+      const { rows } = await db.query(
+        `SELECT lf.*, p.name AS production_name
+         FROM labour_flows lf
+         JOIN productions p ON lf.production_id = p.id
+         WHERE lf.production_id = $1
+         ORDER BY lf.created_at DESC
+         LIMIT 1`,
+        [production_id]
+      );
+      flow = rows[0];
+    } else {
+      const { rows } = await db.query(
+        `SELECT lf.*, p.name AS production_name
+         FROM labour_flows lf
+         JOIN productions p ON lf.production_id = p.id
+         ORDER BY lf.created_at DESC
+         LIMIT 1`
+      );
+      flow = rows[0];
+    }
+
+    if (!flow) {
+      return res.json({ flow: null, burn_rate: [] });
+    }
+
+    const weeks = calculateWeeks(flow.start_date, flow.end_date);
+    const { rows: gridRows } = await db.query(
+      `SELECT * FROM labour_flow_rows WHERE labour_flow_id = $1`,
+      [flow.id]
+    );
+
+    const { rows: timesheets } = await db.query(
+      `SELECT id, week_ending_date, status, grand_total
+       FROM timesheets
+       WHERE production_id = $1 AND status != 'rejected' AND grand_total > 0`,
+      [flow.production_id]
+    );
+
+    const weeklyForecasts = {};
+    weeks.forEach(w => { weeklyForecasts[w.weekNumber] = 0; });
+
+    for (const r of gridRows) {
+      const headcounts = typeof r.headcounts === 'string' ? JSON.parse(r.headcounts || '{}') : (r.headcounts || {});
+      const rate = parseFloat(r.weekly_rate) || 0;
+      weeks.forEach(w => {
+        const count = parseInt(headcounts[w.weekNumber] || 0, 10);
+        weeklyForecasts[w.weekNumber] += (count * rate);
+      });
+    }
+
+    const burnRate = weeks.map(w => {
+      const matched = timesheets.filter(ts => {
+        if (!ts.week_ending_date) return false;
+        const tsDate = typeof ts.week_ending_date === 'string'
+          ? ts.week_ending_date.slice(0, 10)
+          : ts.week_ending_date.toISOString().slice(0, 10);
+        return tsDate === w.weekEndingDate || (tsDate >= w.weekMonday && tsDate <= w.weekEndingDate);
+      });
+
+      const actualWeekly = matched.reduce((s, t) => s + (parseFloat(t.grand_total) || 0), 0);
+      const finalisedWeekly = matched
+        .filter(t => t.status === 'finalised')
+        .reduce((s, t) => s + (parseFloat(t.grand_total) || 0), 0);
+
+      return {
+        week: w.label,
+        week_label: `${w.label} (${w.subLabel})`,
+        week_number: w.weekNumber,
+        week_monday: w.weekMonday,
+        week_ending_date: w.weekEndingDate,
+        forecasted_weekly: Number(weeklyForecasts[w.weekNumber].toFixed(2)),
+        actual_weekly_pay: Number(actualWeekly.toFixed(2)),
+        finalised_weekly_pay: Number(finalisedWeekly.toFixed(2)),
+        timesheet_count: matched.length,
+      };
+    });
+
+    res.json({
+      flow: {
+        id: flow.id,
+        title: flow.title,
+        production_id: flow.production_id,
+        production_name: flow.production_name,
+        start_date: flow.start_date,
+        end_date: flow.end_date,
+        status: flow.status,
+        grand_total_cost: parseFloat(flow.grand_total_cost) || 0,
+      },
+      burn_rate: burnRate,
+    });
+  } catch (err) {
+    console.error('getLabourBurnRate:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 module.exports = {
   listLabourFlows,
   createLabourFlow,
@@ -540,4 +695,5 @@ module.exports = {
   versionLabourFlow,
   deleteLabourFlow,
   exportLabourFlowCsv,
+  getLabourBurnRate,
 };

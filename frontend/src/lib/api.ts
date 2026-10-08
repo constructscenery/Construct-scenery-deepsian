@@ -1150,10 +1150,31 @@ export type LabourFlow = {
   department_weekly_totals?: Record<string, Record<number, number>>;
 };
 
+export type LabourBurnRateItem = {
+  week: string;
+  week_label: string;
+  week_number: number;
+  week_monday: string;
+  week_ending_date: string;
+  forecasted_weekly: number;
+  actual_weekly_pay: number;
+  finalised_weekly_pay: number;
+  timesheet_count: number;
+};
+
+export type LabourBurnRateResponse = {
+  flow: LabourFlow | null;
+  burn_rate: LabourBurnRateItem[];
+};
+
 export const labourFlowsApi = {
   list: (params?: { production_id?: string; status?: string }) => {
     const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
     return request<LabourFlow[]>(`/api/forecasting/labour-flows${qs}`);
+  },
+  getBurnRate: (params?: { id?: string; labour_flow_id?: string; production_id?: string }) => {
+    const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
+    return request<LabourBurnRateResponse>(`/api/forecasting/labour-flows/burn-rate${qs}`);
   },
   getById: (id: string) => request<LabourFlow>(`/api/forecasting/labour-flows/${id}`),
   create: (data: {

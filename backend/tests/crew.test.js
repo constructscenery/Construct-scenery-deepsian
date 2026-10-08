@@ -264,3 +264,22 @@ describe('POST /api/crew/import', () => {
     expect(res.body).toHaveProperty('skipped');
   });
 });
+
+// ─── GET /api/crew/trades ─────────────────────────────────────────────────────
+describe('GET /api/crew/trades', () => {
+  test('returns BECTU trades including Apprentice Year 1-3 and Improver Year 4', async () => {
+    const res = await request(app)
+      .get('/api/crew/trades')
+      .set(authHeader('md'));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('bectu');
+    expect(res.body).toHaveProperty('non_bectu');
+    expect(Object.keys(res.body.bectu)).toHaveLength(12);
+    for (const ranks of Object.values(res.body.bectu)) {
+      expect(ranks).toEqual(expect.arrayContaining([
+        'Apprentice Year 1', 'Apprentice Year 2', 'Apprentice Year 3', 'Improver Year 4',
+      ]));
+    }
+  });
+});

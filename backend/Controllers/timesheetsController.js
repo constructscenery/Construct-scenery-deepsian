@@ -177,7 +177,7 @@ const getAllTimesheets = async (req, res) => {
               , COALESCE(te_agg.food_total, 0)           AS food_total
               , te_agg.attendance_days                   AS attendance_days
               , (
-                  SELECT br.overtime_rate
+                  SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2))
                   FROM bectu_rates br
                   WHERE br.trade = cm.crew_trade
                     AND br.rank  = COALESCE(t.rank_override, cm.crew_rank)
@@ -462,7 +462,7 @@ const getTimesheetById = async (req, res) => {
                WHERE  br.trade = cm.crew_trade
                AND    br.rank  = COALESCE(t.rank_override, cm.crew_rank)
                ORDER  BY br.effective_from DESC LIMIT 1) AS daily_rate,
-              (SELECT br.overtime_rate FROM bectu_rates br
+              (SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2)) FROM bectu_rates br
                WHERE  br.trade = cm.crew_trade
                AND    br.rank  = COALESCE(t.rank_override, cm.crew_rank)
                ORDER  BY br.effective_from DESC LIMIT 1) AS overtime_rate
@@ -534,7 +534,7 @@ const saveEntries = async (req, res) => {
     let dailyRate, otRate;
     if (rate_override != null) {
       dailyRate = parseFloat(rate_override);
-      otRate    = 0; // OT rate not overridden separately; caller can set it via entries if needed
+      otRate    = dailyRate > 0 ? Math.round(dailyRate * 1.5 / 9.5 * 100) / 100 : 0;
     } else {
       const rateYear = getRateYear(ts.week_ending_date);
       let { rows: [rateRow] } = await client.query(
@@ -549,6 +549,8 @@ const saveEntries = async (req, res) => {
       }
       dailyRate = parseFloat(rateRow?.daily_rate || 0);
       otRate    = parseFloat(rateRow?.overtime_rate || 0);
+      // Non-BECTU roles often have no OT rate configured; derive from daily rate (daily / 9.5 × 1.5)
+      if (!otRate && dailyRate > 0) otRate = Math.round(dailyRate * 1.5 / 9.5 * 100) / 100;
     }
 
     // Delete old entries and re-insert
@@ -1074,7 +1076,7 @@ const generateVerificationPackPdf = async (req, res) => {
                WHERE  br.trade = cm.crew_trade
                AND    br.rank  = COALESCE(t.rank_override, cm.crew_rank)
                ORDER  BY br.effective_from DESC LIMIT 1) AS daily_rate,
-              (SELECT br.overtime_rate FROM bectu_rates br
+              (SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2)) FROM bectu_rates br
                WHERE  br.trade = cm.crew_trade
                AND    br.rank  = COALESCE(t.rank_override, cm.crew_rank)
                ORDER  BY br.effective_from DESC LIMIT 1) AS overtime_rate
@@ -1281,7 +1283,7 @@ const generateVerificationPackCombinedPdf = async (req, res) => {
                  AND br.rank  = COALESCE(t.rank_override, cm.crew_rank)
                ORDER BY br.effective_from DESC
                LIMIT 1) AS daily_rate,
-              (SELECT br.overtime_rate
+              (SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2))
                FROM bectu_rates br
                WHERE br.trade = cm.crew_trade
                  AND br.rank  = COALESCE(t.rank_override, cm.crew_rank)
@@ -1346,7 +1348,7 @@ const getTimesheetVerificationPack = async (req, res) => {
                  AND br.rank  = COALESCE(t.rank_override, cm.crew_rank)
                ORDER BY br.effective_from DESC
                LIMIT 1) AS daily_rate,
-              (SELECT br.overtime_rate
+              (SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2))
                FROM bectu_rates br
                WHERE br.trade = cm.crew_trade
                  AND br.rank  = COALESCE(t.rank_override, cm.crew_rank)
@@ -1400,7 +1402,7 @@ const getDraftPdf = async (req, res) => {
                  AND br.rank  = COALESCE(t.rank_override, cm.crew_rank)
                ORDER BY br.effective_from DESC
                LIMIT 1) AS daily_rate,
-              (SELECT br.overtime_rate
+              (SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2))
                FROM bectu_rates br
                WHERE br.trade = cm.crew_trade
                  AND br.rank  = COALESCE(t.rank_override, cm.crew_rank)

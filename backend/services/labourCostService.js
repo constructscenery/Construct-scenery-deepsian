@@ -32,7 +32,7 @@ const recordWeeklyLabour = async (weekEndingDate, productionId, client) => {
   const { rows: timesheets } = await client.query(
     `SELECT t.id, t.production_id, t.crew_member_id, t.week_ending_date,
             t.gross_total, t.vat, t.grand_total,
-            cm.crew_trade, cm.crew_rank
+            cm.crew_trade, cm.crew_rank, cm.account_code
      FROM timesheets t
      JOIN crew_members cm ON t.crew_member_id = cm.id
      WHERE t.production_id    = $1
@@ -93,12 +93,12 @@ const recordWeeklyLabour = async (weekEndingDate, productionId, client) => {
           day_monday, day_tuesday, day_wednesday, day_thursday,
           day_friday, day_saturday, day_sunday,
           total_days, ot_hours, daily_rate, ot_rate,
-          net_amount, vat, gross_amount, set_code, date)
+          net_amount, vat, gross_amount, set_code, date, account_code)
        VALUES ($1,'labour',$2,'timesheet',
                $3,$4,$5,$6,
                $7,$8,$9,$10,$11,$12,$13,
                $14,$15,$16,$17,
-               $18,$19,$20,$21,$22)`,
+               $18,$19,$20,$21,$22,$23)`,
       [
         ts.production_id, ts.id,
         ts.crew_member_id, ts.crew_trade, ts.crew_rank, ts.week_ending_date,
@@ -112,6 +112,7 @@ const recordWeeklyLabour = async (weekEndingDate, productionId, client) => {
         parseFloat(ts.grand_total  || 0),
         setCode,
         weekEndingDate,
+        ts.account_code || null,
       ]
     );
   }

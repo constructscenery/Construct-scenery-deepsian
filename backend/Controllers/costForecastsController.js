@@ -184,7 +184,10 @@ const getCostForecastById = async (req, res) => {
       for (const line of crewLines) {
         const rateInfo = resolveRate(bectuRates, line.trade, line.rank);
         const newRate = forecast.default_view === 'daily' ? rateInfo.daily_rate : rateInfo.weekly_rate;
-        if (newRate > 0 && Math.abs(parseFloat(line.unit_rate) - newRate) > 0.001) {
+        if (rateInfo.bectu_rate_id && (
+          line.bectu_rate_id !== rateInfo.bectu_rate_id ||
+          Math.abs(parseFloat(line.unit_rate) - newRate) > 0.001
+        )) {
           line.unit_rate = newRate;
           line.bectu_rate_id = rateInfo.bectu_rate_id;
           line.line_total = Number((newRate * parseFloat(line.units || 0)).toFixed(2));
@@ -240,11 +243,15 @@ const updateCostForecast = async (req, res) => {
     await client.query('BEGIN');
 
     const { rows: [existing] } = await client.query(
-      `SELECT * FROM cost_forecasts WHERE id = $1`,
+      `SELECT * FROM cost_forecasts WHERE id = $1 FOR UPDATE`,
       [req.params.id]
     );
-    if (!existing) return res.status(404).json({ error: 'Cost Forecast not found' });
+    if (!existing) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Cost Forecast not found' });
+    }
     if (existing.status === 'locked') {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Cannot edit a locked forecast. Create a new revision version.' });
     }
 
@@ -361,18 +368,37 @@ const updateCostForecast = async (req, res) => {
  * Locks forecast, freezing a snapshot of all rates at this moment
  */
 const lockCostForecast = async (req, res) => {
+  const client = await db.connect();
   try {
-    const { rows: [forecast] } = await db.query(
-      `SELECT * FROM cost_forecasts WHERE id = $1`,
+    await client.query('BEGIN');
+    const { rows: [forecast] } = await client.query(
+      `SELECT * FROM cost_forecasts WHERE id = $1 FOR UPDATE`,
       [req.params.id]
     );
-    if (!forecast) return res.status(404).json({ error: 'Cost Forecast not found' });
-    if (forecast.status === 'locked') return res.status(400).json({ error: 'Forecast is already locked' });
+    if (!forecast || forecast.status === 'locked') {
+      await client.query('ROLLBACK');
+      return res.status(forecast ? 400 : 404).json({ error: forecast ? 'Forecast is already locked' : 'Cost Forecast not found' });
+    }
 
     // Capture frozen snapshot of active rates
-    const { rows: bectuRates } = await db.query(
+    const { rows: bectuRates } = await client.query(
       `SELECT id, trade, rank, daily_rate, overtime_rate, weekly_rate FROM bectu_rates WHERE effective_to IS NULL`
     );
+
+    const { rows: crewLines } = await client.query(
+      `SELECT * FROM cost_forecast_crew_lines WHERE cost_forecast_id = $1`,
+      [req.params.id]
+    );
+    for (const line of crewLines) {
+      const rate = resolveRate(bectuRates, line.trade, line.rank);
+      if (!rate.bectu_rate_id) continue;
+      const unitRate = forecast.default_view === 'daily' ? rate.daily_rate : rate.weekly_rate;
+      await client.query(
+        `UPDATE cost_forecast_crew_lines SET unit_rate = $1, bectu_rate_id = $2,
+         line_total = ROUND(units * $1::numeric, 2) WHERE id = $3`,
+        [unitRate, rate.bectu_rate_id, line.id]
+      );
+    }
 
     const snapshot = {
       locked_at: new Date().toISOString(),
@@ -380,17 +406,22 @@ const lockCostForecast = async (req, res) => {
       bectu_rates: bectuRates,
     };
 
-    const { rows: [locked] } = await db.query(
+    const { rows: [locked] } = await client.query(
       `UPDATE cost_forecasts
        SET status = 'locked',
            locked_at = NOW(),
            locked_by = $1,
            rates_snapshot = $2,
+           total_crew_cost = (SELECT COALESCE(SUM(line_total), 0) FROM cost_forecast_crew_lines WHERE cost_forecast_id = $3),
+           total_non_labour_cost = (SELECT COALESCE(SUM(line_total), 0) FROM cost_forecast_non_labour_lines WHERE cost_forecast_id = $3),
+           grand_total_cost = (SELECT COALESCE(SUM(line_total), 0) FROM cost_forecast_crew_lines WHERE cost_forecast_id = $3)
+             + (SELECT COALESCE(SUM(line_total), 0) FROM cost_forecast_non_labour_lines WHERE cost_forecast_id = $3),
            updated_at = NOW()
        WHERE id = $3
        RETURNING *`,
       [req.user?.id || null, JSON.stringify(snapshot), req.params.id]
     );
+    await client.query('COMMIT');
 
     await logAudit({
       userId: req.user?.id,
@@ -400,13 +431,16 @@ const lockCostForecast = async (req, res) => {
       action: 'cost_forecast_locked',
       entityType: 'cost_forecasts',
       entityId: forecast.id,
-      details: `Approved & locked Cost Forecast "${forecast.title}" (Grand Total: £${forecast.grand_total_cost})`,
+      details: `Approved & locked Cost Forecast "${forecast.title}" (Grand Total: £${locked.grand_total_cost})`,
     });
 
     res.json(locked);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('lockCostForecast:', err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 };
 

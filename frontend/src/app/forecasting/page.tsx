@@ -9,7 +9,7 @@ import {
 import {
   forecastingApi, productionsApi, costForecastsApi, labourFlowsApi, dashboardApi,
   type Forecast, type PercentometerRatio, type CatalogueItem, type Production,
-  type CostForecast, type LabourFlow, type DashboardData
+  type CostForecast, type LabourFlow, type DashboardData, type LabourBurnRateItem
 } from '@/lib/api';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer
@@ -110,6 +110,7 @@ function ForecastingContent() {
   const [ratios, setRatios] = useState<PercentometerRatio[]>([]);
   const [ratiosLoading, setRatiosLoading] = useState(true);
   const [carpenterInput, setCarpenterInput] = useState('');
+  const [percentometerProdId, setPercentometerProdId] = useState<string>('');
   const [calcResults, setCalcResults] = useState<CalcResult[] | null>(null);
   const [calcTotal, setCalcTotal] = useState(0);
   const [calcLoading, setCalcLoading] = useState(false);
@@ -152,8 +153,8 @@ function ForecastingContent() {
 
   // ─────────────────────────────────────────────────────────────────────────────
   // SECTION 2: CATALOGUE (Removed)
-  // ─────────────────────────────────────────────────────────────────────────────  // ─────────────────────────────────────────────────────────────────────────────
-  // SECTION 3: SAVED SCENARIOS
+  // ─────────────────────────────────────────────────────────────────────────────
+  // SECTION 3: SAVED SCENARIOS & CHARTS
   // ─────────────────────────────────────────────────────────────────────────────
 
   const [scenarios, setScenarios] = useState<Forecast[]>([]);
@@ -161,18 +162,54 @@ function ForecastingContent() {
   const [scenLoading, setScenLoading] = useState(false);
   const [deletingScenId, setDeletingScenId] = useState<string | null>(null);
 
+  const [burnRateFlows, setBurnRateFlows] = useState<LabourFlow[]>([]);
+  const [selectedBurnFlowId, setSelectedBurnFlowId] = useState<string>('');
+  const [burnRateData, setBurnRateData] = useState<LabourBurnRateItem[]>([]);
+  const [burnRateLoading, setBurnRateLoading] = useState(false);
+  const [activeBurnFlow, setActiveBurnFlow] = useState<LabourFlow | null>(null);
+
+  const loadBurnRate = useCallback(async (flowId?: string) => {
+    setBurnRateLoading(true);
+    try {
+      const res = await labourFlowsApi.getBurnRate(flowId ? { id: flowId } : undefined);
+      setBurnRateData(res.burn_rate || []);
+      setActiveBurnFlow(res.flow || null);
+      if (res.flow && !flowId) {
+        setSelectedBurnFlowId(res.flow.id);
+      }
+    } catch {
+      /* silent */
+    } finally {
+      setBurnRateLoading(false);
+    }
+  }, []);
+
   const loadScenarios = useCallback(async () => {
     setScenLoading(true);
     try {
-      const [data, dash] = await Promise.all([
+      const [data, dash, flows] = await Promise.all([
         forecastingApi.getAllForecasts(),
-        dashboardApi.get()
+        dashboardApi.get(),
+        labourFlowsApi.list(),
       ]);
       setScenarios(data);
       setVarianceData(dash.forecasting_variance || []);
+      setBurnRateFlows(flows);
+      const initialFlowId = selectedBurnFlowId || (flows.length > 0 ? flows[0].id : undefined);
+      if (initialFlowId) {
+        setSelectedBurnFlowId(initialFlowId);
+        loadBurnRate(initialFlowId);
+      } else {
+        loadBurnRate();
+      }
     } catch { /* silent */ }
     finally { setScenLoading(false); }
-  }, []);
+  }, [loadBurnRate, selectedBurnFlowId]);
+
+  const handleBurnFlowChange = (flowId: string) => {
+    setSelectedBurnFlowId(flowId);
+    loadBurnRate(flowId);
+  };
 
   useEffect(() => {
     if (activeTab === 'scenarios') loadScenarios();
@@ -303,6 +340,7 @@ function ForecastingContent() {
       {showSaveModal && (
         <SaveScenarioModal
           carpenterCost={parseFloat(carpenterInput) || null}
+          initialProductionId={percentometerProdId}
           productions={productions}
           onClose={() => setShowSaveModal(false)}
           onSaved={() => { setShowSaveModal(false); }}
@@ -673,37 +711,59 @@ function ForecastingContent() {
                 )}
               </div>
               <div className="p-5">
-                <div className="flex items-end gap-3 mb-5">
-                  <div className="flex-1">
+                {/* Inputs: Production Selector + Carpenter Cost */}
+                <div className="space-y-4 mb-5">
+                  <div>
                     <label className="text-xs text-slate-500 font-medium block mb-1">
-                      Known Carpenter Cost
-                      <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">Total £ — whole project</span>
+                      Production <span className="text-slate-400 font-normal">(optional — link scenario directly to a production)</span>
                     </label>
-                    <div className="flex items-center bg-slate-50 border border-slate-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
-                      <span className="px-3 text-slate-500 font-semibold text-sm bg-slate-100 border-r border-slate-300 py-2.5">£</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="100"
-                        value={carpenterInput}
-                        onChange={e => setCarpenterInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleCalculate()}
-                        placeholder="e.g. 52960"
-                        className="flex-1 px-3 py-2.5 text-slate-900 font-bold text-sm bg-transparent outline-none"
-                      />
-                    </div>
-                    <p className="text-[11px] text-slate-400 mt-1.5 leading-snug">
-                      💡 Enter the <em>total</em> your Carpenters will cost across the entire production run (e.g. all wages, all weeks combined). No time period is needed — this tool uses historical spend <em>ratios</em> to scale everything else.
-                    </p>
+                    <select
+                      value={percentometerProdId}
+                      onChange={e => setPercentometerProdId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">— Select Production (or leave unassigned) —</option>
+                      {productions.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <button
-                    onClick={handleCalculate}
-                    disabled={calcLoading}
-                    className="flex items-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-4 py-2.5 hover:bg-blue-700 font-medium disabled:opacity-60 transition-colors whitespace-nowrap"
-                  >
-                    {calcLoading ? <Loader2 size={14} className="animate-spin" /> : <Calculator size={14} />}
-                    Calculate
-                  </button>
+
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+                    <div className="flex-1">
+                      <label className="text-xs text-slate-500 font-medium block mb-1">
+                        Known Carpenter Cost
+                        <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">Total £ — whole project</span>
+                      </label>
+                      <div className="flex items-center bg-slate-50 border border-slate-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+                        <span className="px-3 text-slate-500 font-semibold text-sm bg-slate-100 border-r border-slate-300 py-2.5">£</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="100"
+                          value={carpenterInput}
+                          onChange={e => setCarpenterInput(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleCalculate()}
+                          placeholder="e.g. 52960"
+                          className="flex-1 px-3 py-2.5 text-slate-900 font-bold text-sm bg-transparent outline-none"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleCalculate}
+                      disabled={calcLoading}
+                      className="flex items-center justify-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-5 py-2.5 hover:bg-blue-700 font-medium disabled:opacity-60 transition-colors whitespace-nowrap"
+                    >
+                      {calcLoading ? <Loader2 size={14} className="animate-spin" /> : <Calculator size={14} />}
+                      Calculate
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 leading-snug">
+                    💡 Enter the <em>total</em> your Carpenters will cost across the entire production run (e.g. all wages, all weeks combined). No time period is needed — this tool uses historical spend <em>ratios</em> to scale everything else.
+                  </p>
                 </div>
 
                 {calcError && (
@@ -949,50 +1009,79 @@ function ForecastingContent() {
                   </div>
                 </div>
 
-                {/* Line Chart: Weekly Timesheets vs Forecast (MOCK) */}
+                {/* Line Chart: Weekly Timesheets vs Forecast (Real Dynamic Data) */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-slate-900">Weekly Labour Burn Rate</h3>
-                    <span className="text-[10px] font-bold tracking-wider uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Preview Mode</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-900">Weekly Labour Burn Rate</h3>
+                      {activeBurnFlow && (
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {activeBurnFlow.production_name || 'Production'} • {activeBurnFlow.title}
+                        </p>
+                      )}
+                    </div>
+                    {burnRateFlows.length > 1 && (
+                      <select
+                        value={selectedBurnFlowId}
+                        onChange={(e) => handleBurnFlowChange(e.target.value)}
+                        className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm"
+                      >
+                        {burnRateFlows.map(f => (
+                          <option key={f.id} value={f.id}>
+                            {f.production_name}: {f.title}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                   <div className="h-[350px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart
-                        data={[
-                          { week: 'Week 1', 'Forecasted Weekly': 4500, 'Actual Weekly Pay': 4200 },
-                          { week: 'Week 2', 'Forecasted Weekly': 5500, 'Actual Weekly Pay': 6100 },
-                          { week: 'Week 3', 'Forecasted Weekly': 8000, 'Actual Weekly Pay': 7800 },
-                          { week: 'Week 4', 'Forecasted Weekly': 8000, 'Actual Weekly Pay': 9500 },
-                          { week: 'Week 5', 'Forecasted Weekly': 6000, 'Actual Weekly Pay': 6200 },
-                          { week: 'Week 6', 'Forecasted Weekly': 3000, 'Actual Weekly Pay': 2500 },
-                        ]}
-                        margin={{ top: 20, right: 30, left: 20, bottom: 25 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis 
-                          dataKey="week" 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tick={{ fontSize: 12, fill: '#64748b' }}
-                        />
-                        <YAxis 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tick={{ fontSize: 12, fill: '#64748b' }} 
-                          tickFormatter={(val) => `£${(val/1000).toFixed(0)}k`} 
-                        />
-                        <RechartsTooltip 
-                          formatter={(value: any) => fmtGBP(value)}
-                          contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                        />
-                        <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
-                        <Line type="monotone" dataKey="Forecasted Weekly" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} />
-                        <Line type="monotone" dataKey="Actual Weekly Pay" stroke="#ef4444" strokeWidth={2} activeDot={{ r: 6 }} />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    {burnRateLoading ? (
+                      <div className="h-full flex flex-col items-center justify-center gap-2">
+                        <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                        <span className="text-xs text-slate-400">Loading labour burn rate...</span>
+                      </div>
+                    ) : burnRateData.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-slate-400 text-xs">
+                        No weekly labour flow data available to display burn rate.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          data={burnRateData.map(b => ({
+                            week: b.week_label || b.week,
+                            'Forecasted Weekly': b.forecasted_weekly,
+                            'Actual Weekly Pay': b.actual_weekly_pay,
+                          }))}
+                          margin={{ top: 20, right: 30, left: 20, bottom: 25 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis 
+                            dataKey="week" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fontSize: 11, fill: '#64748b' }}
+                          />
+                          <YAxis 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fontSize: 12, fill: '#64748b' }} 
+                            tickFormatter={(val) => `£${(val/1000).toFixed(0)}k`} 
+                          />
+                          <RechartsTooltip 
+                            formatter={(value: any) => fmtGBP(value)}
+                            contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                          />
+                          <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
+                          <Line type="monotone" dataKey="Forecasted Weekly" stroke="#3b82f6" strokeWidth={2} strokeDasharray="5 5" activeDot={{ r: 5 }} />
+                          <Line type="monotone" dataKey="Actual Weekly Pay" stroke="#ef4444" strokeWidth={2} activeDot={{ r: 6 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    )}
                   </div>
                   <p className="text-xs text-slate-400 text-center mt-2">
-                    Note: This requires a new backend endpoint to map Labour Flow weeks to finalised Timesheets.
+                    {activeBurnFlow
+                      ? `Mapped weekly against timesheets for ${activeBurnFlow.production_name || 'production'}. Forecast total: ${fmtGBP(Number(activeBurnFlow.grand_total_cost) || 0)}.`
+                      : 'Weekly labour flow forecast mapped directly against timesheets.'}
                   </p>
                 </div>
 
@@ -1012,14 +1101,15 @@ function ForecastingContent() {
 
 interface SaveScenarioModalProps {
   carpenterCost: number | null;
+  initialProductionId?: string;
   productions: Production[];
   onClose: () => void;
   onSaved: () => void;
 }
 
-function SaveScenarioModal({ carpenterCost, productions, onClose, onSaved }: SaveScenarioModalProps) {
+function SaveScenarioModal({ carpenterCost, initialProductionId = '', productions, onClose, onSaved }: SaveScenarioModalProps) {
   const [name, setName] = useState('');
-  const [productionId, setProductionId] = useState('');
+  const [productionId, setProductionId] = useState(initialProductionId);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 

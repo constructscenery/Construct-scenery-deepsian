@@ -3,18 +3,18 @@ const { encrypt } = require('../config/crypto');
 
 // ─── Trade / rank reference data ──────────────────────────────────────────────
 const BECTU_TRADES = {
-  Carpenters:          ['HOD', 'Supervisor', 'Chargehand', 'Carpenter'],
-  Machinists:          ['HOD', 'Supervisor', 'Chargehand', 'Machinist'],
-  Stagehands:          ['HOD', 'Supervisor', 'Chargehand', 'Stagehand NVQ/BLSS', 'Stagehand'],
-  Riggers:             ['HOD', 'Supervisor', 'Chargehand', 'Rigger'],
-  Plasterers:          ['HOD', 'Supervisor', 'Chargehand', 'Plasterer'],
-  'Scenic Painters':   ['HOD', 'Supervisor', 'Chargehand', 'Painter'],
-  Sculptors:           ['HOD', 'Supervisor', 'Chargehand', 'Sculptor', 'Sculptor Modeller'],
-  'Metal Workers':     ['HOD', 'Supervisor', 'Chargehand', 'Metal Worker'],
-  'Plasterers Lab':    ['HOD', 'Supervisor', 'Chargehand', 'Lab Worker'],
-  'Painters Lab':      ['HOD', 'Supervisor', 'Chargehand', 'Lab Worker'],
-  'Sculptors Lab':     ['HOD', 'Supervisor', 'Chargehand', 'Lab Worker'],
-  'Metal Workers Lab': ['HOD', 'Supervisor', 'Chargehand', 'Lab Worker'],
+  Carpenters:          ['HOD', 'Supervisor', 'Chargehand', 'Carpenter', 'Improver Year 4', 'Apprentice Year 3', 'Apprentice Year 2', 'Apprentice Year 1'],
+  Machinists:          ['HOD', 'Supervisor', 'Chargehand', 'Machinist', 'Improver Year 4', 'Apprentice Year 3', 'Apprentice Year 2', 'Apprentice Year 1'],
+  Stagehands:          ['HOD', 'Supervisor', 'Chargehand', 'Stagehand NVQ/BLSS', 'Stagehand', 'Improver Year 4', 'Apprentice Year 3', 'Apprentice Year 2', 'Apprentice Year 1'],
+  Riggers:             ['HOD', 'Supervisor', 'Chargehand', 'Rigger', 'Improver Year 4', 'Apprentice Year 3', 'Apprentice Year 2', 'Apprentice Year 1'],
+  Plasterers:          ['HOD', 'Supervisor', 'Chargehand', 'Plasterer', 'Improver Year 4', 'Apprentice Year 3', 'Apprentice Year 2', 'Apprentice Year 1'],
+  'Scenic Painters':   ['HOD', 'Supervisor', 'Chargehand', 'Painter', 'Improver Year 4', 'Apprentice Year 3', 'Apprentice Year 2', 'Apprentice Year 1'],
+  Sculptors:           ['HOD', 'Supervisor', 'Chargehand', 'Sculptor', 'Sculptor Modeller', 'Improver Year 4', 'Apprentice Year 3', 'Apprentice Year 2', 'Apprentice Year 1'],
+  'Metal Workers':     ['HOD', 'Supervisor', 'Chargehand', 'Metal Worker', 'Improver Year 4', 'Apprentice Year 3', 'Apprentice Year 2', 'Apprentice Year 1'],
+  'Plasterers Lab':    ['HOD', 'Supervisor', 'Chargehand', 'Lab Worker', 'Improver Year 4', 'Apprentice Year 3', 'Apprentice Year 2', 'Apprentice Year 1'],
+  'Painters Lab':      ['HOD', 'Supervisor', 'Chargehand', 'Lab Worker', 'Improver Year 4', 'Apprentice Year 3', 'Apprentice Year 2', 'Apprentice Year 1'],
+  'Sculptors Lab':     ['HOD', 'Supervisor', 'Chargehand', 'Lab Worker', 'Improver Year 4', 'Apprentice Year 3', 'Apprentice Year 2', 'Apprentice Year 1'],
+  'Metal Workers Lab': ['HOD', 'Supervisor', 'Chargehand', 'Lab Worker', 'Improver Year 4', 'Apprentice Year 3', 'Apprentice Year 2', 'Apprentice Year 1'],
 };
 
 const NON_BECTU_ROLES = [

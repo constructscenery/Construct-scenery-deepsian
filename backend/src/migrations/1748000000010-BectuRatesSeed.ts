@@ -68,6 +68,26 @@ const BECTU_RATES: Array<[string, string, number, number]> = [
   ['Metal Workers Lab', 'Lab Worker',           288.00, 43.20],
 ];
 
+const APPRENTICE_IMPROVER_RANKS: Array<[string, number, number]> = [
+  ['Improver Year 4',   238.00, 35.70],
+  ['Improver',          238.00, 35.70],
+  ['Apprentice Year 3', 170.00, 25.50],
+  ['Apprentice Year 2', 130.00, 19.50],
+  ['Apprentice Year 1', 107.00, 16.05],
+];
+
+const ALL_TRADES = [
+  'Carpenters', 'Machinists', 'Stagehands', 'Riggers', 'Plasterers',
+  'Scenic Painters', 'Sculptors', 'Metal Workers', 'Plasterers Lab',
+  'Painters Lab', 'Sculptors Lab', 'Metal Workers Lab',
+];
+
+for (const trade of ALL_TRADES) {
+  for (const [rank, daily, ot] of APPRENTICE_IMPROVER_RANKS) {
+    BECTU_RATES.push([trade, rank, daily, ot]);
+  }
+}
+
 // Non-BECTU roles — daily_rate NULL, configured by MD via admin panel
 const NON_BECTU_ROLES: Array<[string]> = [
   ['Construction Accountant'],
@@ -83,11 +103,12 @@ export class BectuRatesSeed1748000000010 implements MigrationInterface {
     // Upsert BECTU rates
     for (const [trade, rank, daily, ot] of BECTU_RATES) {
       await queryRunner.query(
-        `INSERT INTO bectu_rates (trade, rank, daily_rate, overtime_rate, rate_year, rate_type, effective_from)
-         VALUES ($1, $2, $3, $4, '2026/27', 'bectu', $5)
+        `INSERT INTO bectu_rates (trade, rank, daily_rate, overtime_rate, weekly_rate, rate_year, rate_type, effective_from)
+         VALUES ($1, $2, $3, $4, $3 * 5, '2026/27', 'bectu', $5)
          ON CONFLICT (trade, rank, rate_year) DO UPDATE
            SET daily_rate    = EXCLUDED.daily_rate,
                overtime_rate = EXCLUDED.overtime_rate,
+               weekly_rate   = EXCLUDED.weekly_rate,
                rate_type     = 'bectu',
                effective_from = COALESCE(bectu_rates.effective_from, $5)`,
         [trade, rank, daily, ot, EFFECTIVE_FROM]

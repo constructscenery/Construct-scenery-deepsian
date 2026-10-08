@@ -103,18 +103,21 @@ const STANDARD_NON_LABOUR_ITEMS = [
  * Resolves weekly & daily rate for a given trade and rank from bectu_rates array.
  */
 function resolveRate(bectuRates, trade, rank, fallbackPct = 1.0) {
+  const normRank = rank.toLowerCase() === 'improver' ? 'improver year 4' : rank.toLowerCase();
   const match = bectuRates.find(r =>
     r.trade.toLowerCase() === trade.toLowerCase() &&
-    r.rank.toLowerCase() === rank.toLowerCase()
-  );
+    r.rank.toLowerCase() === normRank
+  ) || (normRank === 'improver year 4' && bectuRates.find(rate =>
+    rate.trade.toLowerCase() === trade.toLowerCase() && rate.rank.toLowerCase() === 'improver'
+  ));
 
   if (match) {
     const daily = parseFloat(match.daily_rate) || 0;
     const weekly = match.weekly_rate ? parseFloat(match.weekly_rate) : daily * 5;
     return {
       bectu_rate_id: match.id,
-      daily_rate: Number((daily * fallbackPct).toFixed(2)),
-      weekly_rate: Number((weekly * fallbackPct).toFixed(2)),
+      daily_rate: Number(daily.toFixed(2)),
+      weekly_rate: Number(weekly.toFixed(2)),
       overtime_rate: match.overtime_rate ? parseFloat(match.overtime_rate) : null,
     };
   }

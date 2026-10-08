@@ -186,8 +186,10 @@ export default function CostForecastEditor({
       setForecast(prev => prev ? { ...prev, ...updated } : prev);
       setSuccessMsg('Changes saved successfully');
       setTimeout(() => setSuccessMsg(''), 3000);
+      return true;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save changes');
+      return false;
     } finally {
       setSaving(false);
     }
@@ -200,8 +202,10 @@ export default function CostForecastEditor({
     }
     setLocking(true);
     try {
+      if (!(await handleSave())) return;
       const locked = await costForecastsApi.lock(forecastId);
       setForecast(prev => prev ? { ...prev, ...locked } : prev);
+      await loadData();
       setSuccessMsg('Cost Forecast has been locked and rates are frozen.');
       setTimeout(() => setSuccessMsg(''), 3500);
     } catch (err: unknown) {
@@ -251,7 +255,7 @@ export default function CostForecastEditor({
   const sections = ['fixed_weekly', 'carpenters', 'painters', 'riggers', 'stagehands'];
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-48 md:pb-24">
       {/* Top Navigation & Status Header */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -288,6 +292,7 @@ export default function CostForecastEditor({
               <button
                 type="button"
                 onClick={() => handleToggleView('weekly')}
+                disabled={saving || locking}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${viewMode === 'weekly' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
               >
                 Weekly View
@@ -295,6 +300,7 @@ export default function CostForecastEditor({
               <button
                 type="button"
                 onClick={() => handleToggleView('daily')}
+                disabled={saving || locking}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${viewMode === 'daily' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
               >
                 Daily View
@@ -313,7 +319,7 @@ export default function CostForecastEditor({
             {!isLocked ? (
               <button
                 onClick={handleLock}
-                disabled={locking}
+                disabled={locking || saving}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 text-white text-xs font-semibold rounded-xl hover:bg-amber-700 disabled:opacity-50 transition-colors shadow-sm"
               >
                 {locking ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}
@@ -368,7 +374,7 @@ export default function CostForecastEditor({
 
       {/* SECTION 1: CREW COSTS (LINKED TO RATE CARD) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex flex-wrap gap-2 items-center justify-between">
           <div>
             <h2 className="text-sm font-bold text-slate-900 tracking-tight">1. Crew Costs (Linked from BECTU Rate Card)</h2>
             <p className="text-xs text-slate-500 mt-0.5">Rates dynamically pulled from active BECTU agreement. Enter required crew units.</p>
@@ -397,7 +403,7 @@ export default function CostForecastEditor({
 
                 return (
                   <React.Fragment key={secKey}>
-                    <tr className="bg-slate-100/70 border-t border-b border-slate-200">
+                    <tr className="bg-slate-100 border-t border-b border-slate-200">
                       <td colSpan={6} className="px-5 py-2 text-xs font-bold text-slate-700 uppercase tracking-wide">
                         {SECTION_HEADERS[secKey] || secKey}
                       </td>
@@ -405,7 +411,7 @@ export default function CostForecastEditor({
                     {sectionLines.map(line => {
                       const units = parseFloat(String(line.units)) || 0;
                       return (
-                        <tr key={line.id} className="hover:bg-slate-50/50 transition-colors">
+                        <tr key={line.id} className="hover:bg-slate-50 transition-colors">
                           <td className="px-5 py-2.5 font-mono text-xs text-slate-500">{line.cost_code || '—'}</td>
                           <td className="px-4 py-2.5 text-xs font-medium text-slate-800">
                             {line.rank === 'HOD' ? `HOD — ${line.trade}` : line.rank}
@@ -418,7 +424,7 @@ export default function CostForecastEditor({
                               type="number"
                               min="0"
                               step="1"
-                              disabled={isLocked}
+                              disabled={isLocked || locking || saving}
                               value={line.units === 0 ? '' : line.units}
                               placeholder="0"
                               onChange={e => handleCrewUnitsChange(line.id, e.target.value)}
@@ -444,7 +450,7 @@ export default function CostForecastEditor({
 
       {/* SECTION 2: ABOVE THE LINE & NON-LABOUR COSTS */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex flex-wrap gap-2 items-center justify-between">
           <div>
             <h2 className="text-sm font-bold text-slate-900 tracking-tight">2. Above-the-Line & Non-Labour Costs</h2>
             <p className="text-xs text-slate-500 mt-0.5">Plant hire, workshop, skips, fuel, standby crew, materials, and custom cost lines.</p>
@@ -480,7 +486,7 @@ export default function CostForecastEditor({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {nonLabourLines.map(nl => (
-                <tr key={nl.id} className="hover:bg-slate-50/50 transition-colors">
+                <tr key={nl.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-2.5 font-mono text-xs text-slate-500">{nl.cost_code || '—'}</td>
                   <td className="px-4 py-2.5 text-xs font-medium text-slate-800">
                     {nl.description}
@@ -491,7 +497,7 @@ export default function CostForecastEditor({
                       type="number"
                       min="0"
                       step="0.01"
-                      disabled={isLocked}
+                      disabled={isLocked || locking || saving}
                       value={nl.unit_rate}
                       onChange={e => handleNonLabourChange(nl.id, 'unit_rate', e.target.value)}
                       className="w-24 px-2 py-1 text-right text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
@@ -502,7 +508,7 @@ export default function CostForecastEditor({
                       type="number"
                       min="0"
                       step="1"
-                      disabled={isLocked}
+                      disabled={isLocked || locking || saving}
                       value={nl.quantity}
                       onChange={e => handleNonLabourChange(nl.id, 'quantity', e.target.value)}
                       className="w-20 px-2 py-1 text-center text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
@@ -628,9 +634,9 @@ export default function CostForecastEditor({
       )}
 
       {/* STICKY BOTTOM SUMMARY BAR */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 py-3 shadow-lg">
+      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 px-6 py-3 shadow-lg">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-6 text-xs text-slate-600">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-600">
             <div>
               <span className="text-slate-400">Labour Total:</span>{' '}
               <strong className="text-slate-800">{fmt(totalCrewCost)}</strong>
@@ -650,7 +656,7 @@ export default function CostForecastEditor({
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || locking}
                 className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
               >
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}

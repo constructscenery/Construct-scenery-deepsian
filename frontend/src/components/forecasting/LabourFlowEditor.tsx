@@ -148,8 +148,10 @@ export default function LabourFlowEditor({
       setFlow(prev => prev ? { ...prev, ...updated } : prev);
       setSuccessMsg('Labour Flow saved successfully');
       setTimeout(() => setSuccessMsg(''), 3000);
+      return true;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save');
+      return false;
     } finally {
       setSaving(false);
     }
@@ -162,8 +164,10 @@ export default function LabourFlowEditor({
     }
     setLocking(true);
     try {
+      if (!(await handleSave())) return;
       const locked = await labourFlowsApi.lock(flowId);
       setFlow(prev => prev ? { ...prev, ...locked } : prev);
+      await loadData();
       setSuccessMsg('Labour Flow locked successfully. Rates snapshot frozen.');
       setTimeout(() => setSuccessMsg(''), 3500);
     } catch (err: unknown) {
@@ -194,6 +198,7 @@ export default function LabourFlowEditor({
   // Export CSV
   const handleDownloadCsv = async () => {
     try {
+      if (!isLocked && !(await handleSave())) return;
       await labourFlowsApi.exportCsv(flowId);
     } catch (err: any) {
       alert(err.message || 'Export failed');
@@ -221,7 +226,7 @@ export default function LabourFlowEditor({
   const sections = ['fixed_weekly', 'carpenters', 'painters', 'riggers', 'stagehands'];
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-48 md:pb-24">
       {/* Header Card */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -269,7 +274,7 @@ export default function LabourFlowEditor({
             {!isLocked ? (
               <button
                 onClick={handleLock}
-                disabled={locking}
+                disabled={locking || saving}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 text-white text-xs font-semibold rounded-xl hover:bg-amber-700 disabled:opacity-50 transition-colors shadow-sm"
               >
                 {locking ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}
@@ -326,8 +331,8 @@ export default function LabourFlowEditor({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-100/80 text-slate-700 font-bold uppercase tracking-wider border-b border-slate-200">
-                <th className="sticky left-0 z-20 bg-slate-100/90 backdrop-blur-xs px-4 py-3 min-w-[200px] border-r border-slate-200">
+              <tr className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider border-b border-slate-200">
+                <th className="md:sticky left-0 z-20 bg-slate-100 px-4 py-3 min-w-[200px] border-r border-slate-200">
                   Dept / Grade
                 </th>
                 <th className="px-3 py-3 text-right w-28 border-r border-slate-200 bg-slate-50">
@@ -342,7 +347,7 @@ export default function LabourFlowEditor({
                 <th className="px-3 py-3 text-center w-24 border-r border-slate-200 bg-slate-50 font-bold">
                   Total Units
                 </th>
-                <th className="sticky right-0 z-20 bg-slate-100/90 backdrop-blur-xs px-4 py-3 text-right min-w-[110px] font-bold">
+                <th className="md:sticky right-0 z-20 bg-slate-100 px-4 py-3 text-right min-w-[110px] font-bold">
                   Total (£)
                 </th>
               </tr>
@@ -370,10 +375,10 @@ export default function LabourFlowEditor({
                       const rate = parseFloat(String(row.weekly_rate)) || 0;
                       return (
                         <tr key={row.id} className="hover:bg-slate-50/70 transition-colors border-b border-slate-100">
-                          <td className="sticky left-0 z-10 bg-white px-4 py-2 font-medium text-slate-800 border-r border-slate-200">
+                          <td className="md:sticky left-0 z-10 bg-white px-4 py-2 font-medium text-slate-800 border-r border-slate-200">
                             {row.rank === 'HOD' ? `HOD — ${row.trade}` : row.rank}
                           </td>
-                          <td className="px-3 py-2 text-right font-medium text-slate-600 border-r border-slate-200 bg-slate-50/30">
+                          <td className="px-3 py-2 text-right font-medium text-slate-600 border-r border-slate-200 bg-slate-50">
                             {fmt(rate)}
                           </td>
 
@@ -386,7 +391,7 @@ export default function LabourFlowEditor({
                                   type="number"
                                   min="0"
                                   step="1"
-                                  disabled={isLocked}
+                                  disabled={isLocked || locking || saving}
                                   value={count == null || count === 0 ? '' : count}
                                   placeholder="—"
                                   onChange={e => handleHeadcountChange(row.id, w.weekNumber, e.target.value)}
@@ -396,10 +401,10 @@ export default function LabourFlowEditor({
                             );
                           })}
 
-                          <td className="px-3 py-2 text-center font-bold text-slate-800 border-r border-slate-200 bg-slate-50/30">
+                          <td className="px-3 py-2 text-center font-bold text-slate-800 border-r border-slate-200 bg-slate-50">
                             {row.row_total_units || '—'}
                           </td>
-                          <td className="sticky right-0 z-10 bg-white px-4 py-2 text-right font-bold text-slate-900">
+                          <td className="md:sticky right-0 z-10 bg-white px-4 py-2 text-right font-bold text-slate-900">
                             {row.row_total_cost != null ? fmt(row.row_total_cost) : '£ auto'}
                           </td>
                         </tr>
@@ -407,8 +412,8 @@ export default function LabourFlowEditor({
                     })}
 
                     {/* Department Subtotal Row */}
-                    <tr className="bg-slate-100/90 font-bold text-slate-800 border-b-2 border-slate-300">
-                      <td className="sticky left-0 z-10 bg-slate-100 px-4 py-2 text-[11px] uppercase tracking-wider border-r border-slate-200">
+                    <tr className="bg-slate-100 font-bold text-slate-800 border-b-2 border-slate-300">
+                      <td className="md:sticky left-0 z-10 bg-slate-100 px-4 py-2 text-[11px] uppercase tracking-wider border-r border-slate-200">
                         {SECTION_HEADERS[secKey]?.replace('DEPARTMENT — ', '')} SUB TOTAL
                       </td>
                       <td className="px-3 py-2 border-r border-slate-200 bg-slate-100"></td>
@@ -420,7 +425,7 @@ export default function LabourFlowEditor({
                       <td className="px-3 py-2 text-center font-bold border-r border-slate-200">
                         {secTotalUnits || '—'}
                       </td>
-                      <td className="sticky right-0 z-10 bg-slate-100 px-4 py-2 text-right text-slate-900 font-bold">
+                      <td className="md:sticky right-0 z-10 bg-slate-100 px-4 py-2 text-right text-slate-900 font-bold">
                         {fmt(secTotalCost)}
                       </td>
                     </tr>
@@ -430,7 +435,7 @@ export default function LabourFlowEditor({
 
               {/* GRAND TOTAL ROW */}
               <tr className="bg-blue-900 text-white font-extrabold text-xs sticky bottom-0 z-20 shadow-md">
-                <td className="sticky left-0 z-30 bg-blue-900 px-4 py-3 tracking-wider uppercase border-r border-blue-800">
+                <td className="md:sticky left-0 z-30 bg-blue-900 px-4 py-3 tracking-wider uppercase border-r border-blue-800">
                   GRAND TOTAL PER WEEK
                 </td>
                 <td className="px-3 py-3 border-r border-blue-800 bg-blue-900"></td>
@@ -442,7 +447,7 @@ export default function LabourFlowEditor({
                 <td className="px-3 py-3 text-center border-r border-blue-800 text-blue-200">
                   {rows.reduce((acc, r) => acc + (r.row_total_units || 0), 0)}
                 </td>
-                <td className="sticky right-0 z-30 bg-blue-900 px-4 py-3 text-right text-amber-300 font-extrabold text-sm whitespace-nowrap">
+                <td className="md:sticky right-0 z-30 bg-blue-900 px-4 py-3 text-right text-amber-300 font-extrabold text-sm whitespace-nowrap">
                   {fmt(grandTotalCost)}
                 </td>
               </tr>
@@ -452,9 +457,9 @@ export default function LabourFlowEditor({
       </div>
 
       {/* STICKY BOTTOM ACTION BAR */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-6 py-3 shadow-lg">
+      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 px-6 py-3 shadow-lg">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-6 text-xs text-slate-600">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-600">
             <div>
               <span className="text-slate-400">Total Weeks:</span>{' '}
               <strong className="text-slate-800">{weeks.length} weeks</strong>
@@ -474,7 +479,7 @@ export default function LabourFlowEditor({
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || locking}
                 className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
               >
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}

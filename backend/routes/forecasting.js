@@ -17,8 +17,10 @@ router.post('/cost-forecasts/:id/version', requireRole(...ALL_ROLES), costForeca
 router.delete('/cost-forecasts/:id',       requireRole(...ALL_ROLES), costForecastsCtrl.deleteCostForecast);
 
 // ─── TOOL 2: WEEKLY LABOUR FLOWS (Addendum 4) ────────────────────────────────
+router.get('/labour-flows/burn-rate',     labourFlowsCtrl.getLabourBurnRate);
 router.get('/labour-flows',              labourFlowsCtrl.listLabourFlows);
 router.post('/labour-flows',             requireRole(...ALL_ROLES), labourFlowsCtrl.createLabourFlow);
+router.get('/labour-flows/:id/burn-rate', labourFlowsCtrl.getLabourBurnRate);
 router.get('/labour-flows/:id',          labourFlowsCtrl.getLabourFlowById);
 router.put('/labour-flows/:id',          requireRole(...ALL_ROLES), labourFlowsCtrl.updateLabourFlow);
 router.post('/labour-flows/:id/lock',    requireRole(...ALL_ROLES), labourFlowsCtrl.lockLabourFlow);
