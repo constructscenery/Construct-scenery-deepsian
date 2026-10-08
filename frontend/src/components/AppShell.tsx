@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useUIPreferences } from '@/contexts/UIPreferencesContext';
 
 const AUTH_PATHS = ['/login', '/forgot-password', '/verify-otp', '/reset-password'];
-const PUBLIC_PORTAL_PATHS = ['/crew-registration', '/public/safety-health'];
+const PUBLIC_PORTAL_PATHS = ['/crew-registration', '/public/safety-health', '/crew-portal'];
 
 // Land on Dashboard for all authenticated roles.
 const homeRouteFor = (_role: string) => '/dashboard';

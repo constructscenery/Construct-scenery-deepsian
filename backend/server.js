@@ -95,6 +95,8 @@ app.use('/api/auth', require('./routes/auth'));
 // ─── PUBLIC CREW REGISTRATION (public — no auth required) ───────────────────
 app.use('/api/public/crew', require('./routes/publicCrew'));
 app.use('/api/public/safety-health', require('./routes/publicSafetyHealth'));
+app.use('/api/public/crew-portal', require('./routes/crewPortal'));
+app.use('/api/public/email-events', require('./routes/sesWebhook'));
 
 // ─── GLOBAL MIDDLEWARE (applied to every route BELOW this line) ───────────────
 // 1. Verify JWT access token → populates req.user
@@ -130,6 +132,7 @@ app.use('/api/ladders',             require('./routes/ladders'));
 app.use('/api/expenditure-types',   require('./routes/expenditureTypes'));
 app.use('/api/audit-log',           require('./routes/auditLog'));
 app.use('/api/data-sync',           require('./routes/dataSync'));
+app.use('/api/emailing',            require('./routes/emailing'));
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
@@ -398,6 +401,14 @@ async function start() {
     }
   }, { timezone: 'UTC' });
   console.log('✅ Cron: weekly database S3 sync scheduled at 02:00 UTC every Sunday');
+
+  // -- Crew emailing: create tables if the migration has not been run, then start worker --
+  await require('./services/emailing/schemaGuard').ensureEmailingTables();
+  try {
+    require('./services/emailing/scheduler').start(cron);
+  } catch (err) {
+    console.error('Crew emailing scheduler failed to start:', err.message);
+  }
 
   return server;
 }

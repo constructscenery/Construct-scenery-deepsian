@@ -129,3 +129,71 @@ export enum PercentometerCostType {
   PAINT = 'Paint',
   GLASS = 'Glass',
 }
+
+// ─── Crew Emailing & Self-Service Portal ─────────────────────────────────────
+
+export enum EmailMessageType {
+  TIMESHEET_REMINDER = 'timesheet_reminder',
+  INVOICE_REQUEST = 'invoice_request',
+  AVAILABILITY_POLL = 'availability_poll',
+  MANUAL = 'manual',
+  SUBMISSION_APPROVED = 'submission_approved',
+  SUBMISSION_RETURNED = 'submission_returned',
+  SUBMISSION_DECLINED = 'submission_declined',
+}
+
+export enum EmailDeliveryStatus {
+  QUEUED = 'queued',
+  SENDING = 'sending',
+  SENT = 'sent',
+  DELIVERED = 'delivered',
+  DELAYED = 'delayed',
+  SOFT_BOUNCED = 'soft_bounced',
+  BOUNCED = 'bounced',
+  COMPLAINED = 'complained',
+  REJECTED = 'rejected',
+  FAILED = 'failed',
+  SUPPRESSED = 'suppressed',
+  CANCELLED = 'cancelled',
+}
+
+export enum EmailEventType {
+  SEND = 'send',
+  DELIVERY = 'delivery',
+  DELIVERY_DELAY = 'delivery_delay',
+  BOUNCE = 'bounce',
+  COMPLAINT = 'complaint',
+  REJECT = 'reject',
+  RENDERING_FAILURE = 'rendering_failure',
+  OPEN = 'open',
+  CLICK = 'click',
+  SUBSCRIPTION = 'subscription',
+}
+
+export enum EmailSuppressionReason {
+  HARD_BOUNCE = 'hard_bounce',
+  COMPLAINT = 'complaint',
+  INVALID_ADDRESS = 'invalid_address',
+  MANUAL = 'manual',
+}
+
+export enum CrewSubmissionStatus {
+  SUBMITTED = 'submitted',
+  RETURNED = 'returned',
+  APPROVED = 'approved',
+  DECLINED = 'declined',
+}
+
+export enum CrewSubmissionReviewAction {
+  SUBMITTED = 'submitted',
+  RESUBMITTED = 'resubmitted',
+  APPROVED = 'approved',
+  RETURNED = 'returned',
+  DECLINED = 'declined',
+}
+
+export enum AvailabilityResponse {
+  AVAILABLE = 'available',
+  PARTIAL = 'partial',
+  UNAVAILABLE = 'unavailable',
+}
