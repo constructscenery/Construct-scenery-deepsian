@@ -60,6 +60,9 @@ type DayEntry = {
   mileage: string;
   per_diem: string;
   ad_hoc_reimbursement: string;
+  meal_breakfast?: boolean;
+  meal_lunch?: boolean;
+  meal_supper?: boolean;
   meal_allowance_breakfast: string;
   meal_allowance_lunch: string;
   meal_allowance_supper: string;
@@ -159,9 +162,15 @@ export default function TimesheetDetailPage() {
           mileage:                  String(ex?.mileage ?? '0'),
           per_diem:                 String(ex?.per_diem ?? '0'),
           ad_hoc_reimbursement:     String(ex?.ad_hoc_reimbursement ?? '0'),
-          meal_allowance_breakfast: fmtMealValue(ex?.meal_allowance_breakfast),
-          meal_allowance_lunch:     fmtMealValue(ex?.meal_allowance_lunch),
-          meal_allowance_supper:    fmtMealValue(ex?.meal_allowance_supper),
+          meal_allowance_breakfast: ex?.meal_allowance_breakfast != null
+            ? fmtMealValue(ex.meal_allowance_breakfast)
+            : (ex?.meal_breakfast ? '5' : ''),
+          meal_allowance_lunch: ex?.meal_allowance_lunch != null
+            ? fmtMealValue(ex.meal_allowance_lunch)
+            : (ex?.meal_lunch ? '10' : ''),
+          meal_allowance_supper: ex?.meal_allowance_supper != null
+            ? fmtMealValue(ex.meal_allowance_supper)
+            : (ex?.meal_supper ? '10' : ''),
         };
       }));
     } catch (e: unknown) {

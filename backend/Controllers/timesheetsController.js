@@ -21,7 +21,7 @@ const logEmail = async (module, relatedRecordId, recipientEmail, recipientName, 
 };
 
 const STANDARD_START = '07:30';
-const MEAL_RATES     = { breakfast: 10.50, lunch: 14.00, supper: 10.50 };
+const MEAL_RATES     = { breakfast: 5.00, lunch: 10.00, supper: 10.00 };
 
 const toAmount = (value) => {
   const parsed = typeof value === 'number' ? value : parseFloat(value ?? 0);
@@ -179,9 +179,9 @@ const getAllTimesheets = async (req, res) => {
               , (
                   SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2))
                   FROM bectu_rates br
-                  WHERE br.trade = cm.crew_trade
-                    AND br.rank  = COALESCE(t.rank_override, cm.crew_rank)
-                  ORDER BY br.effective_from DESC
+                  WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
+                     OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
+                  ORDER BY br.effective_from DESC NULLS LAST
                   LIMIT 1
                 ) AS overtime_rate
        FROM   timesheets t
@@ -196,9 +196,9 @@ const getAllTimesheets = async (req, res) => {
                 COALESCE(SUM(te.per_diem), 0)       AS per_diem_total,
                 COALESCE(SUM(te.ad_hoc_reimbursement), 0) AS ad_hoc_total,
                 COALESCE(SUM(
-                  COALESCE(te.meal_allowance_breakfast, CASE WHEN te.meal_breakfast THEN 10.50 ELSE 0 END)
-                  + COALESCE(te.meal_allowance_lunch, CASE WHEN te.meal_lunch THEN 14.00 ELSE 0 END)
-                  + COALESCE(te.meal_allowance_supper, CASE WHEN te.meal_supper THEN 10.50 ELSE 0 END)
+                  COALESCE(te.meal_allowance_breakfast, CASE WHEN te.meal_breakfast THEN 5.00 ELSE 0 END)
+                  + COALESCE(te.meal_allowance_lunch, CASE WHEN te.meal_lunch THEN 10.00 ELSE 0 END)
+                  + COALESCE(te.meal_allowance_supper, CASE WHEN te.meal_supper THEN 10.00 ELSE 0 END)
                 ), 0) AS food_total,
                 JSON_AGG(JSON_BUILD_OBJECT('day', te.day_of_week, 'worked', te.full_day_worked)) AS attendance_days
          FROM timesheet_entries te
@@ -459,13 +459,13 @@ const getTimesheetById = async (req, res) => {
               cm.vat_registration_number,
               p.id AS prod_id, p.name AS prod_name,
               (SELECT br.daily_rate   FROM bectu_rates br
-               WHERE  br.trade = cm.crew_trade
-               AND    br.rank  = COALESCE(t.rank_override, cm.crew_rank)
-               ORDER  BY br.effective_from DESC LIMIT 1) AS daily_rate,
+               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
+                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
+               ORDER BY br.effective_from DESC NULLS LAST LIMIT 1) AS daily_rate,
               (SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2)) FROM bectu_rates br
-               WHERE  br.trade = cm.crew_trade
-               AND    br.rank  = COALESCE(t.rank_override, cm.crew_rank)
-               ORDER  BY br.effective_from DESC LIMIT 1) AS overtime_rate
+               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
+                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
+               ORDER BY br.effective_from DESC NULLS LAST LIMIT 1) AS overtime_rate
        FROM   timesheets t
        JOIN   crew_members cm ON t.crew_member_id = cm.id
        JOIN   productions p  ON t.production_id   = p.id
@@ -538,12 +538,19 @@ const saveEntries = async (req, res) => {
     } else {
       const rateYear = getRateYear(ts.week_ending_date);
       let { rows: [rateRow] } = await client.query(
-        'SELECT daily_rate, overtime_rate FROM bectu_rates WHERE trade = $1 AND rank = $2 AND rate_year = $3',
+        `SELECT daily_rate, overtime_rate FROM bectu_rates
+         WHERE ((trade = $1 AND rank = $2)
+            OR (trade = 'Non-BECTU' AND (rank = $1 OR rank = $2)))
+           AND rate_year = $3
+         ORDER BY effective_from DESC NULLS LAST LIMIT 1`,
         [ts.crew_trade, effectiveRank, rateYear]
       );
       if (!rateRow) {
         ({ rows: [rateRow] } = await client.query(
-          'SELECT daily_rate, overtime_rate FROM bectu_rates WHERE trade = $1 AND rank = $2 ORDER BY effective_from DESC LIMIT 1',
+          `SELECT daily_rate, overtime_rate FROM bectu_rates
+           WHERE (trade = $1 AND rank = $2)
+              OR (trade = 'Non-BECTU' AND (rank = $1 OR rank = $2))
+           ORDER BY effective_from DESC NULLS LAST LIMIT 1`,
           [ts.crew_trade, effectiveRank]
         ));
       }
@@ -1073,13 +1080,13 @@ const generateVerificationPackPdf = async (req, res) => {
               cm.vat_registration_number,
               p.name AS prod_name,
               (SELECT br.daily_rate    FROM bectu_rates br
-               WHERE  br.trade = cm.crew_trade
-               AND    br.rank  = COALESCE(t.rank_override, cm.crew_rank)
-               ORDER  BY br.effective_from DESC LIMIT 1) AS daily_rate,
+               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
+                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
+               ORDER BY br.effective_from DESC NULLS LAST LIMIT 1) AS daily_rate,
               (SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2)) FROM bectu_rates br
-               WHERE  br.trade = cm.crew_trade
-               AND    br.rank  = COALESCE(t.rank_override, cm.crew_rank)
-               ORDER  BY br.effective_from DESC LIMIT 1) AS overtime_rate
+               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
+                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
+               ORDER BY br.effective_from DESC NULLS LAST LIMIT 1) AS overtime_rate
        FROM timesheets t
        JOIN crew_members cm ON t.crew_member_id = cm.id
        JOIN productions p   ON t.production_id  = p.id
@@ -1279,15 +1286,15 @@ const generateVerificationPackCombinedPdf = async (req, res) => {
               p.name AS prod_name,
               (SELECT br.daily_rate
                FROM bectu_rates br
-               WHERE br.trade = cm.crew_trade
-                 AND br.rank  = COALESCE(t.rank_override, cm.crew_rank)
-               ORDER BY br.effective_from DESC
+               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
+                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
+               ORDER BY br.effective_from DESC NULLS LAST
                LIMIT 1) AS daily_rate,
               (SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2))
                FROM bectu_rates br
-               WHERE br.trade = cm.crew_trade
-                 AND br.rank  = COALESCE(t.rank_override, cm.crew_rank)
-               ORDER BY br.effective_from DESC
+               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
+                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
+               ORDER BY br.effective_from DESC NULLS LAST
                LIMIT 1) AS overtime_rate
        FROM timesheets t
        JOIN crew_members cm ON t.crew_member_id = cm.id
@@ -1344,15 +1351,15 @@ const getTimesheetVerificationPack = async (req, res) => {
               p.id AS prod_id, p.name AS prod_name,
               (SELECT br.daily_rate
                FROM bectu_rates br
-               WHERE br.trade = cm.crew_trade
-                 AND br.rank  = COALESCE(t.rank_override, cm.crew_rank)
-               ORDER BY br.effective_from DESC
+               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
+                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
+               ORDER BY br.effective_from DESC NULLS LAST
                LIMIT 1) AS daily_rate,
               (SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2))
                FROM bectu_rates br
-               WHERE br.trade = cm.crew_trade
-                 AND br.rank  = COALESCE(t.rank_override, cm.crew_rank)
-               ORDER BY br.effective_from DESC
+               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
+                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
+               ORDER BY br.effective_from DESC NULLS LAST
                LIMIT 1) AS overtime_rate
        FROM timesheets t
        JOIN crew_members cm ON t.crew_member_id = cm.id
@@ -1398,15 +1405,15 @@ const getDraftPdf = async (req, res) => {
               p.id AS prod_id, p.name AS prod_name,
               (SELECT br.daily_rate
                FROM bectu_rates br
-               WHERE br.trade = cm.crew_trade
-                 AND br.rank  = COALESCE(t.rank_override, cm.crew_rank)
-               ORDER BY br.effective_from DESC
+               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
+                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
+               ORDER BY br.effective_from DESC NULLS LAST
                LIMIT 1) AS daily_rate,
               (SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2))
                FROM bectu_rates br
-               WHERE br.trade = cm.crew_trade
-                 AND br.rank  = COALESCE(t.rank_override, cm.crew_rank)
-               ORDER BY br.effective_from DESC
+               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
+                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
+               ORDER BY br.effective_from DESC NULLS LAST
                LIMIT 1) AS overtime_rate
        FROM timesheets t
        JOIN crew_members cm ON t.crew_member_id = cm.id
