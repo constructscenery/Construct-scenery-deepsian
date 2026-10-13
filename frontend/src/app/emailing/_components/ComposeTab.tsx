@@ -51,6 +51,7 @@ export default function ComposeTab({ preset, onSent }: { preset: ComposePreset |
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   const [source, setSource] = useState<'group' | 'pick'>(preset?.group ? 'group' : 'pick');
+  const [filterByProduction, setFilterByProduction] = useState(false);
   const [search, setSearch] = useState('');
   const [rows, setRows] = useState<RecipientRow[]>([]);
   const [rowsLoading, setRowsLoading] = useState(false);
@@ -104,7 +105,10 @@ export default function ComposeTab({ preset, onSent }: { preset: ComposePreset |
         // Preselect everyone who can receive email.
         setSelected(new Map(data.filter((r) => r.eligible).map((r) => [keyOf(r), r])));
       } else {
-        data = await emailingApi.recipients({ search: search || undefined, production_id: productionId || undefined });
+        data = await emailingApi.recipients({
+          search: search || undefined,
+          production_id: (filterByProduction && productionId) ? productionId : undefined,
+        });
       }
       setRows(data);
     } catch (e) {
@@ -113,7 +117,7 @@ export default function ComposeTab({ preset, onSent }: { preset: ComposePreset |
     } finally {
       setRowsLoading(false);
     }
-  }, [useGroup, group, productionId, week, pollId, search]);
+  }, [useGroup, group, productionId, week, pollId, search, filterByProduction]);
 
   useEffect(() => {
     const t = setTimeout(loadRows, source === 'pick' ? 300 : 0);
@@ -296,9 +300,34 @@ export default function ComposeTab({ preset, onSent }: { preset: ComposePreset |
           {useGroup && group ? (
             <p className="text-xs text-slate-500 mb-3">{GROUP_LABEL[group]}{group !== 'poll_non_responders' ? ` · week ending ${fmtDate(week)}` : ''}.</p>
           ) : (
-            <div className="relative mb-3">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input className={`${inputCls} pl-8`} placeholder="Search name, crew number or email" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <div className="space-y-2 mb-3">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input className={`${inputCls} pl-8`} placeholder="Search name, crew number or email" value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+              {productionId && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-slate-500 font-medium">Show:</span>
+                  <button
+                    type="button"
+                    onClick={() => setFilterByProduction(false)}
+                    className={`px-2 py-0.5 rounded border text-xs font-medium transition-colors ${
+                      !filterByProduction ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    All crew
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterByProduction(true)}
+                    className={`px-2 py-0.5 rounded border text-xs font-medium transition-colors ${
+                      filterByProduction ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Only crew on this production
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -319,7 +348,12 @@ export default function ComposeTab({ preset, onSent }: { preset: ComposePreset |
                         <input type="checkbox" className="mt-0.5" checked={checked} disabled={!r.eligible} onChange={() => toggle(r)} />
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm font-medium text-slate-800 truncate">{r.first_name} {r.last_name} <span className="text-xs font-normal text-slate-400">{r.crew_number}</span></span>
-                          <span className="block text-xs text-slate-500 truncate">{r.email || 'No email'}{r.production_name ? ` · ${r.production_name}` : ''}{r.week_ending_date && group === 'invoice_missing' ? ` · w/e ${fmtDate(r.week_ending_date)}` : ''}</span>
+                          <span className="block text-xs text-slate-500 truncate">
+                            {r.email || 'No email'}
+                            {r.employment_status ? ` · ${r.employment_status === 'self_employed' ? 'Self-employed' : 'PAYE'}` : ''}
+                            {r.production_name ? ` · ${r.production_name}` : ''}
+                            {r.week_ending_date && group === 'invoice_missing' ? ` · w/e ${fmtDate(r.week_ending_date)}` : ''}
+                          </span>
                         </span>
                         {!r.eligible && r.reason && (
                           <span className="shrink-0 inline-flex items-center gap-1 text-[11px] text-amber-700"><AlertTriangle size={12} /> {REASON_LABELS[r.reason]}</span>
