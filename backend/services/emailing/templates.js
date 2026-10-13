@@ -197,10 +197,8 @@ function getDefaultTemplate(templateKey) {
 function portalBaseUrl() {
   const raw =
     process.env.FRONTEND_URL ||
-    (process.env.CLIENT_URL || '').split(',')[0] ||
     process.env.CREW_PORTAL_URL ||
-    (process.env.APP_URL && !process.env.APP_URL.includes(':5001') ? process.env.APP_URL : null) ||
-    'http://localhost:3000';
+    'https://database.constructscenery.co.uk';
   return raw.trim().replace(/\/+$/, '');
 }
 

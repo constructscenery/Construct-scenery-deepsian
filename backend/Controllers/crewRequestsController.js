@@ -39,8 +39,7 @@ const sendInvite = async (req, res) => {
 
   try {
     // Determine public URL for the crew registration form
-    const origin = req.headers.origin || req.headers.referer;
-    let baseUrl = process.env.FRONTEND_URL || (origin ? new URL(origin).origin : 'http://localhost:3000');
+    let baseUrl = process.env.FRONTEND_URL || 'https://database.constructscenery.co.uk';
     baseUrl = baseUrl.replace(/\/$/, '');
 
     const params = new URLSearchParams();

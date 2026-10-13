@@ -163,7 +163,7 @@ const templates = {
       ? new Date(set.handover_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
       : '—';
     const statusLabel = (set.completion_status ?? '').replace(/_/g, ' ');
-    const appUrl = (process.env.FRONTEND_URL || (process.env.CLIENT_URL || '').split(',')[0] || (process.env.APP_URL && !process.env.APP_URL.includes(':5001') ? process.env.APP_URL : null) || 'https://frontend-csldatabase.vercel.app').replace(/\/+$/, '');
+    const appUrl = (process.env.FRONTEND_URL || 'https://database.constructscenery.co.uk').replace(/\/+$/, '');
     const deepLink = `${appUrl}/productions/${set.prod_id}`;
     const dotColor = days <= 7 ? '#ef4444' : '#f59e0b';
     return {
@@ -226,7 +226,7 @@ const templates = {
       ? 'Due Today'
       : `${daysRemaining} Days Remaining`;
 
-    const appUrl = (process.env.FRONTEND_URL || (process.env.CLIENT_URL || '').split(',')[0] || (process.env.APP_URL && !process.env.APP_URL.includes(':5001') ? process.env.APP_URL : null) || 'https://frontend-csldatabase.vercel.app').replace(/\/+$/, '');
+    const appUrl = (process.env.FRONTEND_URL || 'https://database.constructscenery.co.uk').replace(/\/+$/, '');
     const deepLink = `${appUrl}/assets-hire`;
 
     return {
