@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { RefreshCw, Search, RotateCcw, Ban, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, Search, RotateCcw, Ban, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import {
   emailingApi, MESSAGE_TYPE_LABELS, fmtDate, fmtDateTime,
   type DeliveryStatus, type EmailMessage, type EmailMessageDetail, type MessageType,
@@ -40,29 +40,117 @@ export default function HistoryTab({ readOnly }: { readOnly: boolean }) {
 
   const set = (k: keyof typeof filters) => (v: string) => { setFilters((f) => ({ ...f, [k]: v })); setPage(1); };
   const pages = Math.max(1, Math.ceil(data.total / LIMIT));
+  const hasActiveFilters = Boolean(filters.search || filters.message_type || filters.status || filters.from || filters.to);
 
   return (
     <Card
       title="Communication history"
       subtitle="Every message sent from the Emailing tab, with its content, recipient and delivery status."
-      actions={<button className={btnSecondary} onClick={load} aria-label="Refresh"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>}
-    >
-      <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-3">
-        <div className="relative lg:col-span-2">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input className={`${inputCls} pl-8`} placeholder="Search recipient or subject" value={filters.search} onChange={(e) => set('search')(e.target.value)} />
+      actions={
+        <div className="flex items-center gap-2">
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className="text-xs text-slate-500 hover:text-slate-800 underline"
+              onClick={() => {
+                setFilters({ search: '', status: '', message_type: '', from: '', to: '' });
+                setPage(1);
+              }}
+            >
+              Reset filters
+            </button>
+          )}
+          <button className={btnSecondary} onClick={load} aria-label="Refresh">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
         </div>
-        <select className={inputCls} value={filters.message_type} onChange={(e) => set('message_type')(e.target.value)} aria-label="Type">
-          <option value="">All types</option>
-          {TYPES.map((t) => <option key={t} value={t}>{MESSAGE_TYPE_LABELS[t]}</option>)}
-        </select>
-        <select className={inputCls} value={filters.status} onChange={(e) => set('status')(e.target.value)} aria-label="Status">
-          <option value="">All statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-        </select>
-        <div className="flex gap-2">
-          <input type="date" className={inputCls} value={filters.from} onChange={(e) => set('from')(e.target.value)} aria-label="From" />
-          <input type="date" className={inputCls} value={filters.to} onChange={(e) => set('to')(e.target.value)} aria-label="To" />
+      }
+    >
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 mb-3">
+        <div className="relative sm:col-span-2 lg:col-span-4 min-w-0">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            className={`${inputCls} pl-8 pr-8 min-w-0`}
+            placeholder="Search recipient or subject"
+            value={filters.search}
+            onChange={(e) => set('search')(e.target.value)}
+          />
+          {filters.search && (
+            <button
+              type="button"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+              onClick={() => set('search')('')}
+              aria-label="Clear search"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        <div className="sm:col-span-1 lg:col-span-2 min-w-0">
+          <select
+            className={`${inputCls} min-w-0`}
+            value={filters.message_type}
+            onChange={(e) => set('message_type')(e.target.value)}
+            aria-label="Type"
+          >
+            <option value="">All types</option>
+            {TYPES.map((t) => <option key={t} value={t}>{MESSAGE_TYPE_LABELS[t]}</option>)}
+          </select>
+        </div>
+        <div className="sm:col-span-1 lg:col-span-2 min-w-0">
+          <select
+            className={`${inputCls} min-w-0`}
+            value={filters.status}
+            onChange={(e) => set('status')(e.target.value)}
+            aria-label="Status"
+          >
+            <option value="">All statuses</option>
+            {STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+          </select>
+        </div>
+        <div className="sm:col-span-1 lg:col-span-2 min-w-0">
+          <div className="flex items-center h-[38px] bg-slate-50 border border-slate-200 rounded-lg px-2.5 focus-within:ring-2 focus-within:ring-blue-500">
+            <span className="text-[11px] font-medium text-slate-400 select-none mr-1 shrink-0">From</span>
+            <input
+              type="date"
+              className="w-full bg-transparent text-xs text-slate-800 focus:outline-none min-w-0 py-1"
+              value={filters.from}
+              onChange={(e) => set('from')(e.target.value)}
+              aria-label="From date"
+            />
+            {filters.from && (
+              <button
+                type="button"
+                className="text-slate-400 hover:text-slate-600 shrink-0 ml-1"
+                onClick={() => set('from')('')}
+                title="Clear from date"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="sm:col-span-1 lg:col-span-2 min-w-0">
+          <div className="flex items-center h-[38px] bg-slate-50 border border-slate-200 rounded-lg px-2.5 focus-within:ring-2 focus-within:ring-blue-500">
+            <span className="text-[11px] font-medium text-slate-400 select-none mr-1 shrink-0">To</span>
+            <input
+              type="date"
+              className="w-full bg-transparent text-xs text-slate-800 focus:outline-none min-w-0 py-1"
+              value={filters.to}
+              onChange={(e) => set('to')(e.target.value)}
+              aria-label="To date"
+            />
+            {filters.to && (
+              <button
+                type="button"
+                className="text-slate-400 hover:text-slate-600 shrink-0 ml-1"
+                onClick={() => set('to')('')}
+                title="Clear to date"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
       <ErrorNote message={error} />

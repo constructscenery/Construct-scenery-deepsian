@@ -59,11 +59,18 @@ async function loadCrewByIds(ids) {
 async function searchCrew({ search, productionId, limit = 300 }) {
   const params = [];
   const where = [LIVE_CREW];
-  if (search) {
-    params.push(`%${search}%`);
-    where.push(`(cm.first_name ILIKE $${params.length} OR cm.last_name ILIKE $${params.length}
-      OR (cm.first_name || ' ' || cm.last_name) ILIKE $${params.length}
-      OR cm.email ILIKE $${params.length} OR cm.crew_number ILIKE $${params.length})`);
+  if (search && String(search).trim()) {
+    const words = String(search).trim().split(/\s+/).filter(Boolean);
+    for (const word of words) {
+      params.push(`%${word}%`);
+      where.push(`(cm.first_name ILIKE $${params.length}
+        OR cm.last_name ILIKE $${params.length}
+        OR CONCAT(cm.first_name, ' ', cm.last_name) ILIKE $${params.length}
+        OR cm.email ILIKE $${params.length}
+        OR cm.crew_number ILIKE $${params.length}
+        OR cm.crew_trade ILIKE $${params.length}
+        OR cm.crew_rank ILIKE $${params.length})`);
+    }
   }
   if (productionId) {
     params.push(productionId);

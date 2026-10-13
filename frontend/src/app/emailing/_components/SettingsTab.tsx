@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { RefreshCw, Trash2, Plus, Play, Eye, Copy, KeyRound, ShieldCheck, ShieldAlert, Save } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { RefreshCw, Trash2, Plus, Play, Eye, Copy, KeyRound, ShieldCheck, ShieldAlert, Save, Search, X, Loader2 } from 'lucide-react';
 import {
   emailingApi, fmtDate, fmtDateTime, recentSundays,
   type AutomationRun, type AutomationType, type EmailSettings, type PortalLinkStatus, type ProviderStatus,
@@ -231,58 +231,268 @@ function PortalLinks({ readOnly }: { readOnly: boolean }) {
   const [crew, setCrew] = useState<RecipientRow[]>([]);
   const [selected, setSelected] = useState<RecipientRow | null>(null);
   const [status, setStatus] = useState<PortalLinkStatus | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [actionBusy, setActionBusy] = useState('');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const short = readOnly || search.trim().length < 2;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const loadCrew = useCallback(async (query: string) => {
+    if (readOnly) return;
+    setIsSearching(true);
+    setError('');
+    try {
+      const res = await emailingApi.recipients({ search: query.trim() || undefined });
+      setCrew(res.slice(0, 10));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to search crew');
+      setCrew([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [readOnly]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     const t = setTimeout(() => {
-      if (short) { setCrew([]); return; }
-      emailingApi.recipients({ search }).then((r) => setCrew(r.slice(0, 8))).catch(() => setCrew([]));
-    }, short ? 0 : 300);
+      loadCrew(search);
+    }, search ? 250 : 0);
     return () => clearTimeout(t);
-  }, [search, readOnly]);
+  }, [search, isOpen, loadCrew]);
 
   const pick = async (c: RecipientRow) => {
-    setSelected(c); setCrew([]); setSearch(''); setError(''); setCopied(false);
-    try { setStatus(await emailingApi.portalLink(c.id)); } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); }
+    setSelected(c);
+    setIsOpen(false);
+    setSearch('');
+    setError('');
+    setCopied(false);
+    setIsLoadingStatus(true);
+    try {
+      const s = await emailingApi.portalLink(c.id);
+      setStatus(s);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load link status');
+      setStatus(null);
+    } finally {
+      setIsLoadingStatus(false);
+    }
   };
-  const doAct = async (fn: () => Promise<PortalLinkStatus | { revoked: boolean }>) => {
+
+  const doAct = async (label: string, fn: () => Promise<PortalLinkStatus | { revoked: boolean }>) => {
     if (!selected) return;
-    setError(''); setCopied(false);
+    setError('');
+    setCopied(false);
+    setActionBusy(label);
     try {
       const res = await fn();
       setStatus('revoked' in res ? { active: false } : res);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Action failed');
+    } finally {
+      setActionBusy('');
+    }
   };
 
   if (readOnly) return null;
+
   return (
-    <Card title={<span className="inline-flex items-center gap-2"><KeyRound size={15} /> Crew portal links</span>} subtitle="Each crew member has one secure link, reused in every email. Copy it to share another way, or issue a new one if it was forwarded.">
-      <div className="relative">
-        <input className={inputCls} placeholder="Find a crew member" value={search} onChange={(e) => setSearch(e.target.value)} />
-        {!!crew.length && (
-          <ul className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg divide-y divide-slate-100">
-            {crew.map((c) => <li key={c.id}><button className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50" onClick={() => pick(c)}>{c.first_name} {c.last_name} <span className="text-xs text-slate-400">{c.crew_number}</span></button></li>)}
-          </ul>
+    <Card
+      title={<span className="inline-flex items-center gap-2"><KeyRound size={15} /> Crew portal links</span>}
+      subtitle="Each crew member has one secure link, reused in every email. Copy it to share another way, or issue a new one if it was forwarded."
+    >
+      <div ref={containerRef} className="relative">
+        <div className="relative">
+          <input
+            className={`${inputCls} pl-9 pr-9`}
+            placeholder="Find a crew member by name, number, trade or email"
+            value={search}
+            onFocus={() => {
+              setIsOpen(true);
+              if (!crew.length) loadCrew(search);
+            }}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setIsOpen(true);
+            }}
+          />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          {isSearching ? (
+            <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />
+          ) : search ? (
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+              onClick={() => {
+                setSearch('');
+                loadCrew('');
+              }}
+              aria-label="Clear search"
+            >
+              <X size={14} />
+            </button>
+          ) : null}
+        </div>
+
+        {isOpen && (
+          <div className="absolute z-20 mt-1.5 w-full bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden divide-y divide-slate-100 max-h-72 overflow-y-auto">
+            {isSearching && !crew.length ? (
+              <div className="flex items-center justify-center gap-2 py-4 text-xs text-slate-500">
+                <Loader2 size={14} className="animate-spin" />
+                <span>Searching crew members…</span>
+              </div>
+            ) : crew.length > 0 ? (
+              crew.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className="w-full text-left px-3.5 py-2.5 hover:bg-blue-50 transition-colors flex items-center justify-between gap-3 text-sm group"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    pick(c);
+                  }}
+                >
+                  <div className="min-w-0">
+                    <div className="font-medium text-slate-800 group-hover:text-blue-700 truncate">
+                      {c.first_name} {c.last_name}
+                      <span className="ml-2 font-mono text-xs font-normal text-slate-400">{c.crew_number}</span>
+                    </div>
+                    <div className="text-xs text-slate-500 truncate mt-0.5">
+                      {c.crew_trade || 'No trade'} {c.email ? `· ${c.email}` : '· (No email)'}
+                    </div>
+                  </div>
+                  {c.is_active === false && (
+                    <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 shrink-0">
+                      Inactive
+                    </span>
+                  )}
+                </button>
+              ))
+            ) : (
+              <div className="py-4 px-3 text-xs text-slate-500 text-center">
+                {search ? `No crew members found matching "${search}"` : 'No crew members available'}
+              </div>
+            )}
+          </div>
         )}
       </div>
-      {selected && status && (
-        <div className="mt-3 rounded-lg border border-slate-200 p-3 space-y-2">
-          <div className="text-sm font-medium text-slate-800">{selected.first_name} {selected.last_name}</div>
-          <div className="text-xs text-slate-500">{status.active ? `Active · expires ${fmtDate(status.expires_at?.slice(0, 10))}${status.last_used_at ? ` · last opened ${fmtDateTime(status.last_used_at)}` : ''}` : 'No active link — one is created automatically with the next email.'}</div>
+
+      <ErrorNote message={error} />
+
+      {isLoadingStatus && selected && (
+        <div className="mt-3 rounded-lg border border-slate-200 p-4 flex items-center gap-2.5 text-sm text-slate-600 bg-slate-50">
+          <Loader2 size={15} className="animate-spin text-blue-600" />
+          <span>Loading portal link for <strong>{selected.first_name} {selected.last_name}</strong>…</span>
+        </div>
+      )}
+
+      {selected && status && !isLoadingStatus && (
+        <div className="mt-3 rounded-lg border border-slate-200 p-4 space-y-3 bg-white">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <div className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                <span>{selected.first_name} {selected.last_name}</span>
+                <span className="font-mono text-xs font-normal text-slate-500">{selected.crew_number}</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5">
+                {selected.crew_trade || 'No trade'} {selected.email ? `· ${selected.email}` : '· (No email on file)'}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="text-xs text-slate-400 hover:text-slate-600 underline"
+              onClick={() => {
+                setSelected(null);
+                setStatus(null);
+                setError('');
+              }}
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="text-xs text-slate-600 pt-1 border-t border-slate-100">
+            {status.active ? (
+              <span className="inline-flex items-center gap-1.5 text-emerald-700 font-medium">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                Active · expires {fmtDate(status.expires_at?.slice(0, 10))}
+                {status.last_used_at ? ` · last opened ${fmtDateTime(status.last_used_at)}` : ''}
+              </span>
+            ) : (
+              <span className="text-slate-500">
+                No active link — one is created automatically with the next email.
+              </span>
+            )}
+          </div>
+
           {status.url && (
             <div className="flex gap-2">
-              <input className={`${inputCls} font-mono text-xs`} readOnly value={status.url} onFocus={(e) => e.target.select()} />
-              <button className={btnSecondary} onClick={() => { navigator.clipboard?.writeText(status.url!).then(() => setCopied(true)).catch(() => {}); }}><Copy size={14} /> {copied ? 'Copied' : 'Copy'}</button>
+              <input
+                className={`${inputCls} font-mono text-xs bg-slate-50`}
+                readOnly
+                value={status.url}
+                onFocus={(e) => e.target.select()}
+              />
+              <button
+                type="button"
+                className={btnSecondary}
+                onClick={() => {
+                  navigator.clipboard?.writeText(status.url!).then(() => setCopied(true)).catch(() => {});
+                }}
+              >
+                <Copy size={14} /> {copied ? 'Copied' : 'Copy'}
+              </button>
             </div>
           )}
-          <div className="flex flex-wrap gap-2">
-            <button className={btnSecondary} onClick={() => doAct(() => emailingApi.portalLink(selected.id, true))}>Show link</button>
-            <button className={btnSecondary} onClick={() => { if (window.confirm('Issue a new link? The current link stops working immediately.')) doAct(() => emailingApi.rotatePortalLink(selected.id)); }}>Issue new link</button>
-            <button className={btnSecondary} onClick={() => { if (window.confirm('Revoke this crew member’s link?')) doAct(() => emailingApi.revokePortalLink(selected.id)); }}>Revoke</button>
+
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              type="button"
+              className={btnSecondary}
+              disabled={!!actionBusy}
+              onClick={() => doAct('show', () => emailingApi.portalLink(selected.id, true))}
+            >
+              {actionBusy === 'show' ? <Loader2 size={14} className="animate-spin" /> : null}
+              Show link
+            </button>
+            <button
+              type="button"
+              className={btnSecondary}
+              disabled={!!actionBusy}
+              onClick={() => {
+                if (window.confirm('Issue a new link? The current link stops working immediately.')) {
+                  doAct('rotate', () => emailingApi.rotatePortalLink(selected.id));
+                }
+              }}
+            >
+              {actionBusy === 'rotate' ? <Loader2 size={14} className="animate-spin" /> : null}
+              Issue new link
+            </button>
+            <button
+              type="button"
+              className={btnSecondary}
+              disabled={!!actionBusy}
+              onClick={() => {
+                if (window.confirm('Revoke this crew member’s link?')) {
+                  doAct('revoke', () => emailingApi.revokePortalLink(selected.id));
+                }
+              }}
+            >
+              {actionBusy === 'revoke' ? <Loader2 size={14} className="animate-spin" /> : null}
+              Revoke
+            </button>
           </div>
-          <ErrorNote message={error} />
         </div>
       )}
     </Card>

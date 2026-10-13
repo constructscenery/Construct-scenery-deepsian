@@ -195,7 +195,12 @@ function getDefaultTemplate(templateKey) {
 
 /** Base URL of the frontend that hosts /crew-portal/[token]. */
 function portalBaseUrl() {
-  const raw = process.env.CREW_PORTAL_URL || process.env.APP_URL || (process.env.CLIENT_URL || '').split(',')[0] || 'http://localhost:3000';
+  const raw =
+    process.env.FRONTEND_URL ||
+    (process.env.CLIENT_URL || '').split(',')[0] ||
+    process.env.CREW_PORTAL_URL ||
+    (process.env.APP_URL && !process.env.APP_URL.includes(':5001') ? process.env.APP_URL : null) ||
+    'http://localhost:3000';
   return raw.trim().replace(/\/+$/, '');
 }
 
