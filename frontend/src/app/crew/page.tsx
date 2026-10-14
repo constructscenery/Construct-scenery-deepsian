@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
 import FreelancersTab from './FreelancersTab';
@@ -1248,220 +1248,236 @@ export default function CrewPage() {
 
         {/* Table card */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-visible">
-          {/* Toolbar */}
-          <div className="px-5 py-3 border-b border-slate-100 space-y-3">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-1 flex-wrap">
-                {FILTER_TABS.map(tab => (
-                  <button
-                    key={tab.value}
-                    onClick={() => setActiveTab(tab.value)}
-                    className={`px-3 py-1.5 text-sm font-normal rounded-lg transition-colors flex items-center gap-1.5 ${
-                      activeTab === tab.value ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span>{tab.label}</span>
-                    {tab.value === 'requests' && requestCounts.pending > 0 && (
-                      <span className={`px-1.5 py-0.5 rounded-full text-xs font-normal leading-none ${
-                        activeTab === 'requests' ? 'bg-white text-blue-700' : 'bg-amber-500 text-white'
-                      }`}>
-                        {requestCounts.pending}
-                      </span>
+          {/* Header Tabs Navigation Bar - Single Line Sleek Tabs */}
+          <div className="px-3 sm:px-4 py-2 border-b border-slate-100 bg-slate-50/70 rounded-t-xl overflow-hidden">
+            <div className="flex items-center gap-1 overflow-x-auto flex-nowrap no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0.5">
+              {FILTER_TABS.map(tab => {
+                const showDividerBefore = tab.value === 'designer' || tab.value === 'active' || tab.value === 'requests';
+                return (
+                  <Fragment key={tab.value}>
+                    {showDividerBefore && (
+                      <div className="h-4 w-px bg-slate-200 mx-1 flex-shrink-0" />
                     )}
-                  </button>
-                ))}
-              </div>
-              {activeTab !== 'freelancers' && activeTab !== 'import' && !isRoleContactTab(activeTab) && <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-                <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 w-full sm:w-72">
+                    <button
+                      key={tab.value}
+                      onClick={() => setActiveTab(tab.value)}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md whitespace-nowrap transition-all flex items-center gap-1.5 flex-shrink-0 ${
+                        activeTab === tab.value
+                          ? 'bg-blue-600 text-white shadow-sm font-semibold'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      {tab.value === 'requests' && requestCounts.pending > 0 && (
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${
+                          activeTab === 'requests' ? 'bg-white text-blue-700' : 'bg-amber-500 text-white'
+                        }`}>
+                          {requestCounts.pending}
+                        </span>
+                      )}
+                    </button>
+                  </Fragment>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Sub-toolbar (Search, Actions, Quick Trade & Availability Filters) for Crew / Requests tabs */}
+          {activeTab !== 'freelancers' && activeTab !== 'import' && !isRoleContactTab(activeTab) && (
+            <div className="px-5 py-3 border-b border-slate-100 space-y-3">
+              {/* Row 1: Search & Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-1.5 w-full sm:w-80 border border-slate-200/60 focus-within:border-blue-500 focus-within:bg-white transition-all">
                   <Search size={14} className="text-slate-400 flex-shrink-0" />
                   <input
                     type="text"
                     placeholder={activeTab === 'requests' ? 'Search requests...' : 'Search name, trade (carpenter, painter, rigger)...'}
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    className="bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none w-full"
+                    className="bg-transparent text-xs text-slate-700 placeholder-slate-400 outline-none w-full"
                   />
                   {search && (
                     <button onClick={() => setSearch('')} className="text-slate-400 hover:text-slate-600"><X size={13} /></button>
                   )}
                 </div>
+
                 {canWrite && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button
                       type="button"
                       onClick={() => setShowShareModal(true)}
-                      className="flex items-center justify-center gap-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-sm rounded-lg px-3.5 py-2 transition-colors font-medium whitespace-nowrap shadow-sm"
+                      className="flex items-center justify-center gap-1.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs rounded-lg px-3 py-1.5 transition-colors font-medium whitespace-nowrap shadow-sm"
                     >
-                      <Share2 size={14} className="text-blue-600" />
+                      <Share2 size={13} className="text-blue-600" />
                       <span>Share Form Link</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setActiveTab('import')}
-                      className="flex items-center justify-center gap-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-sm rounded-lg px-3.5 py-2 transition-colors font-medium whitespace-nowrap shadow-sm"
+                      className="flex items-center justify-center gap-1.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs rounded-lg px-3 py-1.5 transition-colors font-medium whitespace-nowrap shadow-sm"
                     >
-                      <Upload size={14} className="text-slate-600" />
+                      <Upload size={13} className="text-slate-600" />
                       <span>Import Crew</span>
                     </button>
                     <button
                       onClick={() => setShowModal(true)}
-                      className="flex items-center justify-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-4 py-2 hover:bg-blue-700 transition-colors font-medium whitespace-nowrap shadow-sm"
+                      className="flex items-center justify-center gap-1.5 bg-blue-600 text-white text-xs rounded-lg px-3.5 py-1.5 hover:bg-blue-700 transition-colors font-medium whitespace-nowrap shadow-sm"
                     >
-                      <Plus size={14} />
+                      <Plus size={13} />
                       <span>Register Crew Member</span>
                     </button>
                   </div>
                 )}
-              </div>}
-            </div>
-
-            {/* Quick Trade Filter Pills (visible on crew tabs) */}
-            {activeTab !== 'freelancers' && activeTab !== 'import' && activeTab !== 'requests' && !isRoleContactTab(activeTab) && (
-              <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mr-1">
-                  <Briefcase size={12} className="text-slate-400" /> Quick Trade:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => { setTradeFilter(''); setRankFilter(''); }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                    !tradeFilter
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  All Trades
-                </button>
-                {POPULAR_TRADES.map(t => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => { setTradeFilter(tradeFilter === t ? '' : t); setRankFilter(''); }}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                      tradeFilter === t
-                        ? 'bg-blue-600 text-white shadow-sm font-semibold'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
               </div>
-            )}
 
-            {/* Secondary filter row: Traffic Light Availability & Select Dropdowns */}
-            {activeTab === 'freelancers' || activeTab === 'import' || isRoleContactTab(activeTab) ? null : activeTab === 'requests' ? (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-slate-500 font-medium">Status Filter:</span>
-                {(['all', 'pending', 'approved', 'rejected'] as const).map(st => (
-                  <button
-                    key={st}
-                    onClick={() => setRequestStatusFilter(st)}
-                    className={`px-2.5 py-1 text-xs rounded-lg font-medium capitalize transition-colors ${
-                      requestStatusFilter === st
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    {st} {st === 'pending' && requestCounts.pending > 0 ? `(${requestCounts.pending})` : ''}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100">
-                {/* Traffic Light Availability Filter Buttons */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
-                    Availability:
+              {/* Quick Trade Filter Pills (visible on crew tabs) */}
+              {activeTab !== 'requests' && (
+                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mr-1">
+                    <Briefcase size={12} className="text-slate-400" /> Quick Trade:
                   </span>
                   <button
                     type="button"
-                    onClick={() => setAvailabilityFilter('')}
+                    onClick={() => { setTradeFilter(''); setRankFilter(''); }}
                     className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                      availabilityFilter === ''
-                        ? 'bg-slate-900 text-white shadow-sm'
+                      !tradeFilter
+                        ? 'bg-blue-600 text-white shadow-sm'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
-                    All Statuses
+                    All Trades
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setAvailabilityFilter(availabilityFilter === 'available' ? '' : 'available')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
-                      availabilityFilter === 'available'
-                        ? 'bg-emerald-600 text-white shadow-sm font-semibold'
-                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
-                    <span>Available ({availableCount})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAvailabilityFilter(availabilityFilter === 'booked' ? '' : 'booked')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
-                      availabilityFilter === 'booked'
-                        ? 'bg-amber-600 text-white shadow-sm font-semibold'
-                        : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.8)]" />
-                    <span>Booked ({bookedCount})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAvailabilityFilter(availabilityFilter === 'unavailable' ? '' : 'unavailable')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
-                      availabilityFilter === 'unavailable'
-                        ? 'bg-rose-600 text-white shadow-sm font-semibold'
-                        : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.8)]" />
-                    <span>Unavailable ({unavailableCount})</span>
-                  </button>
-                </div>
-
-                {/* Dropdown Filters */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={productionFilter}
-                    onChange={e => setProductionFilter(e.target.value)}
-                    className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 outline-none focus:ring-1 focus:ring-blue-400"
-                  >
-                    <option value="">All productions</option>
-                    {productions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                  <select
-                    value={tradeFilter}
-                    onChange={e => { setTradeFilter(e.target.value); setRankFilter(''); }}
-                    className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 outline-none focus:ring-1 focus:ring-blue-400"
-                  >
-                    <option value="">All trades</option>
-                    {allTrades.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                  <select
-                    value={rankFilter}
-                    onChange={e => setRankFilter(e.target.value)}
-                    disabled={rankOptions.length === 0}
-                    className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-50"
-                  >
-                    <option value="">All ranks</option>
-                    {rankOptions.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                  {(productionFilter || tradeFilter || rankFilter || availabilityFilter || search) && (
+                  {POPULAR_TRADES.map(t => (
                     <button
-                      onClick={() => { setProductionFilter(''); setTradeFilter(''); setRankFilter(''); setAvailabilityFilter(''); setSearch(''); }}
-                      className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium ml-1"
+                      key={t}
+                      type="button"
+                      onClick={() => { setTradeFilter(tradeFilter === t ? '' : t); setRankFilter(''); }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                        tradeFilter === t
+                          ? 'bg-blue-600 text-white shadow-sm font-semibold'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
                     >
-                      <X size={11} /> Clear All
+                      {t}
                     </button>
-                  )}
+                  ))}
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+
+              {/* Secondary filter row: Traffic Light Availability & Select Dropdowns */}
+              {activeTab === 'requests' ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-slate-500 font-medium">Status Filter:</span>
+                  {(['all', 'pending', 'approved', 'rejected'] as const).map(st => (
+                    <button
+                      key={st}
+                      onClick={() => setRequestStatusFilter(st)}
+                      className={`px-2.5 py-1 text-xs rounded-lg font-medium capitalize transition-colors ${
+                        requestStatusFilter === st
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {st} {st === 'pending' && requestCounts.pending > 0 ? `(${requestCounts.pending})` : ''}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100">
+                  {/* Traffic Light Availability Filter Buttons */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                      Availability:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAvailabilityFilter('')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                        availabilityFilter === ''
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      All Statuses
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAvailabilityFilter(availabilityFilter === 'available' ? '' : 'available')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                        availabilityFilter === 'available'
+                          ? 'bg-emerald-600 text-white shadow-sm font-semibold'
+                          : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
+                      <span>Available ({availableCount})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAvailabilityFilter(availabilityFilter === 'booked' ? '' : 'booked')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                        availabilityFilter === 'booked'
+                          ? 'bg-amber-600 text-white shadow-sm font-semibold'
+                          : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.8)]" />
+                      <span>Booked ({bookedCount})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAvailabilityFilter(availabilityFilter === 'unavailable' ? '' : 'unavailable')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                        availabilityFilter === 'unavailable'
+                          ? 'bg-rose-600 text-white shadow-sm font-semibold'
+                          : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.8)]" />
+                      <span>Unavailable ({unavailableCount})</span>
+                    </button>
+                  </div>
+
+                  {/* Dropdown Filters */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={productionFilter}
+                      onChange={e => setProductionFilter(e.target.value)}
+                      className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 outline-none focus:ring-1 focus:ring-blue-400"
+                    >
+                      <option value="">All productions</option>
+                      {productions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <select
+                      value={tradeFilter}
+                      onChange={e => { setTradeFilter(e.target.value); setRankFilter(''); }}
+                      className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 outline-none focus:ring-1 focus:ring-blue-400"
+                    >
+                      <option value="">All trades</option>
+                      {allTrades.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <select
+                      value={rankFilter}
+                      onChange={e => setRankFilter(e.target.value)}
+                      disabled={rankOptions.length === 0}
+                      className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-50"
+                    >
+                      <option value="">All ranks</option>
+                      {rankOptions.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                    {(productionFilter || tradeFilter || rankFilter || availabilityFilter || search) && (
+                      <button
+                        onClick={() => { setProductionFilter(''); setTradeFilter(''); setRankFilter(''); setAvailabilityFilter(''); setSearch(''); }}
+                        className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium ml-1"
+                      >
+                        <X size={11} /> Clear All
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {error && activeTab !== 'freelancers' && activeTab !== 'import' && !isRoleContactTab(activeTab) && (
             <div className="px-5 py-4 text-red-600 text-sm bg-red-50 border-b border-red-100">{error}</div>
