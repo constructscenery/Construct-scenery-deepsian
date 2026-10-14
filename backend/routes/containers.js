@@ -1,0 +1,24 @@
+const express = require('express');
+const router = express.Router();
+const ctrl = require('../Controllers/containersController');
+const docsCtrl = require('../Controllers/attachedDocumentsController').containers;
+const { upload } = require('../Middleware/upload');
+const { requireRole } = require('../Middleware/requireRole');
+
+const ALL_ROLES = ['managing_director', 'construction_accountant', 'construction_coordinator'];
+
+router.get('/', ctrl.getContainers);
+router.get('/:id', ctrl.getContainerById);
+router.post('/', requireRole(...ALL_ROLES), ctrl.createContainer);
+router.put('/:id', requireRole(...ALL_ROLES), ctrl.updateContainer);
+router.patch('/:id', requireRole(...ALL_ROLES), ctrl.updateContainer);
+router.delete('/:id', requireRole(...ALL_ROLES), ctrl.deleteContainer);
+router.patch('/:id/restore', requireRole(...ALL_ROLES), ctrl.restoreContainer);
+
+// Documents
+router.get('/:id/documents', requireRole(...ALL_ROLES), docsCtrl.list);
+router.post('/:id/documents', requireRole(...ALL_ROLES), upload.single('file'), docsCtrl.upload);
+router.get('/:id/documents/:docId/view', requireRole(...ALL_ROLES), docsCtrl.view);
+router.delete('/:id/documents/:docId', requireRole(...ALL_ROLES), docsCtrl.delete);
+
+module.exports = router;

@@ -60,6 +60,7 @@ const USERS = {
   md:          { id: 'user-md-001',   email: 'warren@cs.com',     full_name: 'Warren MD',     role: 'managing_director'       },
   accountant:  { id: 'user-acc-001',  email: 'acc@cs.com',        full_name: 'Acc User',      role: 'construction_accountant'  },
   coordinator: { id: 'user-coord-001',email: 'coord@cs.com',      full_name: 'Coord User',    role: 'construction_coordinator' },
+  guest:       { id: 'user-guest-001',email: 'guest@cs.com',      full_name: 'Guest User',    role: 'guest'                    },
 };
 
 // Fake tokens — auth middleware is mocked so the value doesn't matter
@@ -67,6 +68,7 @@ const TOKENS = {
   md:          'Bearer fake-md-token',
   accountant:  'Bearer fake-acc-token',
   coordinator: 'Bearer fake-coord-token',
+  guest:       'Bearer fake-guest-token',
 };
 
 function authHeader(role = 'md') {
@@ -81,6 +83,7 @@ jest.mock('../Middleware/auth', () => ({
     if (token.includes('fake-md-token'))         req.user = USERS.md;
     else if (token.includes('fake-acc-token'))   req.user = USERS.accountant;
     else if (token.includes('fake-coord-token')) req.user = USERS.coordinator;
+    else if (token.includes('fake-guest-token')) req.user = USERS.guest;
     else if (token.includes('fake.jwt.token'))   req.user = USERS.md;
     else req.user = null;
     next();

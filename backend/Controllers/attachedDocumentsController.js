@@ -70,4 +70,6 @@ function createDocumentController(table, parentTable, parentColumn) {
 module.exports = {
   buildings: createDocumentController('building_documents', 'buildings', 'building_id'),
   freelancers: createDocumentController('freelancer_documents', 'freelancer_contacts', 'freelancer_id'),
+  role_contacts: createDocumentController('role_contact_documents', 'crew_role_contacts', 'role_contact_id'),
+  containers: createDocumentController('container_documents', 'containers', 'container_id'),
 };

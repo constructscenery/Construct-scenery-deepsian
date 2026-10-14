@@ -1999,8 +1999,14 @@ export type AttachedDocument = {
   uploaded_at: string;
 };
 
-export type DocumentOwner = 'buildings' | 'freelancers';
-const documentPath = (owner: DocumentOwner, id: string) => `${owner === 'buildings' ? '/api/buildings' : '/api/crew/freelancers'}/${id}/documents`;
+export type DocumentOwner = 'buildings' | 'freelancers' | 'role_contacts' | 'containers';
+const documentPath = (owner: DocumentOwner, id: string) => {
+  if (owner === 'buildings') return `/api/buildings/${id}/documents`;
+  if (owner === 'freelancers') return `/api/crew/freelancers/${id}/documents`;
+  if (owner === 'role_contacts') return `/api/crew/role-contacts/${id}/documents`;
+  if (owner === 'containers') return `/api/containers/${id}/documents`;
+  return `/api/crew/role-contacts/${id}/documents`;
+};
 
 async function documentFetch(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem('cs_token');
@@ -2045,6 +2051,96 @@ export const freelancersApi = {
   create: (body: FreelancerInput) => request<FreelancerContact>('/api/crew/freelancers', { method: 'POST', body }),
   update: (id: string, body: Partial<FreelancerInput>) => request<FreelancerContact>(`/api/crew/freelancers/${id}`, { method: 'PATCH', body }),
   delete: (id: string) => request<void>(`/api/crew/freelancers/${id}`, { method: 'DELETE' }),
+};
+
+// ── Role Contacts (DESIGNER, SUPV. ART, ART DIR., FIN. CONTROL, PRODUCER, UPM, LINE PROD)
+export type CrewRoleType = 
+  | 'designer'
+  | 'supv_art'
+  | 'art_dir'
+  | 'fin_control'
+  | 'producer'
+  | 'upm'
+  | 'line_prod';
+
+export type CrewRoleContact = {
+  id: string;
+  role_type: CrewRoleType;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  company_or_production: string | null;
+  notes: string | null;
+  is_favourite: boolean;
+  call_priority: FreelancerCallPriority;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CrewRoleContactInput = Omit<CrewRoleContact, 'id' | 'created_at' | 'updated_at'>;
+
+export const crewRoleContactsApi = {
+  list: (params?: { role_type?: CrewRoleType; search?: string; call_priority?: string; is_favourite?: boolean }) => {
+    const q = new URLSearchParams();
+    if (params?.role_type) q.set('role_type', params.role_type);
+    if (params?.search) q.set('search', params.search);
+    if (params?.call_priority) q.set('call_priority', params.call_priority);
+    if (params?.is_favourite !== undefined) q.set('is_favourite', String(params.is_favourite));
+    const qs = q.toString();
+    return request<CrewRoleContact[]>(`/api/crew/role-contacts${qs ? `?${qs}` : ''}`);
+  },
+  getById: (id: string) => request<CrewRoleContact>(`/api/crew/role-contacts/${id}`),
+  create: (body: CrewRoleContactInput) => request<CrewRoleContact>('/api/crew/role-contacts', { method: 'POST', body }),
+  update: (id: string, body: Partial<CrewRoleContactInput>) => request<CrewRoleContact>(`/api/crew/role-contacts/${id}`, { method: 'PATCH', body }),
+  delete: (id: string) => request<void>(`/api/crew/role-contacts/${id}`, { method: 'DELETE' }),
+};
+
+// ── Containers Module 8 ──
+export type ContainerStatus = 'available' | 'on_hire' | 'in_use' | 'maintenance' | 'decommissioned';
+export type ContainerOwnership = 'owned' | 'hired';
+export type ContainerCondition = 'good' | 'fair' | 'damaged' | 'needs_repair';
+
+export type Container = {
+  id: string;
+  container_number: string;
+  container_type: string;
+  size: string | null;
+  status: ContainerStatus;
+  ownership_status: ContainerOwnership;
+  location: string | null;
+  assigned_production_id: string | null;
+  production_name?: string | null;
+  production_code?: string | null;
+  supplier: string | null;
+  hire_start_date: string | null;
+  hire_end_date: string | null;
+  weekly_cost: number | null;
+  condition: ContainerCondition;
+  contents_description: string | null;
+  notes: string | null;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ContainerInput = Partial<Omit<Container, 'id' | 'created_at' | 'updated_at' | 'production_name' | 'production_code'>>;
+
+export const containersApi = {
+  getAll: (params?: { search?: string; status?: string; ownership_status?: string; production_id?: string; include_archived?: boolean }) => {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    if (params?.status) q.set('status', params.status);
+    if (params?.ownership_status) q.set('ownership_status', params.ownership_status);
+    if (params?.production_id) q.set('production_id', params.production_id);
+    if (params?.include_archived) q.set('include_archived', 'true');
+    const qs = q.toString();
+    return request<Container[]>(`/api/containers${qs ? `?${qs}` : ''}`);
+  },
+  getById: (id: string) => request<Container>(`/api/containers/${id}`),
+  create: (body: ContainerInput) => request<Container>('/api/containers', { method: 'POST', body }),
+  update: (id: string, body: ContainerInput) => request<Container>(`/api/containers/${id}`, { method: 'PATCH', body }),
+  delete: (id: string, hard = false) => request<void>(`/api/containers/${id}${hard ? '?hard=true' : ''}`, { method: 'DELETE' }),
+  restore: (id: string) => request<Container>(`/api/containers/${id}/restore`, { method: 'PATCH' }),
 };
 
 export type SafetyHealthDocumentType = 'risk_template' | 'risk_assessment' | 'coshh' | 'insurance';

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
 import FreelancersTab from './FreelancersTab';
 import CrewImportTab from './CrewImportTab';
+import RoleContactsTab from './RoleContactsTab';
 import {
   Plus, Search, ChevronRight, ChevronDown, X, Loader2, Users, UserCheck, Briefcase, Building2, Trash2,
   Share2, Copy, Check, Send, Mail, Inbox, AlertCircle, Eye, ShieldCheck, Sparkles, CheckCircle2,
@@ -13,7 +14,7 @@ import {
 import {
   crewApi, productionsApi, crewRatesApi, settingsApi,
   CrewMember, CrewRate, EmploymentStatus, Production, CrewRegistrationRequest,
-  CrewAvailabilityStatus,
+  CrewAvailabilityStatus, CrewRoleType,
 } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUIPreferences } from '@/contexts/UIPreferencesContext';
@@ -36,19 +37,45 @@ const AVATAR_COLORS = [
   'bg-green-500', 'bg-indigo-500', 'bg-rose-500', 'bg-cyan-500', 'bg-amber-500',
 ];
 
-type FilterTab = 'all' | 'paye' | 'self_employed' | 'active' | 'inactive' | 'archived' | 'requests' | 'freelancers' | 'import';
+type FilterTab =
+  | 'all'
+  | 'paye'
+  | 'self_employed'
+  | 'freelancers'
+  | 'designer'
+  | 'supv_art'
+  | 'art_dir'
+  | 'fin_control'
+  | 'producer'
+  | 'upm'
+  | 'line_prod'
+  | 'active'
+  | 'inactive'
+  | 'archived'
+  | 'requests'
+  | 'import';
 
 const FILTER_TABS: { value: FilterTab; label: string }[] = [
   { value: 'all',           label: 'All' },
   { value: 'paye',          label: 'PAYE' },
   { value: 'self_employed', label: 'Self-Employed' },
   { value: 'freelancers',   label: 'Freelancers' },
+  { value: 'designer',      label: 'DESIGNER' },
+  { value: 'supv_art',      label: 'SUPV. ART' },
+  { value: 'art_dir',       label: 'ART DIR.' },
+  { value: 'fin_control',   label: 'FIN. CONTROL' },
+  { value: 'producer',      label: 'PRODUCER' },
+  { value: 'upm',           label: 'UPM' },
+  { value: 'line_prod',     label: 'LINE PROD' },
   { value: 'active',        label: 'Active' },
   { value: 'inactive',      label: 'Inactive' },
   { value: 'archived',      label: 'Archived' },
   { value: 'requests',      label: 'Registration Requests' },
   { value: 'import',        label: 'Import Crew' },
 ];
+
+const isRoleContactTab = (tab: FilterTab): tab is CrewRoleType =>
+  ['designer', 'supv_art', 'art_dir', 'fin_control', 'producer', 'upm', 'line_prod'].includes(tab);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1051,7 +1078,7 @@ export default function CrewPage() {
   }, [activeTab, search, productionFilter, tradeFilter, rankFilter, availabilityFilter]);
 
   useEffect(() => {
-    if (activeTab !== 'requests' && activeTab !== 'freelancers' && activeTab !== 'import') {
+    if (activeTab !== 'requests' && activeTab !== 'freelancers' && activeTab !== 'import' && !isRoleContactTab(activeTab)) {
       load();
     }
   }, [load, activeTab]);
@@ -1244,7 +1271,7 @@ export default function CrewPage() {
                   </button>
                 ))}
               </div>
-              {activeTab !== 'freelancers' && activeTab !== 'import' && <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+              {activeTab !== 'freelancers' && activeTab !== 'import' && !isRoleContactTab(activeTab) && <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                 <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-2 w-full sm:w-72">
                   <Search size={14} className="text-slate-400 flex-shrink-0" />
                   <input
@@ -1289,7 +1316,7 @@ export default function CrewPage() {
             </div>
 
             {/* Quick Trade Filter Pills (visible on crew tabs) */}
-            {activeTab !== 'freelancers' && activeTab !== 'import' && activeTab !== 'requests' && (
+            {activeTab !== 'freelancers' && activeTab !== 'import' && activeTab !== 'requests' && !isRoleContactTab(activeTab) && (
               <div className="flex items-center gap-1.5 flex-wrap pt-1">
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mr-1">
                   <Briefcase size={12} className="text-slate-400" /> Quick Trade:
@@ -1323,7 +1350,7 @@ export default function CrewPage() {
             )}
 
             {/* Secondary filter row: Traffic Light Availability & Select Dropdowns */}
-            {activeTab === 'freelancers' || activeTab === 'import' ? null : activeTab === 'requests' ? (
+            {activeTab === 'freelancers' || activeTab === 'import' || isRoleContactTab(activeTab) ? null : activeTab === 'requests' ? (
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-slate-500 font-medium">Status Filter:</span>
                 {(['all', 'pending', 'approved', 'rejected'] as const).map(st => (
@@ -1436,7 +1463,7 @@ export default function CrewPage() {
             )}
           </div>
 
-          {error && activeTab !== 'freelancers' && activeTab !== 'import' && (
+          {error && activeTab !== 'freelancers' && activeTab !== 'import' && !isRoleContactTab(activeTab) && (
             <div className="px-5 py-4 text-red-600 text-sm bg-red-50 border-b border-red-100">{error}</div>
           )}
 
@@ -1445,6 +1472,8 @@ export default function CrewPage() {
             <CrewImportTab onComplete={() => { setActiveTab('all'); load(); }} />
           ) : activeTab === 'freelancers' ? (
             <FreelancersTab />
+          ) : isRoleContactTab(activeTab) ? (
+            <RoleContactsTab roleType={activeTab} productions={productions} />
           ) : activeTab === 'requests' ? (
             <div className="overflow-x-auto lg:overflow-visible pb-32 lg:pb-0">
               <table className="w-full text-sm min-w-[780px]">
@@ -1819,7 +1848,7 @@ export default function CrewPage() {
             </div>
           )}
 
-          {activeTab !== 'freelancers' && <div className="px-5 py-3 border-t border-slate-100 bg-slate-50">
+          {activeTab !== 'freelancers' && !isRoleContactTab(activeTab) && <div className="px-5 py-3 border-t border-slate-100 bg-slate-50">
             <span className="text-slate-400 text-xs">
               {activeTab === 'requests'
                 ? loadingRequests

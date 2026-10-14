@@ -5,12 +5,13 @@ import BuildingsTab from './components/BuildingsTab';
 import AssetsPlantTab from './components/AssetsPlantTab';
 import ITResourcesTab from './components/ITResourcesTab';
 import LaddersTab from './components/LaddersTab';
+import ContainersTab from './components/ContainersTab';
 import TopBar from '@/components/TopBar';
 import {
   Truck, Wrench, ShieldAlert, AlertTriangle, CheckCircle2, Clock,
   Plus, Search, Filter, Pencil, Trash2, Calendar, FileText,
   Building2, ArrowRight, RefreshCw, Download, Check, X,
-  ChevronRight, ExternalLink, Sparkles, User, AlertCircle, Barcode
+  ChevronRight, ExternalLink, Sparkles, User, AlertCircle, Barcode, Box
 } from 'lucide-react';
 import {
   vehiclesApi, hireEquipmentApi, assetsHireApi, productionsApi, suppliersApi,
@@ -43,7 +44,7 @@ export default function AssetsHirePage() {
   const canWrite = !isGuest;
 
   // Active sub-module tab
-  const [activeTab, setActiveTab] = useState<'vehicles' | 'hire' | 'buildings' | 'assets' | 'it' | 'ladders'>('vehicles');
+  const [activeTab, setActiveTab] = useState<'vehicles' | 'hire' | 'buildings' | 'assets' | 'it' | 'ladders' | 'containers'>('vehicles');
 
   // Data states
   const [summary, setSummary] = useState<AssetsHireSummary | null>(null);
@@ -429,6 +430,17 @@ export default function AssetsHirePage() {
           >
             {sidebarIcons && <Barcode size={17} />}
             <span>Ladders</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('containers')}
+            className={`flex items-center gap-2 px-5 py-3 border-b-2 font-normal text-sm text-slate-600 transition-all ${activeTab === 'containers'
+                ? 'border-blue-600 bg-blue-50/40 rounded-t-lg text-blue-600 font-medium'
+                : 'border-transparent hover:border-slate-300'
+              }`}
+          >
+            {sidebarIcons && <Box size={17} />}
+            <span>Containers</span>
           </button>
         </div>
 
@@ -826,6 +838,7 @@ export default function AssetsHirePage() {
         {activeTab === 'assets' && <AssetsPlantTab isCoordinatorOrMD={isCoordinatorOrMD} productions={productions} />}
         {activeTab === 'it' && <ITResourcesTab isCoordinatorOrMD={isCoordinatorOrMD} />}
         {activeTab === 'ladders' && <LaddersTab isCoordinatorOrMD={isCoordinatorOrMD} />}
+        {activeTab === 'containers' && <ContainersTab isCoordinatorOrMD={isCoordinatorOrMD} productions={productions} />}
 
       </main>
 

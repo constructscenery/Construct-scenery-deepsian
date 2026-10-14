@@ -46,6 +46,7 @@ const BECTU_TRADES = {
 };
 const NON_BECTU_ROLES = [
   'Construction Accountant', 'Construction Coordinator', 'Construction Manager', 'Luton Driver',
+  'Production Designer', 'Supervising Art Director', 'Art Director', 'Financial Controller', 'Producer', 'Unit Production Manager', 'Line Producer',
 ];
 
 const generateCrewNumber = async () => {

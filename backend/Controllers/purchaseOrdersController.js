@@ -114,7 +114,7 @@ const getAllPOs = async (req, res) => {
        FROM   purchase_orders po
        JOIN   productions p ON po.production_id = p.id
        ${where}
-       ORDER BY po.created_at DESC`,
+       ORDER BY po.created_at DESC, po.date_of_po DESC, po.id DESC`,
       params
     );
     res.json(rows);
@@ -152,7 +152,7 @@ const exportCSV = async (req, res) => {
        JOIN   productions p ON po.production_id = p.id
        LEFT JOIN users u ON po.approved_by = u.id
        ${where}
-       ORDER BY po.created_at DESC`,
+       ORDER BY po.created_at DESC, po.date_of_po DESC, po.id DESC`,
       params
     );
 
@@ -211,7 +211,7 @@ const exportPDFList = async (req, res) => {
        JOIN   productions p ON po.production_id = p.id
        LEFT JOIN users u ON po.approved_by = u.id
        ${where}
-       ORDER BY po.created_at DESC`,
+       ORDER BY po.created_at DESC, po.date_of_po DESC, po.id DESC`,
       params
     );
 

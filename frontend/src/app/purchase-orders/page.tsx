@@ -773,7 +773,17 @@ export default function PurchaseOrdersPage() {
   });
 
   const sortedPos = useMemo(() => {
-    if (!sort.key || !sort.dir) return filteredPos;
+    if (!sort.key || !sort.dir) {
+      return [...filteredPos].sort((a, b) => {
+        const aDate = new Date(a.created_at || a.date_of_po || 0).getTime();
+        const bDate = new Date(b.created_at || b.date_of_po || 0).getTime();
+        if (bDate !== aDate) return bDate - aDate;
+        const aNum = parseInt(a.po_number?.replace(/\D/g, '') || '0', 10);
+        const bNum = parseInt(b.po_number?.replace(/\D/g, '') || '0', 10);
+        if (bNum !== aNum) return bNum - aNum;
+        return (b.po_number || '').localeCompare(a.po_number || '');
+      });
+    }
     return [...filteredPos].sort((a, b) => {
       let aVal = a[sort.key as keyof PurchaseOrder] ?? '';
       let bVal = b[sort.key as keyof PurchaseOrder] ?? '';

@@ -12,6 +12,9 @@ const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 
 
 const ALL_ROLES = ['managing_director', 'construction_accountant', 'construction_coordinator'];
 
+const roleContactsCtrl = require('../Controllers/crewRoleContactsController');
+const roleContactDocuments = require('../Controllers/attachedDocumentsController').role_contacts;
+
 router.get('/freelancers', requireRole(...ALL_ROLES), freelancersCtrl.listFreelancers);
 router.get('/freelancers/:id/documents', requireRole(...ALL_ROLES), freelancerDocuments.list);
 router.post('/freelancers/:id/documents', requireRole(...ALL_ROLES), upload.single('file'), freelancerDocuments.upload);
@@ -20,6 +23,18 @@ router.delete('/freelancers/:id/documents/:docId', requireRole(...ALL_ROLES), fr
 router.post('/freelancers', requireRole(...ALL_ROLES), freelancersCtrl.createFreelancer);
 router.patch('/freelancers/:id', requireRole(...ALL_ROLES), freelancersCtrl.updateFreelancer);
 router.delete('/freelancers/:id', requireRole(...ALL_ROLES), freelancersCtrl.deleteFreelancer);
+
+// ── Role Contacts (DESIGNER, SUPV. ART, ART DIR., FIN. CONTROL, PRODUCER, UPM, LINE PROD)
+router.get('/role-contacts', requireRole(...ALL_ROLES), roleContactsCtrl.listRoleContacts);
+router.get('/role-contacts/:id', requireRole(...ALL_ROLES), roleContactsCtrl.getRoleContactById);
+router.get('/role-contacts/:id/documents', requireRole(...ALL_ROLES), roleContactDocuments.list);
+router.post('/role-contacts/:id/documents', requireRole(...ALL_ROLES), upload.single('file'), roleContactDocuments.upload);
+router.get('/role-contacts/:id/documents/:docId/view', requireRole(...ALL_ROLES), roleContactDocuments.view);
+router.delete('/role-contacts/:id/documents/:docId', requireRole(...ALL_ROLES), roleContactDocuments.delete);
+router.post('/role-contacts', requireRole(...ALL_ROLES), roleContactsCtrl.createRoleContact);
+router.put('/role-contacts/:id', requireRole(...ALL_ROLES), roleContactsCtrl.updateRoleContact);
+router.patch('/role-contacts/:id', requireRole(...ALL_ROLES), roleContactsCtrl.updateRoleContact);
+router.delete('/role-contacts/:id', requireRole(...ALL_ROLES), roleContactsCtrl.deleteRoleContact);
 
 // ── Registration Requests & Invites (specific paths before /:id) ──────────────
 router.post('/send-invite',            requireRole(...ALL_ROLES), requestsCtrl.sendInvite);
