@@ -217,9 +217,9 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
             <div className="text-left min-w-0">
               <p className="font-semibold text-slate-900 text-sm leading-snug truncate">{user.full_name}</p>
               <p className="text-xs text-slate-500 capitalize">{user.role.replace(/_/g, ' ')}</p>
-              <p className="text-[11px] text-slate-400 truncate max-w-[170px]">{user.email}</p>
+              <p className="text-xs text-slate-400 truncate max-w-[170px]">{user.email}</p>
               {avatarFile && (
-                <p className="mt-1 text-[11px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full inline-block">
+                <p className="mt-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full inline-block">
                   New photo selected
                 </p>
               )}
@@ -232,7 +232,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-1.5 text-xs font-medium text-slate-700">
                 {isDark ? (
-                  <Moon size={14} className="text-indigo-400 fill-indigo-400/20" />
+                  <Moon size={14} className="text-blue-400 fill-blue-400/20" />
                 ) : (
                   <Sun size={14} className="text-amber-500 fill-amber-500/20" />
                 )}
@@ -246,7 +246,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                 onClick={toggleTheme}
                 title={isDark ? 'Switch to Day mode' : 'Switch to Night mode'}
                 className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  isDark ? 'bg-indigo-600' : 'bg-slate-300'
+                  isDark ? 'bg-blue-600' : 'bg-slate-300'
                 }`}
               >
                 <span
@@ -264,7 +264,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                   <LayoutGrid size={13} className={sidebarIcons ? 'text-blue-500' : 'text-slate-400'} />
                   <span>Enable icons</span>
                 </span>
-                <span className="text-[9px] text-slate-400 leading-tight">tabs &amp; sub-tabs</span>
+                <span className="text-xs text-slate-400 leading-tight">tabs &amp; sub-tabs</span>
               </div>
               <button
                 type="button"

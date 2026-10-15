@@ -28,7 +28,7 @@ const CONTAINER_TYPES = [
 const STATUS_CONFIG: Record<ContainerStatus, { label: string; badgeCls: string; dotCls: string }> = {
   available:      { label: 'Available',    badgeCls: 'bg-emerald-50 text-emerald-700 border-emerald-200', dotCls: 'bg-emerald-500' },
   on_hire:        { label: 'On Hire',      badgeCls: 'bg-blue-50 text-blue-700 border-blue-200',          dotCls: 'bg-blue-500' },
-  in_use:         { label: 'In Use',       badgeCls: 'bg-indigo-50 text-indigo-700 border-indigo-200',    dotCls: 'bg-indigo-500' },
+  in_use:         { label: 'In Use',       badgeCls: 'bg-blue-50 text-blue-700 border border-blue-200',    dotCls: 'bg-blue-600' },
   maintenance:    { label: 'Maintenance', badgeCls: 'bg-amber-50 text-amber-700 border-amber-200',       dotCls: 'bg-amber-500' },
   decommissioned: { label: 'Decommissioned', badgeCls: 'bg-slate-100 text-slate-600 border-slate-200',    dotCls: 'bg-slate-400' },
 };
@@ -263,8 +263,8 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
           <p className="text-xs font-medium text-slate-500">Hired Equipment</p>
           <div className="flex items-center gap-2 mt-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-            <span className="text-lg font-bold text-purple-600">{hiredCount}</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
+            <span className="text-lg font-bold text-slate-800">{hiredCount}</span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">External supplier containers</p>
         </div>
@@ -455,7 +455,7 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
                       {/* Ownership */}
                       <td className="px-4 py-3 min-w-32">
                         <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider ${
-                          c.ownership_status === 'hired' ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-slate-100 text-slate-600'
+                          c.ownership_status === 'hired' ? 'bg-slate-100 text-slate-700 border border-slate-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
                         }`}>
                           {c.ownership_status}
                         </span>
@@ -679,7 +679,7 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
                     onClick={() => setForm(f => ({ ...f, ownership_status: 'hired' }))}
                     className={`py-2 text-xs font-medium rounded-lg border transition-all ${
                       form.ownership_status === 'hired'
-                        ? 'border-purple-600 bg-purple-50 text-purple-700'
+                        ? 'border-blue-600 bg-blue-50 text-blue-700'
                         : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                     }`}
                   >
@@ -690,8 +690,8 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
 
               {/* Hired Details (Conditional) */}
               {form.ownership_status === 'hired' && (
-                <div className="p-3 bg-purple-50/50 border border-purple-100 rounded-xl space-y-3">
-                  <p className="text-xs font-semibold text-purple-800 flex items-center gap-1.5">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                  <p className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                     <Truck size={13} /> Hire Supplier Information
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

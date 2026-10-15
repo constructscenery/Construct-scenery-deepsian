@@ -312,7 +312,7 @@ function PreviewStep({ preview, file, onImport, onReset }: PreviewStepProps) {
                     <td className="px-4 py-2.5 text-slate-600 text-xs">{row.crew_rank || <span className="text-slate-300 italic">—</span>}</td>
                     <td className="px-4 py-2.5">
                       {row.employment_status ? (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
                           row.employment_status === 'paye'
                             ? 'bg-blue-100 text-blue-700'
                             : 'bg-purple-100 text-purple-700'
@@ -336,7 +336,7 @@ function PreviewStep({ preview, file, onImport, onReset }: PreviewStepProps) {
                       {row.errors.length > 0 ? (
                         <div className="flex flex-col gap-0.5">
                           {row.errors.map((e, i) => (
-                            <span key={i} className="text-red-600 text-[10px] leading-tight">{e}</span>
+                            <span key={i} className="text-red-600 text-xs leading-tight">{e}</span>
                           ))}
                         </div>
                       ) : (

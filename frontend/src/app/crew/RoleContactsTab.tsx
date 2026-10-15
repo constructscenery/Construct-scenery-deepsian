@@ -583,7 +583,7 @@ export default function RoleContactsTab({ roleType, productions = [] }: RoleCont
                     {/* Name */}
                     <td className="px-4 py-3 min-w-44 max-w-64">
                       <p className="font-semibold text-slate-900">{contact.full_name}</p>
-                      <p className="text-[11px] text-slate-400 uppercase tracking-wider">{cfg.singular}</p>
+                      <p className="text-xs text-slate-400 uppercase tracking-wider">{cfg.singular}</p>
                     </td>
 
                     {/* Production / Company */}
@@ -603,18 +603,18 @@ export default function RoleContactsTab({ roleType, productions = [] }: RoleCont
                       {contact.email ? (
                         <p className="text-slate-700 truncate" title={contact.email}>{contact.email}</p>
                       ) : (
-                        <p className="text-slate-400 text-[11px]">No email</p>
+                        <p className="text-slate-400 text-xs">No email</p>
                       )}
                       {contact.phone ? (
-                        <p className="text-slate-600 font-mono text-[11px]">{contact.phone}</p>
+                        <p className="text-slate-600 font-mono text-xs">{contact.phone}</p>
                       ) : (
-                        <p className="text-slate-400 text-[11px]">No phone</p>
+                        <p className="text-slate-400 text-xs">No phone</p>
                       )}
                     </td>
 
                     {/* Notes */}
                     <td className="px-4 py-3 min-w-44 max-w-64">
-                      <p className="text-slate-600 whitespace-pre-wrap line-clamp-2 text-[11px]" title={contact.notes || ''}>
+                      <p className="text-slate-600 whitespace-pre-wrap line-clamp-2 text-xs" title={contact.notes || ''}>
                         {contact.notes || '—'}
                       </p>
                     </td>
@@ -626,7 +626,7 @@ export default function RoleContactsTab({ roleType, productions = [] }: RoleCont
                         disabled={disabled}
                         onChange={call_priority => updateContact(contact, { call_priority })}
                       />
-                      <div className="flex items-center gap-1 mt-1 text-[11px] text-slate-400">
+                      <div className="flex items-center gap-1 mt-1 text-xs text-slate-400">
                         <PriorityIcon size={11} className={neverCall ? 'text-red-600' : 'text-slate-400'} />
                         <span className={neverCall ? 'text-red-600 font-medium' : ''}>
                           {neverCall ? 'Do not call' : 'Enabled'}

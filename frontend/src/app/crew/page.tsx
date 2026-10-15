@@ -32,10 +32,7 @@ const POPULAR_TRADES = [
   'Machinists',
 ];
 
-const AVATAR_COLORS = [
-  'bg-blue-500', 'bg-purple-500', 'bg-blue-500', 'bg-pink-500', 'bg-orange-500',
-  'bg-green-500', 'bg-indigo-500', 'bg-rose-500', 'bg-cyan-500', 'bg-amber-500',
-];
+const AVATAR_COLORS = ['bg-slate-700', 'bg-blue-600', 'bg-slate-800', 'bg-blue-700', 'bg-slate-600', 'bg-blue-800'];
 
 type FilterTab =
   | 'all'
@@ -799,7 +796,7 @@ function ReviewCandidateModal({
           <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/80 space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Payroll &amp; Bank Details</p>
-              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
                 <ShieldCheck size={12} /> Decrypted for Review
               </span>
             </div>
@@ -840,7 +837,7 @@ function ReviewCandidateModal({
               {request.qualifications && request.qualifications.length > 0 ? (
                 <div className="flex flex-wrap gap-1 pt-1">
                   {request.qualifications.map(q => (
-                    <span key={q} className="bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded text-[11px] font-medium">
+                    <span key={q} className="bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded text-xs font-medium">
                       {q}
                     </span>
                   ))}
@@ -1164,9 +1161,9 @@ export default function CrewPage() {
 
   const stats = [
     { label: 'Total Crew',       value: totalCrew,              icon: <Users size={18} className="text-blue-600" />,      bg: 'bg-blue-50',   tab: 'all' as FilterTab },
-    { label: 'Active',           value: activeCrew,             icon: <UserCheck size={18} className="text-green-600" />,  bg: 'bg-green-50',  tab: 'active' as FilterTab },
+    { label: 'Active',           value: activeCrew,             icon: <UserCheck size={18} className="text-emerald-600" />,  bg: 'bg-emerald-50',  tab: 'active' as FilterTab },
     { label: 'PAYE',             value: payeCount,              icon: <Briefcase size={18} className="text-blue-600" />,   bg: 'bg-blue-50',   tab: 'paye' as FilterTab },
-    { label: 'Self-Employed',    value: seCount,                icon: <Building2 size={18} className="text-purple-600" />, bg: 'bg-purple-50', tab: 'self_employed' as FilterTab },
+    { label: 'Self-Employed',    value: seCount,                icon: <Building2 size={18} className="text-slate-600" />, bg: 'bg-slate-100', tab: 'self_employed' as FilterTab },
     { label: 'Pending Requests', value: requestCounts.pending,  icon: <Inbox size={18} className="text-amber-600" />,     bg: 'bg-amber-50',  tab: 'requests' as FilterTab, highlight: requestCounts.pending > 0 },
   ];
 
@@ -1269,7 +1266,7 @@ export default function CrewPage() {
                     >
                       <span>{tab.label}</span>
                       {tab.value === 'requests' && requestCounts.pending > 0 && (
-                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${
+                        <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold leading-none ${
                           activeTab === 'requests' ? 'bg-white text-blue-700' : 'bg-amber-500 text-white'
                         }`}>
                           {requestCounts.pending}
@@ -1333,7 +1330,7 @@ export default function CrewPage() {
               {/* Quick Trade Filter Pills (visible on crew tabs) */}
               {activeTab !== 'requests' && (
                 <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mr-1">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mr-1">
                     <Briefcase size={12} className="text-slate-400" /> Quick Trade:
                   </span>
                   <button
@@ -1386,7 +1383,7 @@ export default function CrewPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100">
                   {/* Traffic Light Availability Filter Buttons */}
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">
                       Availability:
                     </span>
                     <button
@@ -1560,7 +1557,7 @@ export default function CrewPage() {
                           </td>
                           <td className="px-4 py-3.5">
                             <p className="text-slate-800 text-sm font-medium">{r.crew_trade}</p>
-                            <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                               r.employment_status === 'paye' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
                             }`}>
                               {r.employment_status === 'paye' ? 'PAYE' : 'Self-Employed'}
@@ -1715,10 +1712,10 @@ export default function CrewPage() {
                             {(c.active_productions && c.active_productions.length > 0)
                               ? <div className="flex flex-wrap gap-1">
                                   {c.active_productions.slice(0, 2).map(p => (
-                                    <span key={p} className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-full font-medium truncate max-w-[120px]">{p}</span>
+                                    <span key={p} className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-full font-medium truncate max-w-[120px]">{p}</span>
                                   ))}
                                   {c.active_productions.length > 2 && (
-                                    <span className="text-[10px] text-slate-400">+{c.active_productions.length - 2}</span>
+                                    <span className="text-xs text-slate-400">+{c.active_productions.length - 2}</span>
                                   )}
                                 </div>
                               : <span className="text-slate-300 text-xs">—</span>}
@@ -1770,7 +1767,7 @@ export default function CrewPage() {
                               {/* Interactive 1-click status popover menu */}
                               {statusDropdownOpenId === c.id && canWrite && !c.is_archived && (
                                 <div className="absolute left-0 top-full mt-1.5 w-40 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 animate-in fade-in">
-                                  <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                  <div className="px-3 py-1 text-xs font-bold text-slate-400 uppercase tracking-wider">
                                     Set Availability
                                   </div>
                                   <button
@@ -1888,7 +1885,7 @@ export default function CrewPage() {
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 text-lg">Permanently Delete Crew Member?</h3>
-                <p className="text-[11px] text-rose-600 font-medium">This action cannot be undone</p>
+                <p className="text-xs text-rose-600 font-medium">This action cannot be undone</p>
               </div>
             </div>
             <div className="text-xs text-slate-600 space-y-2 leading-relaxed">
@@ -1896,7 +1893,7 @@ export default function CrewPage() {
                 Are you sure you want to permanently delete <strong className="text-slate-900">{permanentDeleteCrew.first_name} {permanentDeleteCrew.last_name}</strong>?
                 This will wipe this record and all associated documents completely from the database.
               </p>
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px]">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs">
                 <strong>Integrity Safeguard:</strong> If this crew member has any timesheet or payroll records, the database will strictly prevent permanent deletion to preserve financial history.
               </div>
             </div>

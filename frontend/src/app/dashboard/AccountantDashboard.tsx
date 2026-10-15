@@ -165,7 +165,7 @@ export default function AccountantDashboard() {
                       <p className="text-slate-900 text-sm font-semibold">
                         {ts.grand_total ? fmtGBP(parseFloat(ts.grand_total)) : '—'}
                       </p>
-                      <p className="text-slate-400 text-[10px]">
+                      <p className="text-slate-400 text-xs">
                         w/e {new Date(ts.week_ending_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                       </p>
                     </div>

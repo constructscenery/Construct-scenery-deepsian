@@ -168,7 +168,7 @@ export default function NewCostForecastModal({
                 Daily View
               </button>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">You can freely toggle between daily and weekly view later without losing data.</p>
+            <p className="text-xs text-slate-400 mt-1">You can freely toggle between daily and weekly view later without losing data.</p>
           </div>
 
           {/* Notes */}

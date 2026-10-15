@@ -656,7 +656,7 @@ export default function CrewDetailPage() {
 
                         {statusMenuOpen && (
                           <div className="absolute left-0 top-full mt-1.5 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 animate-in fade-in">
-                            <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            <div className="px-3 py-1 text-xs font-bold text-slate-400 uppercase tracking-wider">
                               Change Availability
                             </div>
                             <button
@@ -945,7 +945,7 @@ export default function CrewDetailPage() {
 function Detail({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | null | undefined }) {
   return (
     <div>
-      <p className="text-slate-400 text-[10px] uppercase tracking-wide flex items-center gap-1">
+      <p className="text-slate-400 text-xs uppercase tracking-wide flex items-center gap-1">
         {icon} {label}
       </p>
       <p className="text-slate-700 text-sm mt-0.5">{value ?? <span className="text-slate-300">—</span>}</p>

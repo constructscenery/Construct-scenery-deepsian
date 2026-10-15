@@ -93,7 +93,7 @@ export function ColumnHeader({
 
           {filterType !== 'none' && onFilterChange && (
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase font-semibold text-slate-400 px-1">Filter by {label}</label>
+              <label className="text-xs uppercase font-semibold text-slate-400 px-1">Filter by {label}</label>
               
               {filterType === 'select' && (
                 <select

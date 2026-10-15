@@ -172,7 +172,7 @@ function UploadStep({
               </option>
             ))}
           </select>
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-xs text-slate-400 mt-1">
             Used if the row does not contain a &quot;Production&quot; column.
           </p>
         </div>
@@ -187,7 +187,7 @@ function UploadStep({
             onChange={e => setWeekEnding(e.target.value)}
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-xs text-slate-400 mt-1">
             Must be a Sunday. Used if rows omit &quot;Week Ending Date&quot;.
           </p>
         </div>
@@ -430,29 +430,29 @@ function PreviewStep({
                   <td className="py-2 px-3 font-mono text-slate-400">{r.row}</td>
                   <td className="py-2 px-3">
                     {r.valid ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 bg-green-100/70 px-2 py-0.5 rounded-full">
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100/70 px-2 py-0.5 rounded-full">
                         <CheckCircle size={11} /> Valid
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">
                         <XCircle size={11} /> Invalid
                       </span>
                     )}
                   </td>
                   <td className="py-2 px-3">
                     {r.action === 'update' ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full" title="Will update existing timesheet">
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full" title="Will update existing timesheet">
                         Update
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
                         New
                       </span>
                     )}
                   </td>
                   <td className="py-2 px-3">
                     <p className="font-semibold text-slate-800">{r.crew_name}</p>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-xs text-slate-400">
                       {r.crew_number ? `${r.crew_number} • ` : ''}{r.crew_trade || 'Trade'} {r.crew_rank ? `(${r.crew_rank})` : ''}
                     </p>
                   </td>
@@ -475,13 +475,13 @@ function PreviewStep({
                     {r.errors.length > 0 ? (
                       <div className="space-y-0.5">
                         {r.errors.map((err, ei) => (
-                          <p key={ei} className="text-[11px] text-red-600 font-medium">
+                          <p key={ei} className="text-xs text-red-600 font-medium">
                             • {err}
                           </p>
                         ))}
                       </div>
                     ) : (
-                      <span className="text-[11px] text-slate-400">Ready</span>
+                      <span className="text-xs text-slate-400">Ready</span>
                     )}
                   </td>
                 </tr>

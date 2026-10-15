@@ -217,7 +217,7 @@ export default function ProductionForecastingPanel({
             ) : (
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100">
+                  <tr className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100">
                     <th className="px-6 py-3">Title / Version</th>
                     <th className="px-4 py-3">Schedule</th>
                     <th className="px-4 py-3 text-center">View</th>
@@ -233,18 +233,18 @@ export default function ProductionForecastingPanel({
                     <tr key={cf.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="px-6 py-3 font-medium text-slate-800">
                         <div className="font-semibold text-slate-900">{cf.title}</div>
-                        <div className="text-[10px] text-slate-400">Created {new Date(cf.created_at).toLocaleDateString('en-GB')}</div>
+                        <div className="text-xs text-slate-400">Created {new Date(cf.created_at).toLocaleDateString('en-GB')}</div>
                       </td>
                       <td className="px-4 py-3 text-slate-600">
                         {cf.start_date} → {cf.end_date}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 uppercase text-[10px] font-semibold">
+                        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 uppercase text-xs font-semibold">
                           {cf.default_view}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${
                           cf.status === 'locked' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
                         }`}>
                           {cf.status === 'locked' ? '🔒 Locked' : '✏️ Draft'}
@@ -292,7 +292,7 @@ export default function ProductionForecastingPanel({
             ) : (
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100">
+                  <tr className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100">
                     <th className="px-6 py-3">Title / Version</th>
                     <th className="px-4 py-3">Schedule</th>
                     <th className="px-4 py-3 text-center">Weeks</th>
@@ -306,7 +306,7 @@ export default function ProductionForecastingPanel({
                     <tr key={lf.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="px-6 py-3 font-medium text-slate-800">
                         <div className="font-semibold text-slate-900">{lf.title}</div>
-                        <div className="text-[10px] text-slate-400">Created {new Date(lf.created_at).toLocaleDateString('en-GB')}</div>
+                        <div className="text-xs text-slate-400">Created {new Date(lf.created_at).toLocaleDateString('en-GB')}</div>
                       </td>
                       <td className="px-4 py-3 text-slate-600">
                         {lf.start_date} → {lf.end_date}
@@ -315,7 +315,7 @@ export default function ProductionForecastingPanel({
                         {lf.num_weeks} wks
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${
                           lf.status === 'locked' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
                         }`}>
                           {lf.status === 'locked' ? '🔒 Locked' : '✏️ Draft'}

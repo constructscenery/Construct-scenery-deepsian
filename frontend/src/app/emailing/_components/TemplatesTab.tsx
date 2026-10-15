@@ -79,14 +79,14 @@ export default function TemplatesTab({ readOnly }: { readOnly: boolean }) {
           <div className="space-y-4">
             {TYPES.filter((t) => templates.some((x) => x.message_type === t)).map((type) => (
               <div key={type}>
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">{MESSAGE_TYPE_LABELS[type]}</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">{MESSAGE_TYPE_LABELS[type]}</div>
                 <ul className="space-y-1">
                   {templates.filter((t) => t.message_type === type).map((t) => (
                     <li key={t.id}>
                       <button onClick={() => edit(t)} className={`w-full text-left px-3 py-2 rounded-lg text-sm ${draft?.id === t.id ? 'bg-blue-50 text-blue-800' : 'hover:bg-slate-50 text-slate-700'}`}>
                         <span className="font-medium">{t.name}</span>
-                        {t.is_system && <span className="ml-1.5 text-[10px] text-slate-400">system</span>}
-                        {!t.is_active && <span className="ml-1.5 text-[10px] text-amber-600">inactive</span>}
+                        {t.is_system && <span className="ml-1.5 text-xs text-slate-400">system</span>}
+                        {!t.is_active && <span className="ml-1.5 text-xs text-amber-600">inactive</span>}
                       </button>
                     </li>
                   ))}
@@ -112,11 +112,11 @@ export default function TemplatesTab({ readOnly }: { readOnly: boolean }) {
             <div><label className={labelCls} htmlFor="ts">Subject</label><input id="ts" className={inputCls} value={draft.subject} disabled={readOnly} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} maxLength={300} /></div>
             <div>
               <label className={labelCls} htmlFor="tb">Message</label>
-              <textarea id="tb" ref={bodyRef} className={`${inputCls} font-mono text-[13px] leading-relaxed`} rows={14} value={draft.body} disabled={readOnly} onChange={(e) => setDraft({ ...draft, body: e.target.value })} />
+              <textarea id="tb" ref={bodyRef} className={`${inputCls} font-mono text-xs leading-relaxed`} rows={14} value={draft.body} disabled={readOnly} onChange={(e) => setDraft({ ...draft, body: e.target.value })} />
               {!readOnly && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {fields.map((f) => (
-                    <button key={f.key} type="button" onClick={() => insert(f.key)} title={f.label} className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-[11px] font-mono text-slate-600">{`{{${f.key}}}`}</button>
+                    <button key={f.key} type="button" onClick={() => insert(f.key)} title={f.label} className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-xs font-mono text-slate-600">{`{{${f.key}}}`}</button>
                   ))}
                 </div>
               )}

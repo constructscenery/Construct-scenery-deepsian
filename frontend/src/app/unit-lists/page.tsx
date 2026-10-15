@@ -373,7 +373,7 @@ function UnitListsContent() {
           {showAdvancedFilters && (
             <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5 text-xs">
               <div>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">Name of PDF</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Name of PDF</label>
                 <input
                   type="text"
                   value={filterPdfName}
@@ -384,7 +384,7 @@ function UnitListsContent() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">Contact Name</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Contact Name</label>
                 <input
                   type="text"
                   value={filterName}
@@ -395,7 +395,7 @@ function UnitListsContent() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">Email</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Email</label>
                 <input
                   type="text"
                   value={filterEmail}
@@ -406,7 +406,7 @@ function UnitListsContent() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">Phone Number</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Phone Number</label>
                 <input
                   type="text"
                   value={filterNumber}
@@ -417,7 +417,7 @@ function UnitListsContent() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">Company Name</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Company Name</label>
                 <input
                   type="text"
                   value={filterCompany}
@@ -428,13 +428,13 @@ function UnitListsContent() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">Date</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
                 <div className="flex items-center gap-1">
                   <input
                     type="date"
                     value={filterDateFrom}
                     onChange={e => setFilterDateFrom(e.target.value)}
-                    className="w-full px-1.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-1.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     title="From date"
                   />
                   <span className="text-slate-300">–</span>
@@ -442,7 +442,7 @@ function UnitListsContent() {
                     type="date"
                     value={filterDateTo}
                     onChange={e => setFilterDateTo(e.target.value)}
-                    className="w-full px-1.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-1.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     title="To date"
                   />
                 </div>
@@ -540,7 +540,7 @@ function UnitListsContent() {
                             >
                               {item.file_name}
                             </button>
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5">
+                            <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
                               {item.file_size && <span>{fmtBytes(item.file_size)}</span>}
                               {item.notes && (
                                 <span className="truncate max-w-[140px]" title={item.notes}>
@@ -555,7 +555,7 @@ function UnitListsContent() {
                       {/* Production */}
                       <td className="px-4 py-3.5 text-xs text-slate-600">
                         {item.production_name ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-medium text-[11px]">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-medium text-xs">
                             {item.production_name}
                           </span>
                         ) : (
@@ -818,13 +818,13 @@ function UnitListUploadModal({ productions, onClose, onCreated }: UnitListUpload
                 <div className="flex items-center justify-center gap-2 text-xs font-medium text-emerald-700">
                   <FileCheck size={18} className="text-emerald-600" />
                   <span className="truncate max-w-xs">{file.name}</span>
-                  <span className="text-emerald-500 text-[10px]">({fmtBytes(file.size)})</span>
+                  <span className="text-emerald-500 text-xs">({fmtBytes(file.size)})</span>
                 </div>
               ) : (
                 <div className="space-y-1">
                   <Upload size={20} className="mx-auto text-slate-400" />
                   <p className="text-xs font-medium text-slate-700">Click to choose or drag & drop Unit List PDF</p>
-                  <p className="text-[11px] text-slate-400">PDF up to 25 MB</p>
+                  <p className="text-xs text-slate-400">PDF up to 25 MB</p>
                 </div>
               )}
             </div>
@@ -857,7 +857,7 @@ function UnitListUploadModal({ productions, onClose, onCreated }: UnitListUpload
           </div>
 
           <div className="pt-2 border-t border-slate-100">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">
               Optional Contact Details (Nullable)
             </span>
 
@@ -1047,7 +1047,7 @@ function UnitListEditModal({ item, productions, onClose, onUpdated }: UnitListEd
                   {file ? file.name : `Current: ${item.file_name}`}
                 </span>
               </div>
-              <span className="text-[11px] font-medium text-blue-600">Choose new PDF</span>
+              <span className="text-xs font-medium text-blue-600">Choose new PDF</span>
             </div>
           </div>
 
@@ -1079,7 +1079,7 @@ function UnitListEditModal({ item, productions, onClose, onUpdated }: UnitListEd
 
           {/* Contact Details */}
           <div className="pt-2 border-t border-slate-100">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">
               Contact Details (Nullable)
             </span>
 
@@ -1226,7 +1226,7 @@ function UnitListPdfViewerModal({ item, onClose }: UnitListPdfViewerModalProps) 
               </span>
               <h2 className="text-sm font-bold text-slate-900 truncate">{item.file_name}</h2>
               {item.production_name && (
-                <span className="text-[11px] font-medium bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full shrink-0">
+                <span className="text-xs font-medium bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full shrink-0">
                   {item.production_name}
                 </span>
               )}

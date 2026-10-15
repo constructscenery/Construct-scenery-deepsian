@@ -82,7 +82,7 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
           aria-label={isDark ? "Switch to Day mode" : "Switch to Night mode"}
         >
           {isDark ? (
-            <Moon size={18} className="text-indigo-400 fill-indigo-400/20" />
+            <Moon size={18} className="text-blue-400 fill-blue-400/20" />
           ) : (
             <Sun size={18} className="text-amber-500 fill-amber-500/20" />
           )}
@@ -100,13 +100,13 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
           >
             {isDark ? (
               <>
-                <Moon size={15} className="text-indigo-400 fill-indigo-400/20" />
-                <span className="text-[11px] font-medium text-indigo-300">Night</span>
+                <Moon size={15} className="text-blue-400 fill-blue-400/20" />
+                <span className="text-xs font-medium text-blue-300">Night</span>
               </>
             ) : (
               <>
                 <Sun size={15} className="text-amber-500 fill-amber-500/20" />
-                <span className="text-[11px] font-medium text-slate-600">Day</span>
+                <span className="text-xs font-medium text-slate-600">Day</span>
               </>
             )}
           </button>
@@ -124,7 +124,7 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
             aria-label="Toggle sidebar icons"
           >
             <LayoutGrid size={14} className={sidebarIcons ? 'text-blue-600' : 'text-slate-400'} />
-            <span className="text-[11px]">Icons</span>
+            <span className="text-xs">Icons</span>
           </button>
 
           <div className="h-4 w-[1px] bg-slate-200 mx-1" />

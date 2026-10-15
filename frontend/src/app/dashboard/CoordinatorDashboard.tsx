@@ -243,7 +243,7 @@ export default function CoordinatorDashboard() {
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0 ml-3">
                         <span className="text-slate-900 text-sm font-semibold">{fmtGBP(po.gross_amount)}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${sc.className}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sc.className}`}>
                           {sc.label}
                         </span>
                       </div>

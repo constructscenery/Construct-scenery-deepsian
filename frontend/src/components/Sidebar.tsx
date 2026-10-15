@@ -138,7 +138,7 @@ export default function Sidebar() {
             className="w-5 h-5 rounded object-cover flex-shrink-0"
           />
           <ChevronsRight size={14} className="text-blue-400 group-hover:text-white transition-colors" />
-          <span className="text-[11px] font-semibold tracking-wider uppercase">Open</span>
+          <span className="text-xs font-semibold tracking-wider uppercase">Open</span>
         </button>
       )}
 
@@ -190,7 +190,7 @@ export default function Sidebar() {
           {/* User Profile Avatar */}
           {!flap2Open && (
             <div
-              className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white text-[11px] font-bold shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
+              className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold shadow-md cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
               title={`${user?.full_name || 'User'} (${user ? getRoleLabel(user.role) : ''})`}
             >
               {user ? getInitials(user.full_name) : '?'}
@@ -250,7 +250,7 @@ export default function Sidebar() {
             return (
               <div key={group.key} className="space-y-1 mb-2 last:mb-0">
                 {/* Section Header */}
-                <div className="flex items-center gap-1.5 px-3 pb-1 text-slate-500 font-semibold text-[10px] uppercase tracking-widest">
+                <div className="flex items-center gap-1.5 px-3 pb-1 text-slate-500 font-semibold text-xs uppercase tracking-widest">
                   {sidebarIcons && GroupIcon && (
                     <GroupIcon size={12} className="text-slate-400 flex-shrink-0" />
                   )}
@@ -266,7 +266,7 @@ export default function Sidebar() {
                       <Link
                         key={href}
                         href={href}
-                        className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-medium uppercase tracking-wider transition-all duration-150 ${active
+                        className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium uppercase tracking-wider transition-all duration-150 ${active
                           ? 'bg-blue-600 text-white shadow-[0_2px_12px_rgba(37,99,235,0.45)]'
                           : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                           }`}
@@ -288,12 +288,12 @@ export default function Sidebar() {
         {/* Bottom Bar: User & Logout */}
         <div className="p-3 border-t border-blue-900/40 space-y-2 bg-[#051122]/70">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white text-[10px] font-bold">
+            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">
               {user ? getInitials(user.full_name) : '?'}
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-white text-xs font-semibold truncate">{user?.full_name || user?.email || '—'}</p>
-              <p className="text-slate-400 text-[10px] truncate">{user ? getRoleLabel(user.role) : ''}</p>
+              <p className="text-slate-400 text-xs truncate">{user ? getRoleLabel(user.role) : ''}</p>
             </div>
           </div>
           <button

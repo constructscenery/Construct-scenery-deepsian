@@ -152,8 +152,8 @@ export default function MDDashboard() {
                             <div className={`h-2 rounded-full ${ragClass[p.rag_status]}`} style={{ width: `${Math.min(p.budget_utilisation_pct ?? 0, 100)}%` }} />
                           </div>
                           <div className="flex justify-between mt-1">
-                            <span className="text-slate-400 text-[10px]">{fmt(p.amount_remaining ?? 0)} remaining</span>
-                            <span className="text-slate-400 text-[10px]">{(p.budget_utilisation_pct ?? 0).toFixed(1)}% used</span>
+                            <span className="text-slate-400 text-xs">{fmt(p.amount_remaining ?? 0)} remaining</span>
+                            <span className="text-slate-400 text-xs">{(p.budget_utilisation_pct ?? 0).toFixed(1)}% used</span>
                           </div>
                         </>
                       ) : (
@@ -186,7 +186,7 @@ export default function MDDashboard() {
                         </div>
                         <div className="text-right">
                           <p className="text-slate-900 text-sm font-semibold">{fmt(l.amount)}</p>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${l.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${l.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
                             {l.status === 'pending' ? <><Clock size={9} className="inline mr-1" />Pending</> : <><CheckCircle2 size={9} className="inline mr-1" />Approved</>}
                           </span>
                         </div>
@@ -327,7 +327,7 @@ export default function MDDashboard() {
                           { label: 'Weekly Profit', val: latestWeek.weekly_profit, bold: true },
                         ].map(({ label, val, bold }) => (
                           <div key={label} className="bg-slate-50 rounded-lg p-2">
-                            <p className="text-slate-500 text-[10px]">{label}</p>
+                            <p className="text-slate-500 text-xs">{label}</p>
                             <p className={`text-sm font-${bold ? 'bold' : 'semibold'} mt-0.5 ${val < 0 ? 'text-red-600' : 'text-slate-900'}`}>{fmt(Math.abs(val))}</p>
                           </div>
                         ))}

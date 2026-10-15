@@ -216,7 +216,7 @@ export default function PaginationScrollIndicator({
           <div
             className={`absolute -top-6 left-1/2 -translate-x-1/2 ${
               isDragging ? 'flex' : 'hidden group-hover:flex'
-            } items-center px-1.5 py-0.5 rounded bg-slate-800 text-white text-[10px] font-normal pointer-events-none shadow-md whitespace-nowrap z-30`}
+            } items-center px-1.5 py-0.5 rounded bg-slate-800 text-white text-xs font-normal pointer-events-none shadow-md whitespace-nowrap z-30`}
           >
             Page {safePage} of {safeTotalPages}
           </div>
@@ -235,7 +235,7 @@ export default function PaginationScrollIndicator({
         </button>
 
         {/* Compact page readout */}
-        <span className="text-[11px] text-slate-400 font-normal min-w-[32px] text-right">
+        <span className="text-xs text-slate-400 font-normal min-w-[32px] text-right">
           {safePage}/{safeTotalPages}
         </span>
       </div>

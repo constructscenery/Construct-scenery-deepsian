@@ -221,7 +221,7 @@ function StatusItem({ ok, label, hint }: { ok: boolean | null; label: string; hi
         {label}
       </div>
       <div className="text-xs text-slate-500 mt-0.5">{ok === null ? 'Unknown' : ok ? 'OK' : 'Needs attention'}</div>
-      {hint && <div className="text-[11px] text-amber-700 mt-1">{hint}</div>}
+      {hint && <div className="text-xs text-amber-700 mt-1">{hint}</div>}
     </div>
   );
 }
@@ -373,7 +373,7 @@ function PortalLinks({ readOnly }: { readOnly: boolean }) {
                     </div>
                   </div>
                   {c.is_active === false && (
-                    <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 shrink-0">
+                    <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 shrink-0">
                       Inactive
                     </span>
                   )}

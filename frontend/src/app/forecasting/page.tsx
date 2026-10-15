@@ -467,7 +467,7 @@ function ForecastingContent() {
                         <td className="px-5 py-3.5">
                           <div className="font-semibold text-slate-800 text-sm flex items-center gap-2">
                             <span>{cf.title}</span>
-                            <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                            <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
                               v{cf.version}
                             </span>
                           </div>
@@ -483,7 +483,7 @@ function ForecastingContent() {
                           </span>
                         </td>
                         <td className="px-3 py-3.5 text-center">
-                          <span className="text-[11px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                          <span className="text-xs uppercase tracking-wider font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
                             {cf.default_view}
                           </span>
                         </td>
@@ -619,7 +619,7 @@ function ForecastingContent() {
                         <td className="px-5 py-3.5">
                           <div className="font-semibold text-slate-800 text-sm flex items-center gap-2">
                             <span>{lf.title}</span>
-                            <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                            <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
                               v{lf.version}
                             </span>
                           </div>
@@ -735,7 +735,7 @@ function ForecastingContent() {
                     <div className="flex-1">
                       <label className="text-xs text-slate-500 font-medium block mb-1">
                         Known Carpenter Cost
-                        <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">Total £ — whole project</span>
+                        <span className="ml-2 text-xs font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">Total £ — whole project</span>
                       </label>
                       <div className="flex items-center bg-slate-50 border border-slate-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
                         <span className="px-3 text-slate-500 font-semibold text-sm bg-slate-100 border-r border-slate-300 py-2.5">£</span>
@@ -761,7 +761,7 @@ function ForecastingContent() {
                     </button>
                   </div>
 
-                  <p className="text-[11px] text-slate-400 leading-snug">
+                  <p className="text-xs text-slate-400 leading-snug">
                     💡 Enter the <em>total</em> your Carpenters will cost across the entire production run (e.g. all wages, all weeks combined). No time period is needed — this tool uses historical spend <em>ratios</em> to scale everything else.
                   </p>
                 </div>

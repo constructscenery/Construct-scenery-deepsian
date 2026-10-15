@@ -565,7 +565,7 @@ export default function MaterialsCataloguePage() {
                         <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-5 py-3.5">
                             <p className="text-slate-800 font-semibold text-sm">{item.material_name || item.product_description}</p>
-                            <p className="text-slate-400 text-[10px] mt-0.5">Updated {fmtDate(item.updated_at)}</p>
+                            <p className="text-slate-400 text-xs mt-0.5">Updated {fmtDate(item.updated_at)}</p>
                           </td>
                           <td className="px-4 py-3.5 text-slate-700 text-sm max-w-[220px]">
                             {item.description || item.product_description}
@@ -878,9 +878,9 @@ export default function MaterialsCataloguePage() {
                 if (!selected) return null;
                 return (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
-                    <div><span className="block text-[10px] uppercase text-slate-400">Description</span><span className="text-sm text-slate-700">{selected.description || selected.product_description}</span></div>
-                    <div><span className="block text-[10px] uppercase text-slate-400">Category</span><span className="text-sm text-slate-700">{selected.category || '—'}</span></div>
-                    <div><span className="block text-[10px] uppercase text-slate-400">Unit</span><span className="text-sm text-slate-700">{selected.unit_of_measure || '—'}</span></div>
+                    <div><span className="block text-xs uppercase text-slate-400">Description</span><span className="text-sm text-slate-700">{selected.description || selected.product_description}</span></div>
+                    <div><span className="block text-xs uppercase text-slate-400">Category</span><span className="text-sm text-slate-700">{selected.category || '—'}</span></div>
+                    <div><span className="block text-xs uppercase text-slate-400">Unit</span><span className="text-sm text-slate-700">{selected.unit_of_measure || '—'}</span></div>
                   </div>
                 );
               })()}

@@ -102,7 +102,7 @@ export default function SubmissionsTab({ readOnly }: { readOnly: boolean }) {
                       ? `${(r as TimesheetSubmission).days_worked ?? 0} days · ${Number((r as TimesheetSubmission).overtime_hours ?? 0)}h OT`
                       : <span>{(r as InvoiceSubmission).invoice_number || 'No number'} · {money((r as InvoiceSubmission).amount)}</span>}
                   </td>
-                  <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{fmtDateTime(r.submitted_at)}{r.revision > 1 ? <span className="ml-1 text-[11px] text-amber-700">rev {r.revision}</span> : null}</td>
+                  <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{fmtDateTime(r.submitted_at)}{r.revision > 1 ? <span className="ml-1 text-xs text-amber-700">rev {r.revision}</span> : null}</td>
                   <td className="px-4 py-2.5"><StatusBadge status={r.status} /></td>
                 </tr>
               ))}
@@ -281,7 +281,7 @@ function TimesheetReview({ id, readOnly, onClose, onDone }: { id: string; readOn
               </tbody>
             </table>
           </div>
-          <p className="text-[11px] text-slate-500">Pay is calculated from the rate card when the timesheet is created — crew don&apos;t enter rates.</p>
+          <p className="text-xs text-slate-500">Pay is calculated from the rate card when the timesheet is created — crew don&apos;t enter rates.</p>
 
           {data.crew_notes && <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700"><span className="text-xs font-medium text-slate-500 block mb-1">Crew notes</span>{data.crew_notes}</div>}
           {data.reviewer_notes && <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900"><span className="text-xs font-medium block mb-1">Office notes</span>{data.reviewer_notes}</div>}

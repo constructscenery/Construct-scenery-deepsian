@@ -690,7 +690,7 @@ export default function AssetsHirePage() {
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-slate-600">
-                  <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold text-[10px] border-b border-slate-200">
+                  <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold text-xs border-b border-slate-200">
                     <tr>
                       <th className="px-4 py-3.5">Equipment Type & Details</th>
                       <th className="px-4 py-3.5">Supplier / Company</th>
@@ -745,24 +745,24 @@ export default function AssetsHirePage() {
                           <td className="px-4 py-3">
                             <div className="font-bold text-slate-900 text-sm">{h.equipment_type}</div>
                             {h.description && (
-                              <div className="text-[11px] text-slate-500 max-w-xs truncate">{h.description}</div>
+                              <div className="text-xs text-slate-500 max-w-xs truncate">{h.description}</div>
                             )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="font-semibold text-slate-800">{h.supplier_name}</div>
                             {h.supplier_official_name && h.supplier_official_name !== h.supplier_name && (
-                              <div className="text-[11px] text-slate-400">{h.supplier_official_name}</div>
+                              <div className="text-xs text-slate-400">{h.supplier_official_name}</div>
                             )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="font-medium text-blue-600">{h.production_name || '—'}</div>
                             {h.production_status && (
-                              <div className="text-[10px] text-slate-400 uppercase tracking-wider">{h.production_status.replace('_', ' ')}</div>
+                              <div className="text-xs text-slate-400 uppercase tracking-wider">{h.production_status.replace('_', ' ')}</div>
                             )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="text-slate-800">Start: <span className="font-medium">{fmtDate(h.hire_start_date)}</span></div>
-                            <div className="text-[11px] text-slate-500">
+                            <div className="text-xs text-slate-500">
                               Return: {h.return_date ? <span className="font-medium text-slate-700">{fmtDate(h.return_date)}</span> : <span className="text-emerald-600 font-semibold">Ongoing (Active)</span>}
                             </div>
                           </td>
@@ -772,7 +772,7 @@ export default function AssetsHirePage() {
                           <td className="px-4 py-3 text-center">
                             <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                               {h.weeks_hired || 1} wks
-                              <span className="text-[10px] text-slate-400 ml-1">({h.days_hired || 0}d)</span>
+                              <span className="text-xs text-slate-400 ml-1">({h.days_hired || 0}d)</span>
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right font-mono font-bold text-emerald-600 text-sm">
@@ -1151,7 +1151,7 @@ function VehicleFormModal({
           <div className="p-6 space-y-4 overflow-y-auto text-xs flex-1">
             {/* 1. Core Specification */}
             <div>
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5 pb-1 border-b border-slate-100">
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 pb-1 border-b border-slate-100">
                 1. Vehicle Identification & Specification
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1252,7 +1252,7 @@ function VehicleFormModal({
 
             {/* 2. Assignment */}
             <div>
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5 pb-1 border-b border-slate-100">
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 pb-1 border-b border-slate-100">
                 2. Assignment & Operational Notes
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1281,9 +1281,9 @@ function VehicleFormModal({
 
             {/* 3. Compliance Deadlines */}
             <div>
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5 pb-1 border-b border-slate-100 flex items-center justify-between">
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 pb-1 border-b border-slate-100 flex items-center justify-between">
                 <span>3. Compliance Deadlines & Automated Alerts</span>
-                <span className="text-[10px] text-blue-600 font-normal lowercase">30-day email alerts triggered daily</span>
+                <span className="text-xs text-blue-600 font-normal lowercase">30-day email alerts triggered daily</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
@@ -1470,7 +1470,7 @@ function HireFormModal({
             <div className="p-6 space-y-4 overflow-y-auto text-xs flex-1">
               {/* 1. Equipment Details */}
               <div>
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5 pb-1 border-b border-slate-100">
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 pb-1 border-b border-slate-100">
                   1. Plant / Equipment Identification
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1496,7 +1496,7 @@ function HireFormModal({
                       <button
                         type="button"
                         onClick={() => setShowQuickSupplierModal(true)}
-                        className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-0.5 hover:underline"
+                        className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-0.5 hover:underline"
                       >
                         <Plus size={12} />
                         <span>Add New Supplier</span>
@@ -1569,7 +1569,7 @@ function HireFormModal({
 
               {/* 2. Production & Financials */}
               <div>
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5 pb-1 border-b border-slate-100">
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5 pb-1 border-b border-slate-100">
                   2. Linked Production & Hire Terms
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1635,12 +1635,12 @@ function HireFormModal({
               <div className="p-3.5 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-between text-xs">
                 <div>
                   <span className="text-blue-700 font-semibold">Live Computed Duration & Spend</span>
-                  <p className="text-blue-600 text-[11px] mt-0.5">
+                  <p className="text-blue-600 text-xs mt-0.5">
                     {calculatedMetrics.days} days elapsed → billed as <span className="font-bold">{calculatedMetrics.weeks} week(s)</span>
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] text-blue-600 uppercase tracking-wider font-semibold">Total Cost to Date</span>
+                  <span className="text-xs text-blue-600 uppercase tracking-wider font-semibold">Total Cost to Date</span>
                   <p className="text-sm font-bold text-blue-800 font-mono">{fmtCurrency(calculatedMetrics.total)}</p>
                 </div>
               </div>

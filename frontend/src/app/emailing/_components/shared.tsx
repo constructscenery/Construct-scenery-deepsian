@@ -35,7 +35,7 @@ export function Card({ title, subtitle, actions, children, className = '' }: { t
 
 export function StatusBadge({ status, label }: { status: string; label?: string }) {
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${label ? '' : 'capitalize'} ${STATUS_STYLES[status] ?? 'bg-slate-100 text-slate-600'}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${label ? '' : 'capitalize'} ${STATUS_STYLES[status] ?? 'bg-slate-100 text-slate-600'}`}>
       {label ?? status.replace(/_/g, ' ')}
     </span>
   );

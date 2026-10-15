@@ -341,7 +341,7 @@ export default function LabourFlowEditor({
                 {weeks.map(w => (
                   <th key={w.weekNumber} className="px-2.5 py-2.5 text-center min-w-[76px] border-r border-slate-200 bg-white">
                     <div className="font-bold text-slate-800">{w.label}</div>
-                    <div className="text-[10px] text-slate-400 font-normal tracking-normal">{w.subLabel}</div>
+                    <div className="text-xs text-slate-400 font-normal tracking-normal">{w.subLabel}</div>
                   </th>
                 ))}
                 <th className="px-3 py-3 text-center w-24 border-r border-slate-200 bg-slate-50 font-bold">
@@ -364,7 +364,7 @@ export default function LabourFlowEditor({
                 return (
                   <React.Fragment key={secKey}>
                     {/* Section Header */}
-                    <tr className="bg-slate-900 text-white font-bold tracking-wide text-[11px]">
+                    <tr className="bg-slate-900 text-white font-bold tracking-wide text-xs">
                       <td colSpan={weeks.length + 4} className="px-4 py-2">
                         {SECTION_HEADERS[secKey] || secKey}
                       </td>
@@ -413,12 +413,12 @@ export default function LabourFlowEditor({
 
                     {/* Department Subtotal Row */}
                     <tr className="bg-slate-100 font-bold text-slate-800 border-b-2 border-slate-300">
-                      <td className="md:sticky left-0 z-10 bg-slate-100 px-4 py-2 text-[11px] uppercase tracking-wider border-r border-slate-200">
+                      <td className="md:sticky left-0 z-10 bg-slate-100 px-4 py-2 text-xs uppercase tracking-wider border-r border-slate-200">
                         {SECTION_HEADERS[secKey]?.replace('DEPARTMENT — ', '')} SUB TOTAL
                       </td>
                       <td className="px-3 py-2 border-r border-slate-200 bg-slate-100"></td>
                       {weeks.map(w => (
-                        <td key={w.weekNumber} className="px-2 py-2 text-center border-r border-slate-200 text-slate-900 text-[11px]">
+                        <td key={w.weekNumber} className="px-2 py-2 text-center border-r border-slate-200 text-slate-900 text-xs">
                           {secSubtotals[w.weekNumber] != null ? fmt(secSubtotals[w.weekNumber]) : '—'}
                         </td>
                       ))}

@@ -53,15 +53,12 @@ const chaseInvoices = (production_id: string, week_ending_date: string) =>
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const AVATAR_COLORS = [
-  'bg-blue-500', 'bg-purple-500', 'bg-blue-500', 'bg-pink-500', 'bg-orange-500',
-  'bg-green-500', 'bg-indigo-500', 'bg-rose-500', 'bg-cyan-500', 'bg-amber-500',
-];
+const AVATAR_COLORS = ['bg-slate-700', 'bg-blue-600', 'bg-slate-800', 'bg-blue-700', 'bg-slate-600', 'bg-blue-800'];
 
 type TSBadgeDef = { label: string; className: string };
 const STATUS_BADGE: Record<TimesheetStatus, TSBadgeDef> = {
   draft:               { label: 'Draft',               className: 'bg-slate-100 text-slate-500' },
-  submitted:           { label: 'Submitted',           className: 'bg-indigo-100 text-indigo-700' },
+  submitted:           { label: 'Submitted',           className: 'bg-blue-50 text-blue-700 border border-blue-200' },
   distributed:         { label: 'Distributed',         className: 'bg-blue-100 text-blue-700' },
   amendment_requested: { label: 'Amendment Requested', className: 'bg-amber-100 text-amber-700' },
   finalised:           { label: 'Finalised',           className: 'bg-green-100 text-green-700' },
@@ -325,9 +322,9 @@ function NewTimesheetModal({
             </div>
 
             {selectedCrew ? (
-              <div className="flex items-center justify-between p-3 bg-teal-50/70 border border-teal-200 rounded-lg">
+              <div className="flex items-center justify-between p-3 bg-blue-50/70 border border-blue-200 rounded-lg">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-teal-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
                     {getInitials(selectedCrew.first_name, selectedCrew.last_name)}
                   </div>
                   <div>
@@ -342,7 +339,7 @@ function NewTimesheetModal({
                 <button
                   type="button"
                   onClick={() => { setCrewId(''); setCrewSearch(''); }}
-                  className="text-xs text-teal-700 hover:text-teal-900 font-semibold px-2.5 py-1 bg-white border border-teal-200 rounded-md hover:bg-teal-50 transition-colors"
+                  className="text-xs text-blue-700 hover:text-blue-900 font-semibold px-2.5 py-1 bg-white border border-blue-200 rounded-md hover:bg-blue-50 transition-colors"
                 >
                   Change
                 </button>
@@ -382,10 +379,10 @@ function NewTimesheetModal({
                         key={c.id}
                         type="button"
                         onClick={() => { setCrewId(c.id); }}
-                        className="w-full text-left px-3 py-2 hover:bg-teal-50 transition-colors flex items-center justify-between gap-2 group"
+                        className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex items-center justify-between gap-2 group"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-full bg-slate-200 group-hover:bg-teal-200 group-hover:text-teal-800 text-slate-600 font-semibold text-xs flex items-center justify-center flex-shrink-0 transition-colors">
+                          <div className="w-7 h-7 rounded-full bg-slate-200 group-hover:bg-teal-200 group-hover:text-blue-800 text-slate-600 font-semibold text-xs flex items-center justify-center flex-shrink-0 transition-colors">
                             {getInitials(c.first_name, c.last_name)}
                           </div>
                           <div className="min-w-0">
@@ -415,7 +412,7 @@ function NewTimesheetModal({
             <button
               type="submit"
               disabled={saving || !crewId}
-              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors shadow-sm"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
             >
               {saving ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
               Create Timesheet
@@ -1452,7 +1449,7 @@ export default function TimesheetsPage() {
               <button
                 onClick={() => setShowNewTs(true)}
                 disabled={!selectedProd}
-                className="flex items-center gap-2 bg-teal-600 text-white text-sm rounded-lg px-3 py-2 hover:bg-teal-700 shadow-sm disabled:opacity-60 transition-colors font-medium"
+                className="flex items-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-3 py-2 hover:bg-blue-700 shadow-sm disabled:opacity-60 transition-colors font-medium"
               >
                 <Plus size={14} /> New Timesheet
               </button>
@@ -1777,7 +1774,7 @@ export default function TimesheetsPage() {
                                     onClick={() => handleGenerateRowPack(ts)}
                                     disabled={packDownloadingId === ts.id}
                                     title={`Download PDF verification pack for ${fullName}`}
-                                    className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-indigo-200 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors font-medium disabled:opacity-60"
+                                    className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-slate-200 bg-slate-100 text-slate-800 rounded-lg hover:bg-indigo-100 transition-colors font-medium disabled:opacity-60"
                                   >
                                     {packDownloadingId === ts.id
                                       ? <Loader2 size={12} className="animate-spin" />
@@ -1870,8 +1867,8 @@ export default function TimesheetsPage() {
                                 </div>
                                 <div className="h-3 w-px bg-slate-300" />
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-xs font-semibold text-indigo-500 uppercase tracking-wide">Extras Total</span>
-                                  <span className="text-xs font-bold text-indigo-700">{fmtAmt(extrasTotal)}</span>
+                                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Extras Total</span>
+                                  <span className="text-xs font-bold text-slate-800">{fmtAmt(extrasTotal)}</span>
                                   <span className="text-xs text-slate-400">(OT + Mileage + PerDiem + AdHoc + Food)</span>
                                 </div>
                                 {grossTotalNum !== null && (
@@ -1924,7 +1921,7 @@ export default function TimesheetsPage() {
                 <button
                   onClick={handleGeneratePack}
                   disabled={packGenerating || !selectedProd}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-60 transition-colors font-medium"
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 transition-colors font-medium"
                 >
                   {packGenerating ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
                   Generate Week Pack
@@ -1932,7 +1929,7 @@ export default function TimesheetsPage() {
                 <button
                   onClick={handleGeneratePdfPack}
                   disabled={pdfPackGenerating || !selectedProd}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 border border-indigo-200 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 disabled:opacity-60 transition-colors font-medium"
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 border border-slate-200 bg-slate-100 text-slate-800 rounded-lg hover:bg-indigo-100 disabled:opacity-60 transition-colors font-medium"
                 >
                   {pdfPackGenerating ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                   Generate PDF Pack

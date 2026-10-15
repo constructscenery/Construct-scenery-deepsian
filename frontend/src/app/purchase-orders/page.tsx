@@ -120,8 +120,8 @@ function getTrafficLight(status: string) {
 const PAID_FROM_BADGE: Record<string, string> = {
   supplier_account: 'bg-blue-50 text-blue-600',
   arbuthnot_current_account: 'bg-blue-50 text-blue-700',
-  charge_card: 'bg-pink-50 text-pink-600',
-  pleo_charge_card: 'bg-purple-50 text-purple-600',
+  charge_card: 'bg-slate-100 text-slate-700',
+  pleo_charge_card: 'bg-slate-100 text-slate-700',
 };
 
 const PAID_FROM_LABEL: Record<string, string> = {

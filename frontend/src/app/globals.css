@@ -196,3 +196,26 @@ html.dark ::-webkit-scrollbar-thumb:hover { background: #475a80; }
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ─── Smoothed Palette (Black, Grey, Blue + Green/Red Traffic Lights) ─────── */
+/* Smooth out loud/noisy colors to quiet grey or cohesive blue accents */
+.bg-purple-50, .bg-indigo-50, .bg-teal-50, .bg-cyan-50, .bg-pink-50, .bg-orange-50 {
+  background-color: #f1f5f9 !important; /* slate-100 */
+}
+.bg-purple-100, .bg-indigo-100, .bg-teal-100, .bg-cyan-100, .bg-pink-100, .bg-orange-100 {
+  background-color: #e2e8f0 !important; /* slate-200 */
+}
+.text-purple-600, .text-purple-700, .text-purple-800,
+.text-indigo-600, .text-indigo-700, .text-indigo-800,
+.text-teal-600, .text-teal-700, .text-teal-800, .text-teal-900,
+.text-pink-600, .text-pink-700,
+.text-orange-600, .text-orange-700, .text-orange-800 {
+  color: #334155 !important; /* slate-700 */
+}
+.border-purple-100, .border-purple-200,
+.border-indigo-100, .border-indigo-200,
+.border-teal-100, .border-teal-200,
+.border-pink-100, .border-pink-200,
+.border-orange-100, .border-orange-200 {
+  border-color: #e2e8f0 !important; /* slate-200 */
+}

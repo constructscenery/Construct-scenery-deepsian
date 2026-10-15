@@ -535,7 +535,7 @@ export default function SuppliersPage() {
                             <div className="flex items-center gap-2">
                               <p className="text-slate-800 font-semibold text-sm">{item.name}</p>
                               {item.is_archived && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
                                   Archived
                                 </span>
                               )}
@@ -806,7 +806,7 @@ export default function SuppliersPage() {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-slate-900">Permanently Delete Supplier?</h3>
-                <p className="text-[11px] text-rose-600 font-medium">This action cannot be undone</p>
+                <p className="text-xs text-rose-600 font-medium">This action cannot be undone</p>
               </div>
             </div>
             <div className="text-xs text-slate-600 space-y-2 leading-relaxed">
@@ -814,7 +814,7 @@ export default function SuppliersPage() {
                 Are you sure you want to permanently delete <strong>{permanentDeleteTarget.name}</strong>?
                 This record will be completely erased from the database.
               </p>
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px]">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs">
                 <strong>Integrity Safeguard:</strong> If this supplier has any associated purchase orders, deletion will be blocked by the server to protect accounting integrity.
               </div>
             </div>

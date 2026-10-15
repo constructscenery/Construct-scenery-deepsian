@@ -158,15 +158,15 @@ export default function ProductionHireEquipmentPanel({
       {hires.length > 0 && (
         <div className="grid grid-cols-3 bg-slate-50 border-b border-slate-100 divide-x divide-slate-100 text-center text-xs py-2.5 px-4">
           <div>
-            <span className="text-slate-500 text-[11px]">Active Equipment</span>
+            <span className="text-slate-500 text-xs">Active Equipment</span>
             <p className="font-bold text-slate-800 mt-0.5">{activeHires.length}</p>
           </div>
           <div>
-            <span className="text-slate-500 text-[11px]">Weekly Run Rate</span>
+            <span className="text-slate-500 text-xs">Weekly Run Rate</span>
             <p className="font-bold text-slate-800 mt-0.5">{fmtCurrency(weeklyRunRate)}/wk</p>
           </div>
           <div>
-            <span className="text-slate-500 text-[11px]">Total Hire Cost</span>
+            <span className="text-slate-500 text-xs">Total Hire Cost</span>
             <p className="font-bold text-emerald-600 mt-0.5">{fmtCurrency(totalCost)}</p>
           </div>
         </div>
@@ -183,12 +183,12 @@ export default function ProductionHireEquipmentPanel({
             <Wrench size={24} className="mx-auto mb-2 text-slate-300" />
             <p className="font-medium text-slate-600">No equipment hired for this production yet.</p>
             {canManage && (
-              <p className="text-slate-400 text-[11px] mt-1">Click &ldquo;Record Hire&rdquo; to add plant / equipment.</p>
+              <p className="text-slate-400 text-xs mt-1">Click &ldquo;Record Hire&rdquo; to add plant / equipment.</p>
             )}
           </div>
         ) : (
           <table className="w-full text-xs text-left text-slate-600">
-            <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider text-[10px] border-b border-slate-100">
+            <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider text-xs border-b border-slate-100">
               <tr>
                 <th className="px-4 py-2.5">Equipment Type & Spec</th>
                 <th className="px-4 py-2.5">Supplier / Company</th>
@@ -205,7 +205,7 @@ export default function ProductionHireEquipmentPanel({
                 <tr key={h.id} className="hover:bg-slate-50/60 transition-colors">
                   <td className="px-4 py-2.5 font-medium text-slate-800">
                     <div>{h.equipment_type}</div>
-                    {h.description && <div className="text-[10px] text-slate-400 truncate max-w-xs">{h.description}</div>}
+                    {h.description && <div className="text-xs text-slate-400 truncate max-w-xs">{h.description}</div>}
                   </td>
                   <td className="px-4 py-2.5 whitespace-nowrap text-slate-700">
                     {h.supplier_name}
@@ -226,11 +226,11 @@ export default function ProductionHireEquipmentPanel({
                   </td>
                   <td className="px-4 py-2.5 whitespace-nowrap">
                     {h.status === 'active' ? (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
                         Active On-Hire
                       </span>
                     ) : (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
                         Returned {fmtDate(h.return_date)}
                       </span>
                     )}
@@ -245,7 +245,7 @@ export default function ProductionHireEquipmentPanel({
                               setReturnDateInput(new Date().toISOString().split('T')[0]);
                               setReturnNotesInput(h.notes || '');
                             }}
-                            className="px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 rounded transition-colors"
+                            className="px-2 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white border border-emerald-200 rounded transition-colors"
                           >
                             Return
                           </button>
@@ -299,7 +299,7 @@ export default function ProductionHireEquipmentPanel({
                   <button
                     type="button"
                     onClick={() => setShowQuickSupplierModal(true)}
-                    className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-0.5 hover:underline"
+                    className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-0.5 hover:underline"
                   >
                     <Plus size={12} />
                     <span>Add New</span>

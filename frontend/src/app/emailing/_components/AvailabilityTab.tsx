@@ -66,7 +66,7 @@ export default function AvailabilityTab({ readOnly, onCompose }: { readOnly: boo
                     </div>
                     {p.closed_at ? <StatusBadge status="cancelled" label="Closed" /> : <StatusBadge status="sent" label="Open" />}
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+                  <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
                     <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">{responded}/{total} responded</span>
                     <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">{p.available_count ?? 0} available</span>
                     <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">{p.partial_count ?? 0} partly</span>
@@ -205,20 +205,20 @@ function PollDetail({ id, readOnly, onClose, onChanged, onCompose }: { id: strin
                       <td className="px-3 py-2">
                         {r.response ? (
                           <>
-                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize ${RESPONSE_STYLE[r.response]}`}>{r.response === 'partial' ? 'Partly available' : r.response}</span>
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${RESPONSE_STYLE[r.response]}`}>{r.response === 'partial' ? 'Partly available' : r.response}</span>
                             {r.response_notes && <div className="text-xs text-slate-600 mt-1">{r.response_notes}</div>}
-                            <div className="text-[11px] text-slate-400">{fmtDateTime(r.responded_at)}</div>
+                            <div className="text-xs text-slate-400">{fmtDateTime(r.responded_at)}</div>
                           </>
                         ) : <span className="text-xs text-slate-400">Awaiting reply</span>}
                       </td>
                       <td className="px-3 py-2">{r.last_email_status ? <StatusBadge status={r.last_email_status} /> : <span className="text-xs text-slate-400">—</span>}</td>
-                      <td className="px-3 py-2 text-xs capitalize text-slate-600">{r.availability_status ?? 'available'}{r.applied_at ? <div className="text-[11px] text-slate-400 normal-case">applied {fmtDateTime(r.applied_at)}</div> : null}</td>
+                      <td className="px-3 py-2 text-xs capitalize text-slate-600">{r.availability_status ?? 'available'}{r.applied_at ? <div className="text-xs text-slate-400 normal-case">applied {fmtDateTime(r.applied_at)}</div> : null}</td>
                       {!readOnly && (
                         <td className="px-3 py-2">
                           <div className="flex gap-1">
                             {(['available', 'booked', 'unavailable'] as const).map((s) => (
                               <button key={s} disabled={busy === r.id} onClick={() => apply(r.id, s)}
-                                className={`px-2 py-1 rounded-md text-[11px] font-medium capitalize border ${r.applied_status === s ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                                className={`px-2 py-1 rounded-md text-xs font-medium capitalize border ${r.applied_status === s ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
                                 {s}
                               </button>
                             ))}

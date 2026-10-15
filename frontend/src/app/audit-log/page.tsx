@@ -160,69 +160,69 @@ export default function AuditLogPage() {
         {/* Top KPI Metrics Bar */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Events</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Events</span>
             <div className="flex items-baseline justify-between mt-2">
               <span className="text-lg font-bold text-slate-900">{summary?.total ?? total}</span>
               <div className="p-1.5 bg-slate-100 text-slate-600 rounded-lg">
                 <History size={16} />
               </div>
             </div>
-            <span className="text-[11px] text-slate-400 mt-1">Recorded audit events</span>
+            <span className="text-xs text-slate-400 mt-1">Recorded audit events</span>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider">Financial</span>
+            <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Financial</span>
             <div className="flex items-baseline justify-between mt-2">
               <span className="text-lg font-bold text-slate-900">{summary?.financial ?? 0}</span>
               <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg border border-blue-100">
                 <CreditCard size={16} />
               </div>
             </div>
-            <span className="text-[11px] text-slate-400 mt-1">POs, Invoices, Margins</span>
+            <span className="text-xs text-slate-400 mt-1">POs, Invoices, Margins</span>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-purple-600 uppercase tracking-wider">Payroll</span>
+            <span className="text-xs font-semibold text-purple-600 uppercase tracking-wider">Payroll</span>
             <div className="flex items-baseline justify-between mt-2">
               <span className="text-lg font-bold text-slate-900">{summary?.payroll ?? 0}</span>
               <div className="p-1.5 bg-purple-50 text-purple-600 rounded-lg border border-purple-100">
                 <Banknote size={16} />
               </div>
             </div>
-            <span className="text-[11px] text-slate-400 mt-1">Pay runs & timesheets</span>
+            <span className="text-xs text-slate-400 mt-1">Pay runs & timesheets</span>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">Rate Cards</span>
+            <span className="text-xs font-semibold text-amber-600 uppercase tracking-wider">Rate Cards</span>
             <div className="flex items-baseline justify-between mt-2">
               <span className="text-lg font-bold text-slate-900">{summary?.rate_card ?? 0}</span>
               <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg border border-amber-100">
                 <ArrowUpDown size={16} />
               </div>
             </div>
-            <span className="text-[11px] text-slate-400 mt-1">BECTU & trade uplifts</span>
+            <span className="text-xs text-slate-400 mt-1">BECTU & trade uplifts</span>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Safety Docs</span>
+            <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Safety Docs</span>
             <div className="flex items-baseline justify-between mt-2">
               <span className="text-lg font-bold text-slate-900">{summary?.safety_document ?? 0}</span>
               <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100">
                 <HeartPulse size={16} />
               </div>
             </div>
-            <span className="text-[11px] text-slate-400 mt-1">RAMS, COSHH & policies</span>
+            <span className="text-xs text-slate-400 mt-1">RAMS, COSHH & policies</span>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-rose-600 uppercase tracking-wider">Roles & Users</span>
+            <span className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Roles & Users</span>
             <div className="flex items-baseline justify-between mt-2">
               <span className="text-lg font-bold text-slate-900">{summary?.role ?? 0}</span>
               <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg border border-rose-100">
                 <Shield size={16} />
               </div>
             </div>
-            <span className="text-[11px] text-slate-400 mt-1">Role & access changes</span>
+            <span className="text-xs text-slate-400 mt-1">Role & access changes</span>
           </div>
         </div>
 
@@ -301,7 +301,7 @@ export default function AuditLogPage() {
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-600">
-              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold text-[10px] border-b border-slate-200">
+              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold text-xs border-b border-slate-200">
                 <tr>
                   <th className="px-4 py-3.5">Timestamp</th>
                   <th className="px-4 py-3.5">Category</th>
@@ -336,13 +336,13 @@ export default function AuditLogPage() {
                   logs.map(log => (
                     <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
                       {/* Timestamp */}
-                      <td className="px-4 py-3 whitespace-nowrap text-slate-500 font-mono text-[11px]">
+                      <td className="px-4 py-3 whitespace-nowrap text-slate-500 font-mono text-xs">
                         <div className="flex items-center gap-1.5 text-slate-800 font-medium">
                           <Clock size={12} className="text-slate-400" />
                           <span>{fmtDateTime(log.created_at)}</span>
                         </div>
                         {log.production_name && (
-                          <div className="text-[10px] text-blue-600 font-sans mt-0.5">
+                          <div className="text-xs text-blue-600 font-sans mt-0.5">
                             Prod: {log.production_name}
                           </div>
                         )}
@@ -358,7 +358,7 @@ export default function AuditLogPage() {
                         <div className="font-semibold text-slate-900 text-xs">
                           {log.details || log.action}
                         </div>
-                        <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                        <div className="text-xs text-slate-400 font-mono mt-0.5">
                           action: {log.action}
                         </div>
                       </td>
@@ -373,7 +373,7 @@ export default function AuditLogPage() {
                           <span className="text-slate-400 text-xs">—</span>
                         )}
                         {log.entity_type && (
-                          <div className="text-[10px] text-slate-400 mt-0.5">
+                          <div className="text-xs text-slate-400 mt-0.5">
                             {log.entity_type}
                           </div>
                         )}
@@ -382,12 +382,12 @@ export default function AuditLogPage() {
                       {/* Changed By */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px]">
+                          <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs">
                             {log.user_name ? log.user_name.charAt(0).toUpperCase() : 'S'}
                           </div>
                           <div>
                             <div className="font-medium text-slate-800 text-xs">{log.user_name}</div>
-                            <span className="inline-block text-[10px] text-slate-500">
+                            <span className="inline-block text-xs text-slate-500">
                               {formatRoleLabel(log.user_role)}
                             </span>
                           </div>
@@ -450,15 +450,15 @@ export default function AuditLogPage() {
                   <p className="text-sm font-semibold text-slate-900">{inspectEntry.details || inspectEntry.action}</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs pt-2 border-t border-slate-200">
                     <div>
-                      <span className="text-slate-400 block text-[10px] uppercase">Actor</span>
+                      <span className="text-slate-400 block text-xs uppercase">Actor</span>
                       <strong className="text-slate-800">{inspectEntry.user_name} ({formatRoleLabel(inspectEntry.user_role)})</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block text-[10px] uppercase">Entity</span>
+                      <span className="text-slate-400 block text-xs uppercase">Entity</span>
                       <strong className="text-slate-800 font-mono">{inspectEntry.entity_id || '—'}</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block text-[10px] uppercase">Production</span>
+                      <span className="text-slate-400 block text-xs uppercase">Production</span>
                       <strong className="text-slate-800">{inspectEntry.production_name || 'Global'}</strong>
                     </div>
                   </div>
@@ -470,13 +470,13 @@ export default function AuditLogPage() {
                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Version Comparison (Before vs After)</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="bg-rose-50/60 border border-rose-200 rounded-xl p-3.5">
-                        <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wide block mb-1.5">Previous Version</span>
+                        <span className="text-xs font-bold text-rose-700 uppercase tracking-wide block mb-1.5">Previous Version</span>
                         <pre className="text-xs font-mono text-rose-950 overflow-x-auto whitespace-pre-wrap">
                           {JSON.stringify(inspectEntry.metadata.previous, null, 2)}
                         </pre>
                       </div>
                       <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3.5">
-                        <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide block mb-1.5">Updated Version</span>
+                        <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide block mb-1.5">Updated Version</span>
                         <pre className="text-xs font-mono text-emerald-950 overflow-x-auto whitespace-pre-wrap">
                           {JSON.stringify(inspectEntry.metadata.updated, null, 2)}
                         </pre>

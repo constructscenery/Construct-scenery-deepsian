@@ -86,7 +86,7 @@ function NewUserModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
                 {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">MD will be able to view and change this password at any time.</p>
+            <p className="text-xs text-slate-400 mt-1">MD will be able to view and change this password at any time.</p>
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Role</label>
@@ -184,7 +184,7 @@ function ChangePasswordModal({
                 {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">
+            <p className="text-xs text-slate-400 mt-1">
               The updated password will be stored securely and readable by Managing Director.
             </p>
           </div>
@@ -453,7 +453,7 @@ export default function UsersAdminPage() {
                           <p className="text-slate-900 font-semibold flex items-center gap-1.5">
                             {u.full_name}
                             {isSelf && (
-                              <span className="text-[10px] bg-blue-100 text-blue-800 font-medium px-2 py-0.5 rounded-full">
+                              <span className="text-xs bg-blue-100 text-blue-800 font-medium px-2 py-0.5 rounded-full">
                                 You (MD)
                               </span>
                             )}
@@ -524,7 +524,7 @@ export default function UsersAdminPage() {
                               <span>Password hidden</span>
                               <button
                                 onClick={() => setPasswordModalUser(u)}
-                                className="not-italic text-blue-600 hover:text-blue-800 font-medium underline text-[11px]"
+                                className="not-italic text-blue-600 hover:text-blue-800 font-medium underline text-xs"
                               >
                                 Set Password
                               </button>

@@ -26,7 +26,7 @@ const STATUS_COPY: Record<SubmissionStatus, { label: string; cls: string }> = {
 };
 function Badge({ status }: { status: SubmissionStatus }) {
   const s = STATUS_COPY[status];
-  return <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${s.cls}`}>{s.label}</span>;
+  return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap ${s.cls}`}>{s.label}</span>;
 }
 function Banner({ tone, icon: Icon, children }: { tone: 'blue' | 'amber' | 'emerald' | 'red'; icon: typeof AlertCircle; children: ReactNode }) {
   const tones = { blue: 'bg-blue-50 border-blue-200 text-blue-900', amber: 'bg-amber-50 border-amber-200 text-amber-900', emerald: 'bg-emerald-50 border-emerald-200 text-emerald-900', red: 'bg-red-50 border-red-200 text-red-900' };
@@ -95,7 +95,7 @@ function Portal() {
         {tabs.map(({ key, label: l, icon: Icon, badge }) => (
           <button key={key} onClick={() => setTab(key)} className={`relative inline-flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-lg text-sm font-semibold ${activeTab === key ? 'bg-blue-600 text-white' : 'text-slate-600'}`}>
             <Icon size={16} /> {l}
-            {!!badge && <span className={`ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] leading-[18px] ${activeTab === key ? 'bg-white text-blue-700' : 'bg-amber-500 text-white'}`}>{badge}</span>}
+            {!!badge && <span className={`ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-xs leading-[18px] ${activeTab === key ? 'bg-white text-blue-700' : 'bg-amber-500 text-white'}`}>{badge}</span>}
           </button>
         ))}
       </nav>
@@ -211,7 +211,7 @@ function TimesheetSection({ token, home, initialProduction, initialWeek, onChang
               <button className={primary} disabled={saving || !productionId || !daysWorked} onClick={submit}>
                 {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} {sub && sub.status !== 'declined' ? 'Resubmit timesheet' : 'Submit timesheet'}
               </button>
-              <p className="text-[11px] text-slate-500">Pay is worked out by the office from the rate card. Your timesheet isn&apos;t final until it&apos;s approved.</p>
+              <p className="text-xs text-slate-500">Pay is worked out by the office from the rate card. Your timesheet isn&apos;t final until it&apos;s approved.</p>
             </section>
           )}
         </>
@@ -473,7 +473,7 @@ function PollCard({ token, poll, highlighted, onSaved }: { token: string; poll: 
           <button className={primary} disabled={saving || !response || (response === 'partial' && !notes.trim())} onClick={save}>
             {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} {poll.response ? 'Update my answer' : 'Send my answer'}
           </button>
-          {poll.responded_at && <p className="text-[11px] text-slate-500">Last answered {fmtDateTime(poll.responded_at)}</p>}
+          {poll.responded_at && <p className="text-xs text-slate-500">Last answered {fmtDateTime(poll.responded_at)}</p>}
         </>
       )}
     </section>

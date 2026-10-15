@@ -128,7 +128,7 @@ export default function SyncModal({ open, onClose }: SyncModalProps) {
             <div>
               <h2 className="text-lg font-semibold leading-tight text-white flex items-center gap-2">
                 Database S3 Sync & Export
-                <span className="text-[11px] font-normal uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-full">
+                <span className="text-xs font-normal uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-full">
                   Automated Weekly
                 </span>
               </h2>
@@ -232,7 +232,7 @@ export default function SyncModal({ open, onClose }: SyncModalProps) {
                   Export & Sync Database Now
                 </h3>
                 <p className="text-slate-600 text-xs mt-0.5">
-                  Creates version folder in S3 with clean files (<code className="bg-blue-100/70 text-blue-900 px-1 py-0.5 rounded text-[11px]">Backup_Suppliers.xlsx</code>, <code className="bg-blue-100/70 text-blue-900 px-1 py-0.5 rounded text-[11px]">Backup_Productions.xlsx</code>, etc.) populated with actual records.
+                  Creates version folder in S3 with clean files (<code className="bg-blue-100/70 text-blue-900 px-1 py-0.5 rounded text-xs">Backup_Suppliers.xlsx</code>, <code className="bg-blue-100/70 text-blue-900 px-1 py-0.5 rounded text-xs">Backup_Productions.xlsx</code>, etc.) populated with actual records.
                 </p>
               </div>
             </div>
@@ -274,7 +274,7 @@ export default function SyncModal({ open, onClose }: SyncModalProps) {
             ) : (
               <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                 <table className="w-full text-left text-xs text-slate-700">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     <tr>
                       <th className="py-3 px-4">Version Folder</th>
                       <th className="py-3 px-4">Trigger</th>
@@ -305,11 +305,11 @@ export default function SyncModal({ open, onClose }: SyncModalProps) {
                               <span className="w-2 h-2 rounded-full bg-blue-500" />
                               {folderName}
                             </p>
-                            <p className="text-[11px] text-slate-400 mt-0.5">{fmtDate(item.created_at)}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{fmtDate(item.created_at)}</p>
                           </td>
                           <td className="py-3 px-4">
                             <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase ${
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold tracking-wider uppercase ${
                                 item.triggered_by_type === 'SCHEDULED'
                                   ? 'bg-purple-100 text-purple-700 border border-purple-200'
                                   : 'bg-blue-100 text-blue-700 border border-blue-200'
@@ -318,7 +318,7 @@ export default function SyncModal({ open, onClose }: SyncModalProps) {
                               {item.triggered_by_type}
                             </span>
                             {item.triggered_by_user_name && (
-                              <p className="text-[11px] text-slate-500 mt-0.5">
+                              <p className="text-xs text-slate-500 mt-0.5">
                                 {item.triggered_by_user_name}
                               </p>
                             )}
@@ -331,7 +331,7 @@ export default function SyncModal({ open, onClose }: SyncModalProps) {
                             </div>
                             <button
                               onClick={() => setExpandedSyncId(isExpanded ? null : item.id)}
-                              className="text-[11px] text-blue-600 hover:text-blue-800 font-medium flex items-center gap-0.5 mt-0.5"
+                              className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-0.5 mt-0.5"
                             >
                               {isExpanded ? 'Hide files' : 'View individual files'}
                               {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -342,17 +342,17 @@ export default function SyncModal({ open, onClose }: SyncModalProps) {
                           </td>
                           <td className="py-3 px-4">
                             {item.status === 'SUCCESS' ? (
-                              <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-[11px] font-medium">
+                              <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-xs font-medium">
                                 <CheckCircle2 size={12} className="text-emerald-500" />
                                 Synced
                               </span>
                             ) : item.status === 'IN_PROGRESS' ? (
-                              <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-[11px] font-medium">
+                              <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-xs font-medium">
                                 <RefreshCw size={12} className="animate-spin text-amber-500" />
                                 In Progress
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full text-[11px] font-medium">
+                              <span className="inline-flex items-center gap-1 text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full text-xs font-medium">
                                 <AlertCircle size={12} className="text-red-500" />
                                 Failed
                               </span>
@@ -400,7 +400,7 @@ export default function SyncModal({ open, onClose }: SyncModalProps) {
                         <FileSpreadsheet size={15} className="text-blue-600" />
                         Files in <code className="text-blue-700 bg-blue-50 px-1 py-0.5 rounded font-mono">{activeItem.filename}</code>
                       </h4>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
+                      <p className="text-xs text-slate-500 mt-0.5">
                         Download individual tables directly or grab the complete multi-tab master workbook.
                       </p>
                     </div>
@@ -430,7 +430,7 @@ export default function SyncModal({ open, onClose }: SyncModalProps) {
                               <p className="font-semibold text-slate-800 truncate" title={file.name}>
                                 {file.name}
                               </p>
-                              <p className="text-[11px] text-slate-500">
+                              <p className="text-xs text-slate-500">
                                 {file.records} row{file.records === 1 ? '' : 's'} · {fmtBytes(file.size)}
                               </p>
                             </div>
@@ -460,7 +460,7 @@ export default function SyncModal({ open, onClose }: SyncModalProps) {
                           <span className="font-medium text-slate-700 truncate pr-1" title={table}>
                             {table}
                           </span>
-                          <span className="text-slate-500 font-mono text-[11px] flex-shrink-0">
+                          <span className="text-slate-500 font-mono text-xs flex-shrink-0">
                             {String(val)} rows
                           </span>
                         </div>

@@ -1316,7 +1316,7 @@ export default function ProductionDetailPage() {
             )}
             <h1 className="text-slate-900 text-lg font-bold">{production.name}</h1>
             <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${sc.className}`}>{sc.label}</span>
-            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${production.contract_type === 'cost_plus' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'}`}>
+            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${production.contract_type === 'cost_plus' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
               {production.contract_type === 'cost_plus' ? 'Cost Plus' : 'On a Price'}
             </span>
           </div>

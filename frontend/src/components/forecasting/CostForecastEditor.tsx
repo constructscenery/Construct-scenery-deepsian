@@ -387,7 +387,7 @@ export default function CostForecastEditor({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100">
+              <tr className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100">
                 <th className="px-5 py-3 w-24">Cost Code</th>
                 <th className="px-4 py-3">Description / Grade</th>
                 <th className="px-4 py-3 text-right">Unit Rate ({viewMode === 'daily' ? 'Daily' : 'Weekly'})</th>
@@ -474,7 +474,7 @@ export default function CostForecastEditor({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100">
+              <tr className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100">
                 <th className="px-5 py-3 w-24">Cost Code</th>
                 <th className="px-4 py-3">Description</th>
                 <th className="px-4 py-3 text-right">Unit Rate (£)</th>
@@ -490,7 +490,7 @@ export default function CostForecastEditor({
                   <td className="px-5 py-2.5 font-mono text-xs text-slate-500">{nl.cost_code || '—'}</td>
                   <td className="px-4 py-2.5 text-xs font-medium text-slate-800">
                     {nl.description}
-                    {nl.is_custom && <span className="ml-2 text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">custom</span>}
+                    {nl.is_custom && <span className="ml-2 text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">custom</span>}
                   </td>
                   <td className="px-4 py-2 text-right">
                     <input

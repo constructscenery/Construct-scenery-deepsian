@@ -272,11 +272,11 @@ export default function ComposeTab({ preset, onSent }: { preset: ComposePreset |
             </div>
             <div>
               <label className={labelCls} htmlFor="body">Message</label>
-              <textarea id="body" ref={bodyRef} className={`${inputCls} font-mono text-[13px] leading-relaxed`} rows={12} value={body} onChange={(e) => setBody(e.target.value)} />
+              <textarea id="body" ref={bodyRef} className={`${inputCls} font-mono text-xs leading-relaxed`} rows={12} value={body} onChange={(e) => setBody(e.target.value)} />
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {mergeFields.map((f) => (
                   <button key={f.key} type="button" onClick={() => insertField(f.key)} title={f.label}
-                    className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-[11px] font-mono text-slate-600">
+                    className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-xs font-mono text-slate-600">
                     {`{{${f.key}}}`}
                   </button>
                 ))}
@@ -356,7 +356,7 @@ export default function ComposeTab({ preset, onSent }: { preset: ComposePreset |
                           </span>
                         </span>
                         {!r.eligible && r.reason && (
-                          <span className="shrink-0 inline-flex items-center gap-1 text-[11px] text-amber-700"><AlertTriangle size={12} /> {REASON_LABELS[r.reason]}</span>
+                          <span className="shrink-0 inline-flex items-center gap-1 text-xs text-amber-700"><AlertTriangle size={12} /> {REASON_LABELS[r.reason]}</span>
                         )}
                       </label>
                     </li>
@@ -407,7 +407,7 @@ export default function ComposeTab({ preset, onSent }: { preset: ComposePreset |
               <div className="text-xs text-slate-500">Subject (first recipient)</div>
               <div className="text-sm font-semibold text-slate-900 break-words">{preview.subject}</div>
               <EmailFrame html={preview.html} height={460} />
-              <p className="text-[11px] text-slate-500">Each recipient gets their own name, details and secure portal link (hidden here).</p>
+              <p className="text-xs text-slate-500">Each recipient gets their own name, details and secure portal link (hidden here).</p>
             </div>
             <div className="md:col-span-2 min-w-0">
               {!preview.live_sending_enabled && (

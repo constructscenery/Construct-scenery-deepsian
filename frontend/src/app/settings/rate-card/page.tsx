@@ -451,7 +451,7 @@ export default function RateCardPage() {
               <h2 className="text-slate-900 font-semibold text-sm">BECTU/Pact Rates — 2026/27</h2>
               <p className="text-slate-400 text-xs mt-0.5">Union-agreed rates. Edit daily, OT, and weekly rates below, or use &quot;Import New Year Rates&quot; for bulk updates.</p>
             </div>
-            <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
               {rates.filter(r => r.rate_type === 'bectu').length} rates active
             </span>
           </div>
