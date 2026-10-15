@@ -138,7 +138,7 @@ function AttachInvoiceModal({ timesheetId, crewName, onClose, onAttached }: Atta
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 className="text-slate-900 font-semibold text-base">Attach Invoice</h2>
+          <h2 className="text-slate-900 font-semibold text-lg">Attach Invoice</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors text-lg leading-none">&times;</button>
         </div>
         <form onSubmit={submit} className="px-6 py-5 space-y-4">
@@ -320,7 +320,7 @@ function NewTimesheetModal({
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-medium text-slate-700">Crew Member *</label>
               {allCrew.length > 0 && (
-                <span className="text-[11px] text-slate-400">{allCrew.length} available</span>
+                <span className="text-xs text-slate-400">{allCrew.length} available</span>
               )}
             </div>
 
@@ -385,19 +385,19 @@ function NewTimesheetModal({
                         className="w-full text-left px-3 py-2 hover:bg-teal-50 transition-colors flex items-center justify-between gap-2 group"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-full bg-slate-200 group-hover:bg-teal-200 group-hover:text-teal-800 text-slate-600 font-semibold text-[11px] flex items-center justify-center flex-shrink-0 transition-colors">
+                          <div className="w-7 h-7 rounded-full bg-slate-200 group-hover:bg-teal-200 group-hover:text-teal-800 text-slate-600 font-semibold text-xs flex items-center justify-center flex-shrink-0 transition-colors">
                             {getInitials(c.first_name, c.last_name)}
                           </div>
                           <div className="min-w-0">
                             <p className="text-slate-900 font-medium text-xs truncate">
                               {c.first_name} {c.last_name}
                             </p>
-                            <p className="text-slate-400 text-[11px] truncate">
+                            <p className="text-slate-400 text-xs truncate">
                               {c.crew_trade || 'Trade unassigned'} {c.crew_rank ? `· ${c.crew_rank}` : ''}
                             </p>
                           </div>
                         </div>
-                        <span className="text-[11px] font-mono font-medium text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200 flex-shrink-0">
+                        <span className="text-xs font-mono font-medium text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200 flex-shrink-0">
                           {c.crew_number}
                         </span>
                       </button>
@@ -460,7 +460,7 @@ function DeleteTimesheetModal({ timesheet, onClose, onDeleted }: DeleteTimesheet
             <Trash2 size={20} className="text-red-600" />
           </div>
           <div>
-            <h2 className="text-slate-900 font-semibold text-base">Delete Timesheet</h2>
+            <h2 className="text-slate-900 font-semibold text-lg">Delete Timesheet</h2>
             <p className="text-slate-400 text-xs">Permanently remove this timesheet</p>
           </div>
         </div>
@@ -618,7 +618,7 @@ function WeeklyHardCopiesModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
-            <h2 className="text-slate-900 font-semibold text-base flex items-center gap-2">
+            <h2 className="text-slate-900 font-semibold text-lg flex items-center gap-2">
               <FileText size={18} className="text-blue-600" /> Paper Timesheets (Hard Copies)
             </h2>
             <p className="text-slate-500 text-xs mt-0.5">
@@ -713,7 +713,7 @@ function WeeklyHardCopiesModal({
               <div className="bg-slate-50 rounded-xl border border-slate-200/60 p-6 text-center text-slate-400">
                 <FileText size={28} className="mx-auto text-slate-300 mb-2" />
                 <p className="text-xs font-medium text-slate-600">No paper timesheets uploaded for this week yet</p>
-                <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
                   Upload scanned paper timesheets using the box above so physical signatures and documents are archived together.
                 </p>
               </div>
@@ -1484,7 +1484,7 @@ export default function TimesheetsPage() {
               </div>
               {s.value === null
                 ? <div className="h-7 w-16 bg-slate-100 rounded animate-pulse mt-1 mb-0.5" />
-                : <p className="text-slate-900 text-xl font-bold mt-1">{s.value}</p>}
+                : <p className="text-slate-900 text-lg font-bold mt-1">{s.value}</p>}
               <p className="text-slate-400 text-xs mt-0.5">{s.sub}</p>
             </div>
           ))}
@@ -1708,7 +1708,7 @@ export default function TimesheetsPage() {
                           <td className="px-3 py-3.5 text-slate-600 text-xs">{ts.prod_name ?? selectedProdName ?? '—'}</td>
                           <td className="px-3 py-3.5">
                             <p className="text-slate-600 text-xs">{ts.crew_trade ?? '—'}</p>
-                            {ts.crew_rank && <p className="text-slate-400 text-[10px]">{ts.crew_rank}</p>}
+                            {ts.crew_rank && <p className="text-slate-400 text-xs">{ts.crew_rank}</p>}
                           </td>
                           <td className="px-3 py-3.5 text-center text-slate-900 font-medium text-xs">{ts.days_worked ?? 0}</td>
                           <DayCell day="Monday" />
@@ -1736,7 +1736,7 @@ export default function TimesheetsPage() {
                                 {badge.label}
                               </span>
                               {ts.amended_at && (
-                                <span className="text-[10px] text-slate-400 italic whitespace-nowrap">
+                                <span className="text-xs text-slate-400 italic whitespace-nowrap">
                                   Amended {new Date(ts.amended_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                                 </span>
                               )}
@@ -1841,51 +1841,51 @@ export default function TimesheetsPage() {
                             <td colSpan={colSpan} className="px-6 py-3">
                               <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Days</span>
+                                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Days</span>
                                   <span className="text-xs font-semibold text-slate-700">{ts.days_worked ?? 0}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">OT Hours</span>
+                                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">OT Hours</span>
                                   <span className="text-xs font-semibold text-slate-700">{ts.overtime_hours_total ?? 0}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">OT Amount</span>
+                                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">OT Amount</span>
                                   <span className="text-xs font-semibold text-slate-700">{fmtAmt(otAmt)}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Mileage</span>
+                                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Mileage</span>
                                   <span className="text-xs font-semibold text-slate-700">{fmtAmt(mileageAmt)}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Per Diem</span>
+                                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Per Diem</span>
                                   <span className="text-xs font-semibold text-slate-700">{fmtAmt(perDiemAmt)}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Ad Hoc</span>
+                                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Ad Hoc</span>
                                   <span className="text-xs font-semibold text-slate-700">{fmtAmt(adHocAmt)}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Food (B+L+S)</span>
+                                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Food (B+L+S)</span>
                                   <span className="text-xs font-semibold text-slate-700">{fmtAmt(foodAmt)}</span>
                                 </div>
                                 <div className="h-3 w-px bg-slate-300" />
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wide">Extras Total</span>
+                                  <span className="text-xs font-semibold text-indigo-500 uppercase tracking-wide">Extras Total</span>
                                   <span className="text-xs font-bold text-indigo-700">{fmtAmt(extrasTotal)}</span>
-                                  <span className="text-[9px] text-slate-400">(OT + Mileage + PerDiem + AdHoc + Food)</span>
+                                  <span className="text-xs text-slate-400">(OT + Mileage + PerDiem + AdHoc + Food)</span>
                                 </div>
                                 {grossTotalNum !== null && (
                                   <>
                                     <div className="h-3 w-px bg-slate-300" />
                                     <div className="flex items-center gap-1.5">
-                                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Gross (pre-VAT)</span>
+                                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Gross (pre-VAT)</span>
                                       <span className="text-xs font-semibold text-slate-700">{fmtAmt(grossTotalNum)}</span>
                                     </div>
                                   </>
                                 )}
                                 {grandTotalNum !== null && grossTotalNum !== null && Math.abs(grandTotalNum - grossTotalNum) > 0.01 && (
                                   <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] font-semibold text-green-600 uppercase tracking-wide">Grand Total (inc. VAT)</span>
+                                    <span className="text-xs font-semibold text-green-600 uppercase tracking-wide">Grand Total (inc. VAT)</span>
                                     <span className="text-xs font-bold text-green-700">{fmtAmt(grandTotalNum)}</span>
                                   </div>
                                 )}

@@ -58,7 +58,7 @@ export default function OverviewTab({ onNavigate, onCompose, readOnly }: { onNav
               <span className="text-xs font-medium text-slate-500">{label}</span>
               <Icon size={16} className="text-slate-400 shrink-0" />
             </div>
-            <div className={`mt-2 text-2xl font-bold tabular-nums ${tone}`}>{value}</div>
+            <div className={`mt-2 text-lg font-bold tabular-nums ${tone}`}>{value}</div>
           </button>
         ))}
       </div>

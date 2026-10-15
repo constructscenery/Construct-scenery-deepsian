@@ -273,7 +273,7 @@ export default function ProductionHireEquipmentPanel({
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4 text-xs">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-base">Record Equipment Hire</h3>
+              <h3 className="font-bold text-slate-900 text-lg">Record Equipment Hire</h3>
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
@@ -411,7 +411,7 @@ export default function ProductionHireEquipmentPanel({
       {showQuickSupplierModal && (
         <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-3 text-xs">
-            <h3 className="font-bold text-slate-900 text-base">Add New Supplier</h3>
+            <h3 className="font-bold text-slate-900 text-lg">Add New Supplier</h3>
             <p className="text-slate-500">Register supplier and select for this hire</p>
 
             <form
@@ -503,7 +503,7 @@ export default function ProductionHireEquipmentPanel({
       {returnItem && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-3 text-xs">
-            <h3 className="font-bold text-slate-900 text-base">Return Equipment</h3>
+            <h3 className="font-bold text-slate-900 text-lg">Return Equipment</h3>
             <p className="text-slate-600">
               Close hire for <strong>{returnItem.equipment_type}</strong> ({returnItem.supplier_name})
             </p>

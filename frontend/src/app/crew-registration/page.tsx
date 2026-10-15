@@ -182,10 +182,10 @@ function CrewRegistrationForm() {
             <CheckCircle2 size={44} />
           </div>
           <div className="space-y-2">
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">
+            <h2 className="text-lg sm:text-lg font-bold text-slate-900">
               Registration Submitted!
             </h2>
-            <p className="text-slate-600 max-w-md mx-auto text-sm sm:text-base leading-relaxed">
+            <p className="text-slate-600 max-w-md mx-auto text-sm sm:text-sm leading-relaxed">
               Thank you, <strong className="text-slate-900">{form.first_name} {form.last_name}</strong>. Your details have been securely submitted to Construct Scenery for management review.
             </p>
           </div>
@@ -250,10 +250,10 @@ function CrewRegistrationForm() {
             Construct Scenery Limited
           </span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">
+        <h1 className="text-lg sm:text-lg font-bold tracking-tight mb-2">
           Crew Onboarding & Registration
         </h1>
-        <p className="text-sm sm:text-base text-blue-100/90 max-w-xl leading-relaxed">
+        <p className="text-sm sm:text-sm text-blue-100/90 max-w-xl leading-relaxed">
           Please complete your details below to join our construction crew database. All personal, contact, and banking information is encrypted and held strictly in confidence.
         </p>
       </div>
@@ -271,7 +271,7 @@ function CrewRegistrationForm() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Section 1: Personal Details */}
         <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4">
-          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 text-slate-900 font-semibold text-sm sm:text-base">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 text-slate-900 font-semibold text-sm sm:text-sm">
             <User size={18} className="text-blue-600 flex-shrink-0" />
             <span>1. Personal Information</span>
           </div>
@@ -287,7 +287,7 @@ function CrewRegistrationForm() {
                 value={form.first_name}
                 onChange={e => setField('first_name', e.target.value)}
                 placeholder="e.g. James"
-                className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-slate-900"
+                className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-slate-900"
               />
             </div>
 
@@ -301,7 +301,7 @@ function CrewRegistrationForm() {
                 value={form.last_name}
                 onChange={e => setField('last_name', e.target.value)}
                 placeholder="e.g. Wilson"
-                className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-slate-900"
+                className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-slate-900"
               />
             </div>
           </div>
@@ -317,7 +317,7 @@ function CrewRegistrationForm() {
                 value={form.email}
                 onChange={e => setField('email', e.target.value)}
                 placeholder="name@example.com"
-                className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-slate-900"
+                className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-slate-900"
               />
             </div>
 
@@ -330,7 +330,7 @@ function CrewRegistrationForm() {
                 value={form.phone}
                 onChange={e => setField('phone', e.target.value)}
                 placeholder="e.g. 07700 900077"
-                className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-slate-900"
+                className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-slate-900"
               />
             </div>
           </div>
@@ -344,7 +344,7 @@ function CrewRegistrationForm() {
                 type="date"
                 value={form.date_of_birth}
                 onChange={e => setField('date_of_birth', e.target.value)}
-                className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-slate-900"
+                className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-slate-900"
               />
             </div>
 
@@ -357,7 +357,7 @@ function CrewRegistrationForm() {
                 value={form.home_address}
                 onChange={e => setField('home_address', e.target.value)}
                 placeholder="Street address, City, Postcode"
-                className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-slate-900"
+                className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-slate-900"
               />
             </div>
           </div>
@@ -365,7 +365,7 @@ function CrewRegistrationForm() {
 
         {/* Section 2: Trade & Classification */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 text-slate-900 font-semibold text-base">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 text-slate-900 font-semibold text-lg">
             <Building2 size={18} className="text-blue-600" />
             <span>2. Trade Specialism & Employment Status</span>
           </div>
@@ -409,7 +409,7 @@ function CrewRegistrationForm() {
                 required
                 value={form.crew_trade}
                 onChange={e => setField('crew_trade', e.target.value)}
-                className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-900"
+                className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-900"
               >
                 <option value="">{loadingTrades ? 'Loading trades...' : 'Select your trade...'}</option>
                 {allTrades.map(t => (
@@ -444,7 +444,7 @@ function CrewRegistrationForm() {
                     value={form.company_name}
                     onChange={e => setField('company_name', e.target.value)}
                     placeholder="e.g. JW Scenic Creations Ltd"
-                    className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-white text-slate-900 outline-none focus:border-blue-500"
+                    className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-white text-slate-900 outline-none focus:border-blue-500"
                   />
                 </div>
                 <div>
@@ -454,7 +454,7 @@ function CrewRegistrationForm() {
                     value={form.company_registration_number}
                     onChange={e => setField('company_registration_number', e.target.value)}
                     placeholder="e.g. 12345678"
-                    className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-white text-slate-900 outline-none focus:border-blue-500"
+                    className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-white text-slate-900 outline-none focus:border-blue-500"
                   />
                 </div>
                 <div>
@@ -464,7 +464,7 @@ function CrewRegistrationForm() {
                     value={form.vat_registration_number}
                     onChange={e => setField('vat_registration_number', e.target.value)}
                     placeholder="e.g. GB 123 4567 89"
-                    className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-white text-slate-900 outline-none focus:border-blue-500"
+                    className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-white text-slate-900 outline-none focus:border-blue-500"
                   />
                 </div>
                 <div>
@@ -474,7 +474,7 @@ function CrewRegistrationForm() {
                     value={form.company_utr}
                     onChange={e => setField('company_utr', e.target.value)}
                     placeholder="10-digit UTR"
-                    className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-white text-slate-900 outline-none focus:border-blue-500"
+                    className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 bg-white text-slate-900 outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -485,7 +485,7 @@ function CrewRegistrationForm() {
         {/* Section 3: Bank Details */}
         <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2.5 text-slate-900 font-semibold text-sm sm:text-base">
+            <div className="flex items-center gap-2.5 text-slate-900 font-semibold text-sm sm:text-sm">
               <CreditCard size={18} className="text-blue-600 flex-shrink-0" />
               <span>3. Bank Details (For Direct Payroll)</span>
             </div>
@@ -506,7 +506,7 @@ function CrewRegistrationForm() {
                 value={form.account_name}
                 onChange={e => setField('account_name', e.target.value)}
                 placeholder="e.g. J WILSON"
-                className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900"
+                className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900"
               />
             </div>
 
@@ -521,7 +521,7 @@ function CrewRegistrationForm() {
                 onChange={e => setField('sort_code', e.target.value)}
                 placeholder="e.g. 20-40-71"
                 maxLength={8}
-                className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900 font-mono"
+                className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900 font-mono"
               />
             </div>
 
@@ -536,7 +536,7 @@ function CrewRegistrationForm() {
                 onChange={e => setField('account_number', e.target.value)}
                 placeholder="e.g. 12345678"
                 maxLength={12}
-                className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900 font-mono"
+                className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900 font-mono"
               />
             </div>
           </div>
@@ -544,7 +544,7 @@ function CrewRegistrationForm() {
 
         {/* Section 4: Emergency Contact */}
         <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4">
-          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 text-slate-900 font-semibold text-sm sm:text-base">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 text-slate-900 font-semibold text-sm sm:text-sm">
             <Phone size={18} className="text-blue-600 flex-shrink-0" />
             <span>4. Emergency Contact</span>
           </div>
@@ -560,7 +560,7 @@ function CrewRegistrationForm() {
                 value={form.emergency_contact_name}
                 onChange={e => setField('emergency_contact_name', e.target.value)}
                 placeholder="e.g. Sarah Wilson"
-                className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900"
+                className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900"
               />
             </div>
 
@@ -573,7 +573,7 @@ function CrewRegistrationForm() {
                 value={form.emergency_contact_relationship}
                 onChange={e => setField('emergency_contact_relationship', e.target.value)}
                 placeholder="e.g. Spouse / Partner"
-                className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900"
+                className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900"
               />
             </div>
 
@@ -587,7 +587,7 @@ function CrewRegistrationForm() {
                 value={form.emergency_contact_phone}
                 onChange={e => setField('emergency_contact_phone', e.target.value)}
                 placeholder="e.g. 07700 900099"
-                className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900"
+                className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900"
               />
             </div>
           </div>
@@ -595,7 +595,7 @@ function CrewRegistrationForm() {
 
         {/* Section 5: Qualifications & Tickets */}
         <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4">
-          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 text-slate-900 font-semibold text-sm sm:text-base">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 text-slate-900 font-semibold text-sm sm:text-sm">
             <FileText size={18} className="text-blue-600 flex-shrink-0" />
             <span>5. Qualifications & Tickets</span>
           </div>
@@ -636,7 +636,7 @@ function CrewRegistrationForm() {
               value={form.other_qualifications}
               onChange={e => setField('other_qualifications', e.target.value)}
               placeholder="e.g. HGV Class 2, IPAF 3a/3b, etc."
-              className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900"
+              className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900"
             />
           </div>
 
@@ -649,7 +649,7 @@ function CrewRegistrationForm() {
               value={form.notes}
               onChange={e => setField('notes', e.target.value)}
               placeholder="Any additional information you'd like to share with management..."
-              className="w-full text-base sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900"
+              className="w-full text-sm sm:text-sm border border-slate-300 rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-900"
             />
           </div>
         </div>
@@ -659,7 +659,7 @@ function CrewRegistrationForm() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {submitting ? (
               <>

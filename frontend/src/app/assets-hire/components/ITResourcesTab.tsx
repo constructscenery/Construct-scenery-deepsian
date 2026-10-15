@@ -212,7 +212,7 @@ export default function ITResourcesTab({ isCoordinatorOrMD }: { isCoordinatorOrM
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-600">
-            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold text-[10px] border-b border-slate-200">
+            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold text-xs border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3.5">Name & Type</th>
                 <th className="px-4 py-3.5">Vendor</th>
@@ -251,7 +251,7 @@ export default function ITResourcesTab({ isCoordinatorOrMD }: { isCoordinatorOrM
                   <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-4 py-3">
                       <div className="font-bold text-slate-900 text-sm">{r.name}</div>
-                      <div className="text-[11px] text-slate-400 mt-1">
+                      <div className="text-xs text-slate-400 mt-1">
                         {r.type || '—'}
                       </div>
                     </td>
@@ -263,7 +263,7 @@ export default function ITResourcesTab({ isCoordinatorOrMD }: { isCoordinatorOrM
                     </td>
                     <td className="px-4 py-3 text-slate-800">
                       <div>{r.billing_cycle === 'free' ? 'Free' : r.billing_cycle === 'monthly' ? 'Monthly' : r.billing_cycle === 'one_time' ? 'One-time' : 'Annual'}</div>
-                      {r.billing_cycle !== 'free' && r.reminder_enabled && <div className="text-[11px] text-slate-400">Email {r.reminder_days}d before</div>}
+                      {r.billing_cycle !== 'free' && r.reminder_enabled && <div className="text-xs text-slate-400">Email {r.reminder_days}d before</div>}
                     </td>
                     <td className="px-4 py-3 text-slate-800 font-medium">
                       {fmtDate(r.renewal_date)}
@@ -272,7 +272,7 @@ export default function ITResourcesTab({ isCoordinatorOrMD }: { isCoordinatorOrM
                       <button
                         onClick={() => handleViewCredentials(r)}
                         disabled={loadingCreds === r.id}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-slate-700 bg-slate-100 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-slate-200"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-slate-200"
                         title="View credentials"
                       >
                         <Key size={12} className="text-amber-500" />
@@ -313,7 +313,7 @@ export default function ITResourcesTab({ isCoordinatorOrMD }: { isCoordinatorOrM
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 my-8">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
               <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <Monitor className="text-blue-600" size={20} />
                   <span>{editingResource ? 'Edit IT Resource Record' : 'Register New IT Resource'}</span>
                 </h3>

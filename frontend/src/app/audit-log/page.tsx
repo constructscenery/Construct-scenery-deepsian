@@ -129,7 +129,7 @@ export default function AuditLogPage() {
               <div className="p-2 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 shadow-sm">
                 <History size={22} />
               </div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Audit Trail & Version History</h1>
+              <h1 className="text-lg font-bold text-slate-900 tracking-tight">Audit Trail & Version History</h1>
             </div>
             <p className="text-sm text-slate-500 mt-1">
               Read-only system history tracking changes across financial records, payroll, rate cards, safety documents, and user roles.
@@ -162,7 +162,7 @@ export default function AuditLogPage() {
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Events</span>
             <div className="flex items-baseline justify-between mt-2">
-              <span className="text-2xl font-bold text-slate-900">{summary?.total ?? total}</span>
+              <span className="text-lg font-bold text-slate-900">{summary?.total ?? total}</span>
               <div className="p-1.5 bg-slate-100 text-slate-600 rounded-lg">
                 <History size={16} />
               </div>
@@ -173,7 +173,7 @@ export default function AuditLogPage() {
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
             <span className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider">Financial</span>
             <div className="flex items-baseline justify-between mt-2">
-              <span className="text-2xl font-bold text-slate-900">{summary?.financial ?? 0}</span>
+              <span className="text-lg font-bold text-slate-900">{summary?.financial ?? 0}</span>
               <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg border border-blue-100">
                 <CreditCard size={16} />
               </div>
@@ -184,7 +184,7 @@ export default function AuditLogPage() {
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
             <span className="text-[11px] font-semibold text-purple-600 uppercase tracking-wider">Payroll</span>
             <div className="flex items-baseline justify-between mt-2">
-              <span className="text-2xl font-bold text-slate-900">{summary?.payroll ?? 0}</span>
+              <span className="text-lg font-bold text-slate-900">{summary?.payroll ?? 0}</span>
               <div className="p-1.5 bg-purple-50 text-purple-600 rounded-lg border border-purple-100">
                 <Banknote size={16} />
               </div>
@@ -195,7 +195,7 @@ export default function AuditLogPage() {
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
             <span className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">Rate Cards</span>
             <div className="flex items-baseline justify-between mt-2">
-              <span className="text-2xl font-bold text-slate-900">{summary?.rate_card ?? 0}</span>
+              <span className="text-lg font-bold text-slate-900">{summary?.rate_card ?? 0}</span>
               <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg border border-amber-100">
                 <ArrowUpDown size={16} />
               </div>
@@ -206,7 +206,7 @@ export default function AuditLogPage() {
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
             <span className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Safety Docs</span>
             <div className="flex items-baseline justify-between mt-2">
-              <span className="text-2xl font-bold text-slate-900">{summary?.safety_document ?? 0}</span>
+              <span className="text-lg font-bold text-slate-900">{summary?.safety_document ?? 0}</span>
               <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100">
                 <HeartPulse size={16} />
               </div>
@@ -217,7 +217,7 @@ export default function AuditLogPage() {
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
             <span className="text-[11px] font-semibold text-rose-600 uppercase tracking-wider">Roles & Users</span>
             <div className="flex items-baseline justify-between mt-2">
-              <span className="text-2xl font-bold text-slate-900">{summary?.role ?? 0}</span>
+              <span className="text-lg font-bold text-slate-900">{summary?.role ?? 0}</span>
               <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg border border-rose-100">
                 <Shield size={16} />
               </div>
@@ -427,7 +427,7 @@ export default function AuditLogPage() {
                     <History size={20} />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-slate-900">Audit Event Metadata & Diff</h2>
+                    <h2 className="text-lg font-bold text-slate-900">Audit Event Metadata & Diff</h2>
                     <p className="text-xs text-slate-500 font-mono">{inspectEntry.action} • {fmtDateTime(inspectEntry.created_at)}</p>
                   </div>
                 </div>

@@ -38,7 +38,7 @@ export function EmptyState({
         <Icon className="w-7 h-7" strokeWidth={1.75} />
       </div>
 
-      <h3 className="text-base font-semibold text-slate-900 tracking-tight mb-1.5">
+      <h3 className="text-lg font-semibold text-slate-900 tracking-tight mb-1.5">
         {title}
       </h3>
 

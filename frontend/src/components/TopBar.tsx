@@ -50,13 +50,13 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
             title="Expand Navigation Menu (Flap 2)"
             aria-label="Expand Navigation Menu"
           >
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">Drawer &gt;</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-blue-600">Drawer &gt;</span>
           </button>
         ) : null}
 
         {/* Title */}
         <div className="flex-1 min-w-0">
-          <h1 className="text-slate-800 font-normal text-sm leading-tight truncate">{title}</h1>
+          <h1 className="text-slate-800 font-normal text-lg leading-tight truncate">{title}</h1>
           {subtitle && <p className="hidden sm:block text-slate-500 text-xs truncate">{subtitle}</p>}
         </div>
 

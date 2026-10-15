@@ -157,7 +157,7 @@ export default function BuildingsTab({ isCoordinatorOrMD }: { isCoordinatorOrMD:
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-600">
-            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold text-[10px] border-b border-slate-200">
+            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold text-xs border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3.5">Property Name & Address</th>
                 <th className="px-4 py-3.5">Ownership Status</th>
@@ -196,7 +196,7 @@ export default function BuildingsTab({ isCoordinatorOrMD }: { isCoordinatorOrMD:
                   <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-4 py-3">
                       <div className="font-bold text-slate-900 text-sm">{b.name}</div>
-                      <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-1">
+                      <div className="text-xs text-slate-400 flex items-center gap-1 mt-1">
                         <MapPin size={10} />
                         {b.address || '—'}
                       </div>
@@ -251,7 +251,7 @@ export default function BuildingsTab({ isCoordinatorOrMD }: { isCoordinatorOrMD:
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 my-8">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
               <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <Building2 className="text-blue-600" size={20} />
                   <span>{editingBuilding ? 'Edit Building Record' : 'Register New Property'}</span>
                 </h3>
@@ -367,7 +367,7 @@ export default function BuildingsTab({ isCoordinatorOrMD }: { isCoordinatorOrMD:
                     ))}
                   </div>
                 ))}
-                <p className="text-[11px] text-slate-500">Active policies are checked daily and emailed when their expiry is within the configured reminder window.</p>
+                <p className="text-xs text-slate-500">Active policies are checked daily and emailed when their expiry is within the configured reminder window.</p>
               </div>
 
               <div>

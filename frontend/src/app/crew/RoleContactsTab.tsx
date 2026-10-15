@@ -141,7 +141,7 @@ function ContactEditor({ contact, roleType, productions, onClose, onSave }: Cont
     >
       <div className="flex items-center justify-between gap-3 mb-4 border-b border-slate-100 pb-3">
         <div>
-          <h2 id="role-contact-editor-title" className="text-base font-semibold text-slate-900">
+          <h2 id="role-contact-editor-title" className="text-lg font-semibold text-slate-900">
             {contact ? `Edit ${cfg.singular}` : `Add New ${cfg.singular}`}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">{cfg.fullTitle} Directory</p>
@@ -205,7 +205,7 @@ function ContactEditor({ contact, roleType, productions, onClose, onSave }: Cont
                 Production / Company
               </label>
               {productions.length > 0 && (
-                <span className="text-[11px] text-slate-400">or pick from current productions</span>
+                <span className="text-xs text-slate-400">or pick from current productions</span>
               )}
             </div>
             {productions.length > 0 && (
@@ -395,7 +395,7 @@ export default function RoleContactsTab({ roleType, productions = [] }: RoleCont
       <div className="flex flex-col gap-3 px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-slate-800 tracking-tight flex items-center gap-1.5">
+            <h2 className="text-lg font-semibold text-slate-800 tracking-tight flex items-center gap-1.5">
               <span>{cfg.label}</span>
               <span className="text-xs font-normal text-slate-500">({cfg.fullTitle})</span>
             </h2>
@@ -509,7 +509,7 @@ export default function RoleContactsTab({ roleType, productions = [] }: RoleCont
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[950px] text-xs">
+        <table className="w-full min-w-[950px] text-sm">
           <thead className="bg-slate-50 text-left text-slate-500 border-b border-slate-100 font-semibold">
             <tr>
               <th scope="col" className="w-12 px-4 py-3">Fav</th>

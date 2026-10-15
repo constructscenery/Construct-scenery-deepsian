@@ -192,7 +192,7 @@ export default function AssetsPlantTab({ isCoordinatorOrMD, productions }: { isC
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-600">
-            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold text-[10px] border-b border-slate-200">
+            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold text-xs border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3.5">Asset Name & Category</th>
                 <th className="px-4 py-3.5">Make / Model / Serial</th>
@@ -232,13 +232,13 @@ export default function AssetsPlantTab({ isCoordinatorOrMD, productions }: { isC
                   <tr key={a.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-4 py-3">
                       <div className="font-bold text-slate-900 text-sm">{a.name}</div>
-                      <div className="text-[11px] text-slate-400 mt-1">
+                      <div className="text-xs text-slate-400 mt-1">
                         {a.category || '—'}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-slate-800">
                       <div>{[a.make, a.model].filter(Boolean).join(' ') || '—'}</div>
-                      <div className="text-[11px] text-slate-400">{a.serial_number || 'No serial number'}</div>
+                      <div className="text-xs text-slate-400">{a.serial_number || 'No serial number'}</div>
                     </td>
                     <td className="px-4 py-3 font-medium text-slate-800">
                       {a.assigned_to || 'Unassigned'}
@@ -291,7 +291,7 @@ export default function AssetsPlantTab({ isCoordinatorOrMD, productions }: { isC
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 my-8">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
               <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <Package className="text-blue-600" size={20} />
                   <span>{editingAsset ? 'Edit Asset Record' : 'Add Physical Asset / Plant'}</span>
                 </h3>
@@ -417,7 +417,7 @@ export default function AssetsPlantTab({ isCoordinatorOrMD, productions }: { isC
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Depreciation (temporarily disabled)</label>
                   <input type="number" disabled value={depreciationYears} onChange={e => setDepreciationYears(e.target.value)} placeholder="Useful life in years" className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-500" />
-                  <p className="text-[11px] text-slate-400 mt-1">Calculated depreciation will be enabled after the accounting policy is confirmed.</p>
+                  <p className="text-xs text-slate-400 mt-1">Calculated depreciation will be enabled after the accounting policy is confirmed.</p>
                 </div>
               </div>
 

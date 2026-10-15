@@ -145,7 +145,7 @@ function EditCrewModal({ member, onClose, onSaved }: EditModalProps) {
     <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl my-8" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white rounded-t-xl z-10">
-          <h2 className="text-slate-900 font-semibold text-base">Edit Crew Member</h2>
+          <h2 className="text-slate-900 font-semibold text-lg">Edit Crew Member</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
         <form onSubmit={submit} className="px-6 py-5 space-y-5">

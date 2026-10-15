@@ -56,7 +56,7 @@ export function Modal({ title, onClose, children, footer, wide = false }: { titl
         aria-modal="true"
       >
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
-          <h3 className="text-base font-semibold text-slate-900 min-w-0 truncate">{title}</h3>
+          <h3 className="text-lg font-semibold text-slate-900 min-w-0 truncate">{title}</h3>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600" aria-label="Close"><X size={18} /></button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>

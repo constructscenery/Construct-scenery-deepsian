@@ -287,21 +287,21 @@ function UnitListsContent() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-slate-100 text-xs">
             <div className="bg-slate-50 rounded-lg p-2.5">
               <span className="text-slate-400 block font-medium">Total Unit Lists</span>
-              <span className="text-base font-bold text-slate-800">{unitLists.length}</span>
+              <span className="text-lg font-bold text-slate-800">{unitLists.length}</span>
             </div>
             <div className="bg-slate-50 rounded-lg p-2.5">
               <span className="text-slate-400 block font-medium">Filtered Results</span>
-              <span className="text-base font-bold text-blue-600">{filteredList.length}</span>
+              <span className="text-sm font-bold text-blue-600">{filteredList.length}</span>
             </div>
             <div className="bg-slate-50 rounded-lg p-2.5">
               <span className="text-slate-400 block font-medium">Productions</span>
-              <span className="text-base font-bold text-slate-800">
+              <span className="text-lg font-bold text-slate-800">
                 {new Set(unitLists.map(u => u.production_name).filter(Boolean)).size}
               </span>
             </div>
             <div className="bg-slate-50 rounded-lg p-2.5">
               <span className="text-slate-400 block font-medium">Named Contacts</span>
-              <span className="text-base font-bold text-emerald-600">
+              <span className="text-sm font-bold text-emerald-600">
                 {unitLists.filter(u => u.name || u.phone_number || u.email).length}
               </span>
             </div>
@@ -782,7 +782,7 @@ function UnitListUploadModal({ productions, onClose, onCreated }: UnitListUpload
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
-            <h2 className="text-slate-900 font-semibold text-base flex items-center gap-2">
+            <h2 className="text-slate-900 font-semibold text-lg flex items-center gap-2">
               <Upload size={17} className="text-blue-600" />
               Upload Unit List PDF
             </h2>
@@ -1013,7 +1013,7 @@ function UnitListEditModal({ item, productions, onClose, onUpdated }: UnitListEd
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
-            <h2 className="text-slate-900 font-semibold text-base flex items-center gap-2">
+            <h2 className="text-slate-900 font-semibold text-lg flex items-center gap-2">
               <Pencil size={16} className="text-blue-600" />
               Edit Unit List Details
             </h2>

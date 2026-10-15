@@ -85,7 +85,7 @@ function AddInvoiceForm({ productionId, onClose, onSaved }: AddInvoiceFormProps)
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 className="text-slate-900 font-semibold text-base">Add Invoice to Production</h2>
+          <h2 className="text-slate-900 font-semibold text-lg">Add Invoice to Production</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
             <X size={18} />
           </button>
@@ -492,7 +492,7 @@ function CostReportContent() {
               <div className="flex items-center gap-2">
                 <span className="text-slate-600 text-xs font-semibold">Filter cost details</span>
                 {activeCostFilterCount > 0 && (
-                  <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{activeCostFilterCount}</span>
+                  <span className="bg-blue-600 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">{activeCostFilterCount}</span>
                 )}
               </div>
               <button
@@ -523,7 +523,7 @@ function CostReportContent() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   {/* Supplier search */}
                   <div className="col-span-2 sm:col-span-1 lg:col-span-2">
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Supplier</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Supplier</label>
                     <input
                       type="text"
                       value={supplierSearch}
@@ -534,7 +534,7 @@ function CostReportContent() {
                   </div>
                   {/* Set/Account code */}
                   <div>
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Set / Account Code</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Set / Account Code</label>
                     <input
                       type="text"
                       value={setCodeFilter}
@@ -545,7 +545,7 @@ function CostReportContent() {
                   </div>
                   {/* Trade */}
                   <div>
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Trade</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Trade</label>
                     <select
                       value={tradeFilter}
                       onChange={e => setTradeFilter(e.target.value)}
@@ -557,7 +557,7 @@ function CostReportContent() {
                   </div>
                   {/* Crew member */}
                   <div>
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Crew Member</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Crew Member</label>
                     <input
                       type="text"
                       value={crewSearch}
@@ -568,7 +568,7 @@ function CostReportContent() {
                   </div>
                   {/* Week from */}
                   <div>
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Week From</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Week From</label>
                     <input
                       type="date"
                       value={weekFrom}
@@ -578,7 +578,7 @@ function CostReportContent() {
                   </div>
                   {/* Week to */}
                   <div>
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Week To</label>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Week To</label>
                     <input
                       type="date"
                       value={weekTo}
@@ -612,13 +612,13 @@ function CostReportContent() {
             <>
               <div className="bg-white rounded-xl border border-slate-200 px-4 py-4 shadow-sm">
                 <p className="text-slate-500 text-xs font-medium leading-tight">Total Costs to Date</p>
-                <p className="text-slate-900 text-xl font-bold mt-1">{fmtGBP(m.total_costs_to_date)}</p>
-                <p className="text-slate-400 text-[10px] mt-0.5">supplier + labour + hire</p>
+                <p className="text-slate-900 text-lg font-bold mt-1">{fmtGBP(m.total_costs_to_date)}</p>
+                <p className="text-slate-400 text-xs mt-0.5">supplier + labour + hire</p>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 px-4 py-4 shadow-sm">
                 <p className="text-slate-500 text-xs font-medium leading-tight">Total Invoiced to Production</p>
-                <p className="text-slate-900 text-xl font-bold mt-1">{fmtGBP(m.total_invoiced_to_production)}</p>
-                <p className="text-slate-400 text-[10px] mt-0.5">all invoices raised</p>
+                <p className="text-slate-900 text-lg font-bold mt-1">{fmtGBP(m.total_invoiced_to_production)}</p>
+                <p className="text-slate-400 text-xs mt-0.5">all invoices raised</p>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 px-4 py-4 shadow-sm">
                 <p className="text-slate-500 text-xs font-medium leading-tight">Current Profit</p>
@@ -627,33 +627,33 @@ function CostReportContent() {
                     ? <TrendingUp size={14} className="text-green-600" />
                     : <TrendingDown size={14} className="text-red-500" />
                   }
-                  <p className={`text-xl font-bold ${profitIsPositive ? 'text-green-600' : 'text-red-500'}`}>
+                  <p className={`text-lg font-bold ${profitIsPositive ? 'text-green-600' : 'text-red-500'}`}>
                     {fmtGBP(m.current_profit)}
                   </p>
                 </div>
-                <p className="text-slate-400 text-[10px] mt-0.5">invoiced minus costs</p>
+                <p className="text-slate-400 text-xs mt-0.5">invoiced minus costs</p>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 px-4 py-4 shadow-sm">
                 <p className="text-slate-500 text-xs font-medium leading-tight">Profit % of Turnover</p>
-                <p className={`text-xl font-bold mt-1 ${profitIsPositive ? 'text-green-600' : 'text-red-500'}`}>
+                <p className={`text-lg font-bold mt-1 ${profitIsPositive ? 'text-green-600' : 'text-red-500'}`}>
                   {m.profit_percentage_of_turnover}
                 </p>
-                <p className="text-slate-400 text-[10px] mt-0.5">of invoiced revenue</p>
+                <p className="text-slate-400 text-xs mt-0.5">of invoiced revenue</p>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 px-4 py-4 shadow-sm">
                 <p className="text-slate-500 text-xs font-medium leading-tight">Supplier Costs</p>
-                <p className="text-slate-900 text-xl font-bold mt-1">{fmtGBP(m.total_supplier_costs)}</p>
-                <p className="text-slate-400 text-[10px] mt-0.5">approved POs only</p>
+                <p className="text-slate-900 text-lg font-bold mt-1">{fmtGBP(m.total_supplier_costs)}</p>
+                <p className="text-slate-400 text-xs mt-0.5">approved POs only</p>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 px-4 py-4 shadow-sm">
                 <p className="text-slate-500 text-xs font-medium leading-tight">Labour Costs</p>
-                <p className="text-slate-900 text-xl font-bold mt-1">{fmtGBP(m.total_labour_costs)}</p>
-                <p className="text-slate-400 text-[10px] mt-0.5">verified timesheets</p>
+                <p className="text-slate-900 text-lg font-bold mt-1">{fmtGBP(m.total_labour_costs)}</p>
+                <p className="text-slate-400 text-xs mt-0.5">verified timesheets</p>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 px-4 py-4 shadow-sm">
                 <p className="text-slate-500 text-xs font-medium leading-tight">Hire Equipment</p>
-                <p className="text-slate-900 text-xl font-bold mt-1">{fmtGBP((m as any).total_hire_costs || 0)}</p>
-                <p className="text-slate-400 text-[10px] mt-0.5">plant & tool hire</p>
+                <p className="text-slate-900 text-lg font-bold mt-1">{fmtGBP((m as any).total_hire_costs || 0)}</p>
+                <p className="text-slate-400 text-xs mt-0.5">plant & tool hire</p>
               </div>
             </>
           ) : null}
@@ -672,7 +672,7 @@ function CostReportContent() {
                 style={{ width: `${progressPct}%` }}
               />
             </div>
-            <div className="flex justify-between text-[10px] text-slate-400 mt-1.5">
+            <div className="flex justify-between text-xs text-slate-400 mt-1.5">
               <span>{progressPct.toFixed(1)}% of invoiced amount spent</span>
               <span>{(100 - progressPct).toFixed(1)}% remaining margin</span>
             </div>
@@ -756,7 +756,7 @@ function CostReportContent() {
           <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="text-slate-900 font-semibold text-sm">
               Supplier Costs
-              {(supplierSearch || setCodeFilter) && <span className="ml-2 text-[10px] text-blue-600 font-medium">(filtered)</span>}
+              {(supplierSearch || setCodeFilter) && <span className="ml-2 text-xs text-blue-600 font-medium">(filtered)</span>}
             </h2>
             {!loading && <span className="text-blue-600 text-xs font-semibold">Total: {fmtGBP(supplierTotal)}</span>}
           </div>
@@ -826,7 +826,7 @@ function CostReportContent() {
           <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="text-slate-900 font-semibold text-sm">
               Labour Summary — by Week
-              {(tradeFilter || crewSearch || weekFrom || weekTo) && <span className="ml-2 text-[10px] text-blue-600 font-medium">(filtered)</span>}
+              {(tradeFilter || crewSearch || weekFrom || weekTo) && <span className="ml-2 text-xs text-blue-600 font-medium">(filtered)</span>}
             </h2>
             {!loading && m && (
               <span className="text-blue-600 text-xs font-semibold">Total: {fmtGBP(m.total_labour_costs)}</span>

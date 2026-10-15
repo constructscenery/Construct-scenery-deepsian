@@ -16,11 +16,72 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 /* Universal typography: no bold text across all tabs, sub-tabs, sub-modules and components */
 *, *::before, *::after {
   font-weight: 400 !important;
+}
+
+/* ─── Unified 3-Tier Typography System (Heading: 18px, Body: 14px, Sub text: 12px) ─── */
+:root {
+  --text-heading: 1.125rem; /* 18px */
+  --leading-heading: 1.5rem;
+  --text-body: 0.875rem;    /* 14px */
+  --leading-body: 1.25rem;
+  --text-subtext: 0.75rem;  /* 12px */
+  --line-height-subtext: 1rem;
+}
+
+.text-heading {
+  font-size: var(--text-heading) !important;
+  line-height: var(--leading-heading) !important;
+}
+
+.text-body {
+  font-size: var(--text-body) !important;
+  line-height: var(--leading-body) !important;
+}
+
+.text-subtext {
+  font-size: var(--text-subtext) !important;
+  line-height: var(--line-height-subtext) !important;
+}
+
+/* Default Heading elements */
+h1, h2, h3, h4, h5, h6 {
+  font-size: 1.125rem;
+  line-height: 1.5rem;
+}
+
+/* Enforce maximum of 3 unified sizes across all pages */
+/* Tier 1: Heading (18px) */
+.text-lg,
+.text-xl,
+.text-2xl,
+.text-3xl,
+.text-4xl {
+  font-size: 1.125rem !important;
+  line-height: 1.5rem !important;
+}
+
+/* Tier 2: Body (14px) */
+.text-sm,
+.text-base {
+  font-size: 0.875rem !important;
+  line-height: 1.25rem !important;
+}
+
+/* Tier 3: Sub text (12px) */
+.text-xs,
+.text-\[9px\],
+.text-\[10px\],
+.text-\[11px\],
+.text-\[13px\] {
+  font-size: 0.75rem !important;
+  line-height: 1rem !important;
 }
 
 /* ─── Dark Mode Palette & Surfaces ─────────────────────────────────────────── */

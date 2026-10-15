@@ -228,7 +228,7 @@ export default function SyncModal({ open, onClose }: SyncModalProps) {
                 <FileSpreadsheet size={24} />
               </div>
               <div>
-                <h3 className="text-slate-900 font-semibold text-sm sm:text-base">
+                <h3 className="text-slate-900 font-semibold text-sm sm:text-lg">
                   Export & Sync Database Now
                 </h3>
                 <p className="text-slate-600 text-xs mt-0.5">

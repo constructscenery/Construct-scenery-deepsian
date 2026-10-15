@@ -408,7 +408,7 @@ function ResultStep({ result, onComplete }: ResultStepProps) {
             <CheckCircle size={24} className="text-green-600" />
           </div>
           <div>
-            <h2 className="text-slate-900 font-semibold text-base">Import Complete</h2>
+            <h2 className="text-slate-900 font-semibold text-lg">Import Complete</h2>
             <p className="text-slate-500 text-sm mt-0.5">
               <span className="font-semibold text-green-700">{result.created} record{result.created !== 1 ? 's' : ''} created</span>
               {result.skipped > 0 && (

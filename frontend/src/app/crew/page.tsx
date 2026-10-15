@@ -229,7 +229,7 @@ function RegisterCrewModal({ onClose, onCreated }: RegisterCrewModalProps) {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white rounded-t-xl z-10">
-          <h2 className="text-slate-900 font-semibold text-base">Register Crew Member</h2>
+          <h2 className="text-slate-900 font-semibold text-lg">Register Crew Member</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
             <X size={18} />
           </button>
@@ -717,7 +717,7 @@ function ReviewCandidateModal({
         <div className="flex items-start justify-between pb-3 border-b border-slate-100">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-slate-900">
+              <h2 className="text-lg font-bold text-slate-900">
                 {request.first_name} {request.last_name}
               </h2>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${
@@ -1887,7 +1887,7 @@ export default function CrewPage() {
                 <AlertCircle size={22} />
               </div>
               <div>
-                <h3 className="font-bold text-slate-900 text-base">Permanently Delete Crew Member?</h3>
+                <h3 className="font-bold text-slate-900 text-lg">Permanently Delete Crew Member?</h3>
                 <p className="text-[11px] text-rose-600 font-medium">This action cannot be undone</p>
               </div>
             </div>

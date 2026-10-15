@@ -281,7 +281,7 @@ export default function CostForecastEditor({
                   </span>
                 )}
               </div>
-              <h1 className="text-xl font-bold text-slate-900 mt-1">{forecast.title}</h1>
+              <h1 className="text-lg font-bold text-slate-900 mt-1">{forecast.title}</h1>
             </div>
           </div>
 

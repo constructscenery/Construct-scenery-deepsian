@@ -122,7 +122,7 @@ export default function CoordinatorDashboard() {
                 <p className="text-slate-500 text-xs font-medium">{label}</p>
                 {loading
                   ? <div className="h-7 w-8 bg-slate-100 rounded animate-pulse mt-1" />
-                  : <p className="text-slate-900 text-2xl font-bold mt-0.5">{value}</p>
+                  : <p className="text-slate-900 text-lg font-bold mt-0.5">{value}</p>
                 }
               </div>
             </div>

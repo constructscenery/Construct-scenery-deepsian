@@ -48,7 +48,7 @@ export default function PublicSafetyHealthPage() {
             <p className="text-xs text-slate-400 mt-0.5">CS HQ · Health & Safety</p>
           </div>
         </div>
-        <h1 className="text-2xl font-semibold text-slate-900 mt-5">Health & Safety Certificates</h1>
+        <h1 className="text-lg font-semibold text-slate-900 mt-5">Health & Safety Certificates</h1>
         <p className="text-sm text-slate-500 mt-1">Shareable public access to current COSHH and insurance certificates. No login required.</p>
         <button onClick={() => setShowDirectoryQr(true)} className="mt-3 inline-flex items-center gap-2 text-sm text-blue-600"><QrCode size={16} /> View directory QR</button>
       </header>

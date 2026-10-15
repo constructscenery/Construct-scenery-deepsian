@@ -79,7 +79,7 @@ function ContractTypeSelector({
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-semibold text-slate-800">{CONTRACT_TYPE_INFO[ct].label}</span>
-                {value === ct && <span className="text-[10px] text-blue-600 font-semibold bg-blue-100 px-1.5 py-0.5 rounded">selected</span>}
+                {value === ct && <span className="text-xs text-blue-600 font-semibold bg-blue-100 px-1.5 py-0.5 rounded">selected</span>}
               </div>
               <p className="text-xs text-slate-500 leading-snug">{CONTRACT_TYPE_INFO[ct].desc}</p>
             </button>
@@ -183,7 +183,7 @@ function EditProductionModal({ production, onClose, onSaved }: EditProductionMod
       {pendingContractType && (
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4">
-            <h3 className="text-slate-900 font-semibold text-base">Change contract type?</h3>
+            <h3 className="text-slate-900 font-semibold text-lg">Change contract type?</h3>
             <p className="text-slate-600 text-sm">Changing the contract type will affect how the cost report is structured for this production. Are you sure?</p>
             <div className="flex items-center justify-end gap-3">
               <button onClick={() => setPendingContractType(null)} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
@@ -196,7 +196,7 @@ function EditProductionModal({ production, onClose, onSaved }: EditProductionMod
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-y-auto max-h-[90vh]" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 className="text-slate-900 font-semibold text-base">Edit Production</h2>
+          <h2 className="text-slate-900 font-semibold text-lg">Edit Production</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={18} /></button>
         </div>
         <form onSubmit={submit} className="px-6 py-5 space-y-4">
@@ -383,7 +383,7 @@ function SetSlideOver({ initial = {}, existingSetNumbers, production, onSave, on
       <div className="fixed right-0 top-0 h-full w-full max-w-sm bg-white z-50 shadow-2xl flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
-          <h2 className="text-slate-900 font-semibold text-base">{title}</h2>
+          <h2 className="text-slate-900 font-semibold text-lg">{title}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"><X size={18} /></button>
         </div>
 
@@ -717,7 +717,7 @@ function UploadDocModal({ productionId, onClose, onUploaded }: UploadDocModalPro
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 className="text-slate-900 font-semibold text-base">Upload Document</h2>
+          <h2 className="text-slate-900 font-semibold text-lg">Upload Document</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={18} /></button>
         </div>
         <form onSubmit={submit} className="px-6 py-5 space-y-4">
@@ -771,13 +771,13 @@ function ProductionBanner({ production }: { production: ProductionDetail }) {
 
   return (
     <div className={`rounded-xl border px-5 py-4 ${bannerBg}`}>
-      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-2">Overall Production</p>
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Overall Production</p>
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           {days != null ? (
             <div className="flex items-baseline gap-2">
-              <span className={`text-4xl font-bold leading-none ${daysColor}`}>{days}</span>
-              <span className={`text-base font-semibold ${labelColor}`}>days to final handover</span>
+              <span className={`text-lg font-bold leading-none ${daysColor}`}>{days}</span>
+              <span className={`text-lg font-semibold ${labelColor}`}>days to final handover</span>
             </div>
           ) : (
             <span className="text-slate-400 text-sm font-medium">No handover dates set</span>
@@ -792,7 +792,7 @@ function ProductionBanner({ production }: { production: ProductionDetail }) {
 
         {(greenCount > 0 || amberCount > 0 || redCount > 0) && (
           <div className="flex-shrink-0">
-            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5 text-right">Set status</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1.5 text-right">Set status</p>
             <div className="flex items-center gap-3">
               {greenCount > 0 && (
                 <span className="flex items-center gap-1.5 text-xs font-semibold text-green-700">
@@ -1050,7 +1050,7 @@ export default function ProductionDetailPage() {
                 <Archive size={18} className="text-red-600" />
               </div>
               <div>
-                <h2 className="text-slate-900 font-semibold text-base">Archive this production?</h2>
+                <h2 className="text-slate-900 font-semibold text-lg">Archive this production?</h2>
                 <p className="text-slate-500 text-sm mt-1">
                   Archiving <span className="font-bold text-slate-800">{archivePreview.production_name}</span> will
                   hide it from all active views. All data, documents, and reports will be preserved in full and
@@ -1061,18 +1061,18 @@ export default function ProductionDetailPage() {
 
             {/* Stats */}
             <div className="mx-6 my-4 bg-slate-50 rounded-xl p-4">
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-3">This production has</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">This production has</p>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>
-                  <p className="text-2xl font-bold text-slate-800">{archivePreview.po_count}</p>
+                  <p className="text-lg font-bold text-slate-800">{archivePreview.po_count}</p>
                   <p className="text-xs text-slate-500 mt-0.5">purchase orders</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-800">{archivePreview.crew_count}</p>
+                  <p className="text-lg font-bold text-slate-800">{archivePreview.crew_count}</p>
                   <p className="text-xs text-slate-500 mt-0.5">crew members</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-800">{archivePreview.timesheet_weeks}</p>
+                  <p className="text-lg font-bold text-slate-800">{archivePreview.timesheet_weeks}</p>
                   <p className="text-xs text-slate-500 mt-0.5">weeks of timesheets</p>
                 </div>
               </div>
@@ -1123,7 +1123,7 @@ export default function ProductionDetailPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h2 className="text-slate-900 font-semibold text-base">
+              <h2 className="text-slate-900 font-semibold text-lg">
                 {showTransitionModal === 'rollback'
                   ? PREV_LABEL[production.status]
                   : NEXT_LABEL[production.status]}
@@ -1314,7 +1314,7 @@ export default function ProductionDetailPage() {
                 #{production.production_code}
               </span>
             )}
-            <h1 className="text-slate-900 text-xl font-bold">{production.name}</h1>
+            <h1 className="text-slate-900 text-lg font-bold">{production.name}</h1>
             <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${sc.className}`}>{sc.label}</span>
             <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${production.contract_type === 'cost_plus' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'}`}>
               {production.contract_type === 'cost_plus' ? 'Cost Plus' : 'On a Price'}
@@ -1371,7 +1371,7 @@ export default function ProductionDetailPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {/* Supervising Art Director */}
               <div className="p-3 rounded-lg bg-slate-50/70 border border-slate-100">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Supervising Art Director</p>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Supervising Art Director</p>
                 <p className="text-slate-800 font-medium text-sm mt-1">{production.supervising_art_director || '—'}</p>
                 <div className="flex flex-col gap-1 mt-2 text-xs">
                   {production.supervising_art_director_mobile && (
@@ -1391,7 +1391,7 @@ export default function ProductionDetailPage() {
 
               {/* Financial Controller */}
               <div className="p-3 rounded-lg bg-slate-50/70 border border-slate-100">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Financial Controller</p>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Financial Controller</p>
                 <p className="text-slate-800 font-medium text-sm mt-1">{production.financial_controller || '—'}</p>
                 <div className="flex flex-col gap-1 mt-2 text-xs">
                   {production.financial_controller_mobile && (
@@ -1411,7 +1411,7 @@ export default function ProductionDetailPage() {
 
               {/* Art Dept Co-ordinator */}
               <div className="p-3 rounded-lg bg-slate-50/70 border border-slate-100">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Art Dept Co-ordinator</p>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Art Dept Co-ordinator</p>
                 <p className="text-slate-800 font-medium text-sm mt-1">{production.art_dept_coordinator || '—'}</p>
                 <div className="flex flex-col gap-1 mt-2 text-xs">
                   {production.art_dept_coordinator_mobile && (

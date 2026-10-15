@@ -245,9 +245,9 @@ export default function AssetsHirePage() {
               <div className="p-2 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 shadow-sm">
                 <Truck size={22} />
               </div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Assets & Hire Equipment</h1>
+              <h1 className="text-lg font-bold text-slate-900 tracking-tight">Assets & Hire Equipment</h1>
             </div>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               Centralised company vehicle compliance register and production equipment hire tracker
             </p>
           </div>
@@ -290,69 +290,69 @@ export default function AssetsHirePage() {
         {/* Top KPI Metrics Bar */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Fleet Vehicles</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Fleet Vehicles</span>
             <div className="flex items-baseline justify-between mt-2">
-              <span className="text-2xl font-bold text-slate-900">{summary?.total_vehicles ?? vehicles.length}</span>
+              <span className="text-lg font-bold text-slate-900">{summary?.total_vehicles ?? vehicles.length}</span>
               <div className="p-1.5 bg-slate-100 text-slate-600 rounded-lg">
                 <Truck size={16} />
               </div>
             </div>
-            <span className="text-[11px] text-slate-400 mt-1">Company-owned</span>
+            <span className="text-xs text-slate-400 mt-1">Company-owned</span>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Due ≤ 30 Days</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Due ≤ 30 Days</span>
             <div className="flex items-baseline justify-between mt-2">
-              <span className="text-2xl font-bold text-amber-600">{summary?.deadlines_due_soon ?? 0}</span>
+              <span className="text-lg font-bold text-amber-600">{summary?.deadlines_due_soon ?? 0}</span>
               <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg border border-amber-100">
                 <AlertTriangle size={16} />
               </div>
             </div>
-            <span className="text-[11px] text-amber-600 font-medium mt-1">MOT / Ins / Tax</span>
+            <span className="text-xs text-amber-600 font-medium mt-1">MOT / Ins / Tax</span>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Overdue</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Overdue</span>
             <div className="flex items-baseline justify-between mt-2">
-              <span className="text-2xl font-bold text-rose-600">{summary?.deadlines_overdue ?? 0}</span>
+              <span className="text-lg font-bold text-rose-600">{summary?.deadlines_overdue ?? 0}</span>
               <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg border border-rose-100">
                 <ShieldAlert size={16} />
               </div>
             </div>
-            <span className="text-[11px] text-rose-600 font-medium mt-1">Expired items</span>
+            <span className="text-xs text-rose-600 font-medium mt-1">Expired items</span>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Active Hires</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Hires</span>
             <div className="flex items-baseline justify-between mt-2">
-              <span className="text-2xl font-bold text-emerald-600">{summary?.active_hires_count ?? 0}</span>
+              <span className="text-lg font-bold text-emerald-600">{summary?.active_hires_count ?? 0}</span>
               <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100">
                 <Wrench size={16} />
               </div>
             </div>
-            <span className="text-[11px] text-slate-400 mt-1">On active sites</span>
+            <span className="text-xs text-slate-400 mt-1">On active sites</span>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Weekly Run Rate</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Weekly Run Rate</span>
             <div className="flex items-baseline justify-between mt-2">
-              <span className="text-xl font-bold text-slate-900">{fmtCurrency(summary?.active_weekly_run_rate)}</span>
+              <span className="text-lg font-bold text-slate-900">{fmtCurrency(summary?.active_weekly_run_rate)}</span>
               <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg border border-blue-100">
                 <Clock size={16} />
               </div>
             </div>
-            <span className="text-[11px] text-blue-600 font-medium mt-1">Current weekly cost</span>
+            <span className="text-xs text-blue-600 font-medium mt-1">Current weekly cost</span>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Hire Spend</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Hire Spend</span>
             <div className="flex items-baseline justify-between mt-2">
-              <span className="text-xl font-bold text-slate-900">{fmtCurrency(summary?.total_hire_cost_to_date)}</span>
+              <span className="text-lg font-bold text-slate-900">{fmtCurrency(summary?.total_hire_cost_to_date)}</span>
               <div className="p-1.5 bg-purple-50 text-purple-600 rounded-lg border border-purple-100">
                 <Building2 size={16} />
               </div>
             </div>
-            <span className="text-[11px] text-slate-400 mt-1">Across productions</span>
+            <span className="text-xs text-slate-400 mt-1">Across productions</span>
           </div>
         </div>
 
@@ -367,7 +367,7 @@ export default function AssetsHirePage() {
           >
             {sidebarIcons && <Truck size={17} />}
             <span>Vehicle Asset Register</span>
-            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-sm font-normal text-slate-600 ${activeTab === 'vehicles' ? 'bg-blue-100' : 'bg-slate-100'
+            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-xs font-normal text-slate-600 ${activeTab === 'vehicles' ? 'bg-blue-100' : 'bg-slate-100'
               }`}>
               {vehicles.length}
             </span>
@@ -382,7 +382,7 @@ export default function AssetsHirePage() {
           >
             {sidebarIcons && <Wrench size={17} />}
             <span>Hire Equipment Tracker</span>
-            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-sm font-normal text-slate-600 ${activeTab === 'hire' ? 'bg-blue-100' : 'bg-slate-100'
+            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-xs font-normal text-slate-600 ${activeTab === 'hire' ? 'bg-blue-100' : 'bg-slate-100'
               }`}>
               {hireList.length}
             </span>
@@ -934,7 +934,7 @@ export default function AssetsHirePage() {
               <div className="p-2 bg-rose-50 rounded-xl border border-rose-100">
                 <Trash2 size={18} />
               </div>
-              <span className="text-base">Delete {deleteTarget.type === 'vehicle' ? 'Vehicle' : 'Hire Record'}?</span>
+              <span className="text-sm">Delete {deleteTarget.type === 'vehicle' ? 'Vehicle' : 'Hire Record'}?</span>
             </div>
 
             <p className="text-xs text-slate-600">
@@ -1138,7 +1138,7 @@ function VehicleFormModal({
               <Truck size={18} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">{isEdit ? 'Edit Fleet Vehicle' : 'Add Vehicle to Asset Register'}</h2>
+              <h2 className="text-lg font-bold text-slate-900">{isEdit ? 'Edit Fleet Vehicle' : 'Add Vehicle to Asset Register'}</h2>
               <p className="text-xs text-slate-500">Track specifications, assignments and automated 30-day compliance alerts</p>
             </div>
           </div>
@@ -1457,7 +1457,7 @@ function HireFormModal({
                 <Wrench size={18} />
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-900">{isEdit ? 'Edit Equipment Hire Record' : 'Record Plant & Equipment Hire'}</h2>
+                <h2 className="text-lg font-bold text-slate-900">{isEdit ? 'Edit Equipment Hire Record' : 'Record Plant & Equipment Hire'}</h2>
                 <p className="text-xs text-slate-500">Live elapsed weeks & automatic weekly run rate calculation</p>
               </div>
             </div>
@@ -1641,7 +1641,7 @@ function HireFormModal({
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-blue-600 uppercase tracking-wider font-semibold">Total Cost to Date</span>
-                  <p className="text-base font-bold text-blue-800 font-mono">{fmtCurrency(calculatedMetrics.total)}</p>
+                  <p className="text-sm font-bold text-blue-800 font-mono">{fmtCurrency(calculatedMetrics.total)}</p>
                 </div>
               </div>
 
@@ -1749,7 +1749,7 @@ function QuickAddSupplierModal({
               <Building2 size={18} />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 text-base">Add New Hire Supplier</h3>
+              <h3 className="font-bold text-slate-900 text-lg">Add New Hire Supplier</h3>
               <p className="text-xs text-slate-500">Save supplier to database and immediately allocate to this hire</p>
             </div>
           </div>

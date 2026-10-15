@@ -71,7 +71,7 @@ export default function NewCostForecastModal({
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">New Cost Forecast</h2>
+            <h2 className="text-lg font-semibold text-slate-900">New Cost Forecast</h2>
             <p className="text-xs text-slate-500 mt-0.5">Build a full production cost estimate with live BECTU rates</p>
           </div>
           <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors">

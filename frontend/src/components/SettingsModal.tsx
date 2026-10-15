@@ -165,7 +165,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 id="settings-modal-title" className="text-base font-semibold text-slate-900">Account Settings</h2>
+          <h2 id="settings-modal-title" className="text-lg font-semibold text-slate-900">Account Settings</h2>
           <button
             id="settings-modal-close"
             onClick={onClose}
@@ -189,7 +189,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <span className="text-white text-xl font-bold select-none">
+                  <span className="text-white text-lg font-bold select-none">
                     {getInitials(user.full_name)}
                   </span>
                 )}

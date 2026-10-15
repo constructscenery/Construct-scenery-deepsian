@@ -54,7 +54,7 @@ function NewUserModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <div>
-            <h2 className="text-slate-900 font-semibold text-base">New User Account</h2>
+            <h2 className="text-slate-900 font-semibold text-lg">New User Account</h2>
             <p className="text-slate-500 text-xs mt-0.5">Create credentials for staff or guest showcase</p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-200 transition-colors">
@@ -150,7 +150,7 @@ function ChangePasswordModal({
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
           <div>
-            <h2 className="text-slate-900 font-semibold text-base flex items-center gap-2">
+            <h2 className="text-slate-900 font-semibold text-lg flex items-center gap-2">
               <KeyRound size={16} className="text-blue-600" />
               Change Password
             </h2>
@@ -238,7 +238,7 @@ function DeleteUserModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-red-50 text-red-900">
           <div className="flex items-center gap-2">
             <AlertTriangle size={18} className="text-red-600" />
-            <h2 className="font-semibold text-base text-red-900">Permanently Delete Account</h2>
+            <h2 className="font-semibold text-lg text-red-900">Permanently Delete Account</h2>
           </div>
           <button onClick={onClose} className="text-red-400 hover:text-red-600 p-1 rounded-lg hover:bg-red-100 transition-colors">
             <X size={18} />
@@ -405,7 +405,7 @@ export default function UsersAdminPage() {
                 <Shield size={20} />
               </div>
               <div>
-                <h2 className="text-slate-900 font-semibold text-base">User Accounts</h2>
+                <h2 className="text-slate-900 font-semibold text-lg">User Accounts</h2>
                 <p className="text-slate-500 text-xs mt-0.5">
                   View and change passwords, deactivate or delete accounts, and manage guest showcase roles
                 </p>

@@ -1232,8 +1232,8 @@ export default function PurchaseOrdersPage() {
             ].map((s) => (
               <div key={s.label} className="bg-white rounded-lg border border-slate-200 px-4 py-2.5 shadow-2xs">
                 <p className="text-slate-500 text-xs font-normal">{s.label}</p>
-                <p className="text-slate-800 text-base font-normal mt-0.5">{s.value}</p>
-                <p className="text-slate-400 text-[11px] mt-0.5 font-normal">{s.sub}</p>
+                <p className="text-slate-800 text-lg font-normal mt-0.5">{s.value}</p>
+                <p className="text-slate-400 text-xs mt-0.5 font-normal">{s.sub}</p>
               </div>
             ))}
         </div>
@@ -1304,7 +1304,7 @@ export default function PurchaseOrdersPage() {
                   <SlidersHorizontal size={13} />
                   Filters
                   {activeFilterCount > 0 && (
-                    <span className="ml-0.5 bg-blue-600 text-white rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none">
+                    <span className="ml-0.5 bg-blue-600 text-white rounded-full px-1.5 py-0.5 text-xs font-bold leading-none">
                       {activeFilterCount}
                     </span>
                   )}
@@ -1384,7 +1384,7 @@ export default function PurchaseOrdersPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {/* Production */}
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Production</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Production</label>
                   <select
                     value={poFilters.production_id}
                     onChange={e => { setPoFilters(f => ({ ...f, production_id: e.target.value })); setPage(1); }}
@@ -1396,7 +1396,7 @@ export default function PurchaseOrdersPage() {
                 </div>
                 {/* Date From */}
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Date From</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Date From</label>
                   <input
                     type="date"
                     value={poFilters.date_from}
@@ -1406,7 +1406,7 @@ export default function PurchaseOrdersPage() {
                 </div>
                 {/* Date To */}
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Date To</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Date To</label>
                   <input
                     type="date"
                     value={poFilters.date_to}
@@ -1416,7 +1416,7 @@ export default function PurchaseOrdersPage() {
                 </div>
                 {/* Set Code */}
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Set Code</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Set Code</label>
                   <input
                     type="text"
                     value={poFilters.set_code}
@@ -1427,7 +1427,7 @@ export default function PurchaseOrdersPage() {
                 </div>
                 {/* Title */}
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Title</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Title</label>
                   <input
                     type="text"
                     value={poFilters.title}
@@ -1438,7 +1438,7 @@ export default function PurchaseOrdersPage() {
                 </div>
                 {/* Supplier Name */}
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Supplier</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Supplier</label>
                   <input
                     type="text"
                     value={poFilters.supplier_name}
@@ -1449,7 +1449,7 @@ export default function PurchaseOrdersPage() {
                 </div>
                 {/* Account Code */}
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Expenditure Type</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Expenditure Type</label>
                   <input
                     type="text"
                     list="account-codes-list"
@@ -1464,7 +1464,7 @@ export default function PurchaseOrdersPage() {
                 </div>
                 {/* Payment Method */}
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Payment Method</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Payment Method</label>
                   <select
                     value={poFilters.paid_from}
                     onChange={e => { setPoFilters(f => ({ ...f, paid_from: e.target.value })); setPage(1); }}
@@ -1479,7 +1479,7 @@ export default function PurchaseOrdersPage() {
                 </div>
                 {/* Department */}
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Department</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Department</label>
                   <select
                     value={poFilters.department}
                     onChange={e => { setPoFilters(f => ({ ...f, department: e.target.value })); setPage(1); }}
@@ -1492,7 +1492,7 @@ export default function PurchaseOrdersPage() {
                 </div>
                 {/* Net Amount Min */}
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Net £ Min</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Net £ Min</label>
                   <input
                     type="number"
                     min="0"
@@ -1505,7 +1505,7 @@ export default function PurchaseOrdersPage() {
                 </div>
                 {/* Net Amount Max */}
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Net £ Max</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Net £ Max</label>
                   <input
                     type="number"
                     min="0"
@@ -1518,7 +1518,7 @@ export default function PurchaseOrdersPage() {
                 </div>
                 {/* Gross Amount Min */}
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Gross £ Min</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Gross £ Min</label>
                   <input
                     type="number"
                     min="0"
@@ -1531,7 +1531,7 @@ export default function PurchaseOrdersPage() {
                 </div>
                 {/* Gross Amount Max */}
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Gross £ Max</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Gross £ Max</label>
                   <input
                     type="number"
                     min="0"
@@ -1658,7 +1658,7 @@ export default function PurchaseOrdersPage() {
                                   {po.description || po.title || '—'}
                                 </p>
                                 {po.supplier_name && (
-                                  <p className="text-slate-400 text-[11px] mt-0.5 font-normal">{po.supplier_name}</p>
+                                  <p className="text-slate-400 text-xs mt-0.5 font-normal">{po.supplier_name}</p>
                                 )}
                               </td>
                               <td className="px-4 py-2 text-slate-700 text-xs text-right font-normal whitespace-nowrap">
@@ -1947,7 +1947,7 @@ export default function PurchaseOrdersPage() {
                   </div>
                   <div>
                     <h3 className="text-xs font-normal text-slate-800">Total Spent on Suppliers</h3>
-                    <p className="text-[11px] font-normal text-slate-400">
+                    <p className="text-xs font-normal text-slate-400">
                       {accountingSelectedSupplier
                         ? `Accumulated spend for ${accountingSelectedSupplier}`
                         : 'All suppliers combined'}
@@ -1961,7 +1961,7 @@ export default function PurchaseOrdersPage() {
                       setAccountingSelectedSupplier('');
                       setAccountingSupplierSearch('');
                     }}
-                    className="text-[11px] font-normal text-blue-600 hover:text-blue-800 transition-colors"
+                    className="text-xs font-normal text-blue-600 hover:text-blue-800 transition-colors"
                   >
                     Reset
                   </button>
@@ -1970,7 +1970,7 @@ export default function PurchaseOrdersPage() {
 
               {/* Supplier Search Box with label */}
               <div className="relative" ref={accountingSupplierDropdownRef}>
-                <label className="block text-[11px] font-normal text-slate-500 mb-1">
+                <label className="block text-xs font-normal text-slate-500 mb-1">
                   Supplier
                 </label>
                 <div className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
@@ -2017,7 +2017,7 @@ export default function PurchaseOrdersPage() {
                       }`}
                     >
                       <span>All Suppliers</span>
-                      <span className="text-[10px] text-slate-400">Total Spend</span>
+                      <span className="text-xs text-slate-400">Total Spend</span>
                     </button>
 
                     {filteredAccountingSuppliers.length === 0 ? (
@@ -2039,7 +2039,7 @@ export default function PurchaseOrdersPage() {
                           }`}
                         >
                           <span className="truncate pr-2">{sup.name}</span>
-                          <span className="text-[10px] text-slate-400 flex-shrink-0">
+                          <span className="text-xs text-slate-400 flex-shrink-0">
                             {sup.poCount} {sup.poCount === 1 ? 'PO' : 'POs'}
                           </span>
                         </button>
@@ -2053,26 +2053,26 @@ export default function PurchaseOrdersPage() {
               <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 space-y-2">
                 <div className="flex items-baseline justify-between">
                   <span className="text-xs font-normal text-slate-500">Gross Spent (inc. VAT)</span>
-                  <span className="text-base font-normal text-slate-900">
+                  <span className="text-lg font-normal text-slate-900">
                     {fmt(accountingSupplierSpendData.totalGross)}
                   </span>
                 </div>
 
                 <div className="pt-2 border-t border-slate-200/60 grid grid-cols-3 gap-2">
                   <div className="text-left">
-                    <p className="text-[10px] font-normal text-slate-400">Net Spent</p>
+                    <p className="text-xs font-normal text-slate-400">Net Spent</p>
                     <p className="text-xs font-normal text-slate-700 mt-0.5">
                       {fmt(accountingSupplierSpendData.totalNet)}
                     </p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[10px] font-normal text-slate-400">Total VAT</p>
+                    <p className="text-xs font-normal text-slate-400">Total VAT</p>
                     <p className="text-xs font-normal text-slate-700 mt-0.5">
                       {fmt(accountingSupplierSpendData.totalVAT)}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] font-normal text-slate-400">Total POs</p>
+                    <p className="text-xs font-normal text-slate-400">Total POs</p>
                     <p className="text-xs font-normal text-slate-700 mt-0.5">
                       {accountingSupplierSpendData.count}
                     </p>
@@ -2091,7 +2091,7 @@ export default function PurchaseOrdersPage() {
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div>
-                <h2 className="text-slate-900 font-semibold text-base font-sans">Bulk Import Purchase Orders</h2>
+                <h2 className="text-slate-900 font-semibold text-lg font-sans">Bulk Import Purchase Orders</h2>
                 <p className="text-slate-400 text-xs mt-0.5">Import historical PO data via CSV template</p>
               </div>
               <button
@@ -2164,16 +2164,16 @@ export default function PurchaseOrdersPage() {
                   <div className="space-y-4 bg-slate-50 border border-slate-100 rounded-xl p-4">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                       <h4 className="text-slate-800 text-xs font-semibold uppercase tracking-wider">Import Result</h4>
-                      <span className="text-[10px] text-slate-400 font-mono">Total rows: {importResult.total_rows}</span>
+                      <span className="text-xs text-slate-400 font-mono">Total rows: {importResult.total_rows}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-center">
                       <div className="bg-green-50 border border-green-200 rounded-lg p-2.5">
                         <p className="text-green-700 font-bold text-lg leading-none">{importResult.imported_count}</p>
-                        <p className="text-green-600 text-[10px] uppercase font-semibold mt-1">Imported</p>
+                        <p className="text-green-600 text-xs uppercase font-semibold mt-1">Imported</p>
                       </div>
                       <div className="bg-red-50 border border-red-200 rounded-lg p-2.5">
                         <p className="text-red-700 font-bold text-lg leading-none">{importResult.skipped_count}</p>
-                        <p className="text-red-600 text-[10px] uppercase font-semibold mt-1">Skipped</p>
+                        <p className="text-red-600 text-xs uppercase font-semibold mt-1">Skipped</p>
                       </div>
                     </div>
 
@@ -2184,7 +2184,7 @@ export default function PurchaseOrdersPage() {
                           <button
                             type="button"
                             onClick={handleCopySkipped}
-                            className="text-[11px] text-blue-600 hover:text-blue-800 font-medium cursor-pointer underline"
+                            className="text-xs text-blue-600 hover:text-blue-800 font-medium cursor-pointer underline"
                           >
                             {copiedText ? 'Copied CSV!' : 'Copy all to clipboard'}
                           </button>
@@ -2193,8 +2193,8 @@ export default function PurchaseOrdersPage() {
                           {importResult.errors.map((err, i) => (
                             <div key={i} className="text-xs border-b border-slate-50 pb-2 last:border-0 last:pb-0">
                               <p className="font-semibold text-slate-800">Row {err.row}</p>
-                              <p className="text-red-600 text-[11px] mt-0.5">{err.error}</p>
-                              <pre className="text-[10px] text-slate-500 bg-slate-50 rounded p-1.5 mt-1 overflow-x-auto font-mono">
+                              <p className="text-red-600 text-xs mt-0.5">{err.error}</p>
+                              <pre className="text-xs text-slate-500 bg-slate-50 rounded p-1.5 mt-1 overflow-x-auto font-mono">
                                 {JSON.stringify(err.data, null, 2)}
                               </pre>
                             </div>
@@ -2236,7 +2236,7 @@ export default function PurchaseOrdersPage() {
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div>
-                <h2 className="text-slate-900 font-semibold text-base">New Purchase Order</h2>
+                <h2 className="text-slate-900 font-semibold text-lg">New Purchase Order</h2>
                 <p className="text-slate-400 text-xs mt-0.5">
                   {newStep === 1 && 'Step 1 of 2: Production & Supplier'}
                   {newStep === 2 && 'Step 2 of 2: Order Details'}
@@ -2609,7 +2609,7 @@ export default function PurchaseOrdersPage() {
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div>
-                <h2 className="text-slate-900 font-semibold text-base">Attach Invoice</h2>
+                <h2 className="text-slate-900 font-semibold text-lg">Attach Invoice</h2>
                 <p className="text-slate-400 text-xs mt-0.5">{invoiceModal.po_number}</p>
               </div>
               <button
@@ -2727,7 +2727,7 @@ export default function PurchaseOrdersPage() {
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div>
-                <h2 className="text-slate-900 font-semibold text-base">Attach Order Confirmation</h2>
+                <h2 className="text-slate-900 font-semibold text-lg">Attach Order Confirmation</h2>
                 <p className="text-slate-400 text-xs mt-0.5">{confirmationModal.po_number}</p>
               </div>
               <button
@@ -2799,7 +2799,7 @@ export default function PurchaseOrdersPage() {
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col my-8">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-white rounded-t-2xl shrink-0">
               <div>
-                <h2 className="text-slate-900 font-semibold text-base">Edit Purchase Order</h2>
+                <h2 className="text-slate-900 font-semibold text-lg">Edit Purchase Order</h2>
                 <p className="text-slate-400 text-xs mt-0.5">{editPO.po_number} — Draft</p>
               </div>
               <button onClick={() => setEditPO(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
@@ -2998,7 +2998,7 @@ export default function PurchaseOrdersPage() {
               <div className="flex items-center justify-center w-12 h-12 rounded-full bg-amber-50 mb-4 mx-auto">
                 <AlertCircle size={24} className="text-amber-500" />
               </div>
-              <h2 className="text-slate-900 font-semibold text-base text-center">Submit Purchase Order</h2>
+              <h2 className="text-slate-900 font-semibold text-lg text-center">Submit Purchase Order</h2>
               <p className="text-slate-500 text-sm text-center mt-2">
                 No invoice is attached to <span className="font-medium">{submitConfirmPO.po_number}</span>. Are you sure you want to submit? Or you can attach an invoice now.
               </p>
@@ -3052,7 +3052,7 @@ export default function PurchaseOrdersPage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setSupplierOverviewModal(null)} />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-              <h2 className="text-slate-900 font-semibold text-base">Supplier Overview</h2>
+              <h2 className="text-slate-900 font-semibold text-lg">Supplier Overview</h2>
               <button onClick={() => setSupplierOverviewModal(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
                 <X size={18} />
               </button>
@@ -3080,7 +3080,7 @@ export default function PurchaseOrdersPage() {
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div>
-                <h2 className="text-slate-900 font-semibold text-base">Purchase Order {viewFullPO.po_number}</h2>
+                <h2 className="text-slate-900 font-semibold text-lg">Purchase Order {viewFullPO.po_number}</h2>
                 <p className="text-slate-400 text-xs mt-0.5">{viewFullPO.status.toUpperCase()}</p>
               </div>
               <button onClick={() => setViewFullPO(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
@@ -3228,9 +3228,9 @@ export default function PurchaseOrdersPage() {
                     >
                       <div className="flex items-center justify-between mb-0.5">
                         <span className="text-xs font-semibold text-slate-800">{ct.label}</span>
-                        {quickProdForm.contract_type === ct.type && <span className="text-[9px] text-blue-600 font-semibold bg-blue-100 px-1 py-0.5 rounded">✓</span>}
+                        {quickProdForm.contract_type === ct.type && <span className="text-xs text-blue-600 font-semibold bg-blue-100 px-1 py-0.5 rounded">✓</span>}
                       </div>
-                      <p className="text-[11px] text-slate-500 leading-snug">{ct.desc}</p>
+                      <p className="text-xs text-slate-500 leading-snug">{ct.desc}</p>
                     </button>
                   ))}
                 </div>
@@ -3256,7 +3256,7 @@ export default function PurchaseOrdersPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div>
-                <h2 className="text-slate-900 font-semibold text-base">Add New Supplier</h2>
+                <h2 className="text-slate-900 font-semibold text-lg">Add New Supplier</h2>
                 <p className="text-slate-400 text-xs mt-0.5">Add a new supplier to the database and auto-populate this order</p>
               </div>
               <button onClick={() => setShowQuickSupplierModal(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-lg transition-colors">
@@ -3433,8 +3433,8 @@ export default function PurchaseOrdersPage() {
                 <AlertCircle size={22} />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900">Permanently Delete Purchase Order?</h3>
-                <p className="text-[11px] text-rose-600 font-medium">This action cannot be undone</p>
+                <h3 className="text-lg font-bold text-slate-900">Permanently Delete Purchase Order?</h3>
+                <p className="text-xs text-rose-600 font-medium">This action cannot be undone</p>
               </div>
             </div>
             <div className="text-xs text-slate-600 space-y-2 leading-relaxed">
@@ -3442,7 +3442,7 @@ export default function PurchaseOrdersPage() {
                 Are you sure you want to permanently delete purchase order <strong className="font-mono text-slate-900">#{permanentDeletePO.po_number || permanentDeletePO.id}</strong> ({permanentDeletePO.supplier_name})?
                 This will completely remove the record and any associated files from the database.
               </p>
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px]">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs">
                 <strong>Financial Safeguard:</strong> Approved purchase orders that have posted to cost reports cannot be deleted.
               </div>
             </div>

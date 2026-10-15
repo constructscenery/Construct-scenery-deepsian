@@ -235,7 +235,7 @@ function PreviewModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 flex-shrink-0">
           <div>
-            <h2 className="text-slate-900 font-semibold text-base">Pay Run Preview</h2>
+            <h2 className="text-slate-900 font-semibold text-lg">Pay Run Preview</h2>
             {preview && (
               <p className="text-slate-400 text-xs mt-0.5">
                 {preview.production_name} — Week ending {fmtDate(weekEndingDate)}
@@ -269,15 +269,15 @@ function PreviewModal({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-slate-50 rounded-lg px-4 py-3">
                   <p className="text-slate-500 text-xs font-medium">Crew Members</p>
-                  <p className="text-slate-900 text-xl font-bold mt-1">{preview.items.length}</p>
+                  <p className="text-slate-900 text-lg font-bold mt-1">{preview.items.length}</p>
                 </div>
                 <div className="bg-slate-50 rounded-lg px-4 py-3">
                   <p className="text-slate-500 text-xs font-medium">Total Gross</p>
-                  <p className="text-slate-900 text-xl font-bold mt-1">{fmtGBP(preview.total_gross)}</p>
+                  <p className="text-slate-900 text-lg font-bold mt-1">{fmtGBP(preview.total_gross)}</p>
                 </div>
                 <div className="bg-green-50 rounded-lg px-4 py-3">
                   <p className="text-green-600 text-xs font-medium">Total Net</p>
-                  <p className="text-green-800 text-xl font-bold mt-1">{fmtGBP(preview.total_net)}</p>
+                  <p className="text-green-800 text-lg font-bold mt-1">{fmtGBP(preview.total_net)}</p>
                 </div>
               </div>
 
@@ -834,7 +834,7 @@ function PayRunsContent() {
           <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
             <ShieldOff size={40} className="text-slate-300" />
             <div>
-              <p className="text-slate-700 font-semibold text-base">Access Restricted</p>
+              <p className="text-slate-700 font-semibold text-sm">Access Restricted</p>
               <p className="text-slate-400 text-sm mt-1">
                 Pay runs are only accessible to Managing Directors and Construction Accountants.
               </p>

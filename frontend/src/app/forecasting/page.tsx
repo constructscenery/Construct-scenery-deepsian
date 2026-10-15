@@ -798,7 +798,7 @@ function ForecastingContent() {
                     ))}
                     <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
                       <span className="text-slate-700 font-semibold text-sm">Estimated Total Job Cost</span>
-                      <span className="text-blue-700 text-xl font-black">{fmtGBP(calcTotal)}</span>
+                      <span className="text-blue-700 text-lg font-black">{fmtGBP(calcTotal)}</span>
                     </div>
                     <div className="mt-2">
                       <button
@@ -1136,7 +1136,7 @@ function SaveScenarioModal({ carpenterCost, initialProductionId = '', production
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 className="text-slate-900 font-semibold text-base">Save Scenario</h2>
+          <h2 className="text-slate-900 font-semibold text-lg">Save Scenario</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
         <form onSubmit={submit} className="px-6 py-5 space-y-4">
@@ -1235,7 +1235,7 @@ function EditRatiosModal({ ratios, onClose, onSaved }: EditRatiosModalProps) {
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 className="text-slate-900 font-semibold text-base">Edit Percentometer Ratios</h2>
+          <h2 className="text-slate-900 font-semibold text-lg">Edit Percentometer Ratios</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
         <form onSubmit={submit}>
@@ -1333,7 +1333,7 @@ function AddCatalogueItemModal({ onClose, onSaved }: AddCatalogueItemModalProps)
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 className="text-slate-900 font-semibold text-base">Add Catalogue Item</h2>
+          <h2 className="text-slate-900 font-semibold text-lg">Add Catalogue Item</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
         <form onSubmit={submit} className="px-6 py-5 space-y-4">

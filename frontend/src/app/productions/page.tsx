@@ -90,14 +90,14 @@ function ContractTypeSelector({
             >
               <div className="flex items-center justify-between mb-0.5">
                 <span className="text-xs font-semibold text-slate-800">{CONTRACT_TYPE_INFO[ct].label}</span>
-                {value === ct && <span className="text-[9px] text-blue-600 font-semibold bg-blue-100 px-1 py-0.5 rounded">✓</span>}
+                {value === ct && <span className="text-xs text-blue-600 font-semibold bg-blue-100 px-1 py-0.5 rounded">✓</span>}
               </div>
-              <p className="text-[11px] text-slate-500 leading-snug">{CONTRACT_TYPE_INFO[ct].desc}</p>
+              <p className="text-xs text-slate-500 leading-snug">{CONTRACT_TYPE_INFO[ct].desc}</p>
             </button>
           ))}
         </div>
       )}
-      <p className="flex items-start gap-1.5 mt-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+      <p className="flex items-start gap-1.5 mt-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
         <span className="flex-shrink-0">⚠</span>
         Contract type cannot be changed once a purchase order or timesheet has been linked to this production.
       </p>
@@ -310,7 +310,7 @@ function ArchiveModal({ preview, onConfirm, onClose, loading, error }: ArchiveMo
             <Archive size={18} className="text-red-600" />
           </div>
           <div>
-            <h2 className="text-slate-900 font-semibold text-base">Archive this production?</h2>
+            <h2 className="text-slate-900 font-semibold text-lg">Archive this production?</h2>
             <p className="text-slate-500 text-sm mt-1">
               Archiving <span className="font-bold text-slate-800">{preview.production_name}</span> will
               hide it from all active views. All data, documents, and reports will be preserved in full and
@@ -320,18 +320,18 @@ function ArchiveModal({ preview, onConfirm, onClose, loading, error }: ArchiveMo
         </div>
 
         <div className="mx-6 my-4 bg-slate-50 rounded-xl p-4">
-          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-3">This production has</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">This production has</p>
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
-              <p className="text-2xl font-bold text-slate-800">{preview.po_count}</p>
+              <p className="text-lg font-bold text-slate-800">{preview.po_count}</p>
               <p className="text-xs text-slate-500 mt-0.5">purchase orders</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-slate-800">{preview.crew_count}</p>
+              <p className="text-lg font-bold text-slate-800">{preview.crew_count}</p>
               <p className="text-xs text-slate-500 mt-0.5">crew members</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-slate-800">{preview.timesheet_weeks}</p>
+              <p className="text-lg font-bold text-slate-800">{preview.timesheet_weeks}</p>
               <p className="text-xs text-slate-500 mt-0.5">weeks of timesheets</p>
             </div>
           </div>
@@ -668,7 +668,7 @@ export default function ProductionsPage() {
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-2">
                             {p.production_code && (
-                              <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700">
+                              <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700">
                                 #{p.production_code}
                               </span>
                             )}

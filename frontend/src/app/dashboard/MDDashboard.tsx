@@ -96,7 +96,7 @@ export default function MDDashboard() {
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${color}`}><Icon size={20} /></div>
                 <div>
                   <p className="text-slate-500 text-xs font-medium">{label}</p>
-                  <p className="text-slate-900 text-2xl font-bold mt-0.5">{value}</p>
+                  <p className="text-slate-900 text-lg font-bold mt-0.5">{value}</p>
                   <p className={`text-xs mt-1 flex items-center gap-1 ${up === true ? 'text-green-600' : up === false ? 'text-red-500' : 'text-slate-400'}`}>
                     {up === true && <TrendingUp size={12} />}{up === false && <TrendingDown size={12} />}{change}
                   </p>

@@ -194,7 +194,7 @@ function SummaryBanner({ summary }: { summary: Type2Report['summary'] }) {
       ].map(s => (
         <div key={s.label} className="bg-white rounded-xl border border-slate-200 px-4 py-3 shadow-sm">
           <p className="text-slate-500 text-xs font-medium">{s.label}</p>
-          <p className={`text-xl font-bold mt-0.5 ${s.over ? 'text-red-600' : 'text-slate-900'}`}>{s.value}</p>
+          <p className={`text-lg font-bold mt-0.5 ${s.over ? 'text-red-600' : 'text-slate-900'}`}>{s.value}</p>
           <p className="text-slate-400 text-xs mt-0.5">{s.sub}</p>
         </div>
       ))}
@@ -351,7 +351,7 @@ function TabPOsBilling({ rows, productionId, onRefresh }: {
                     onClick={() => generateInvoiceNumber(r.source_id)}
                     disabled={generating}
                     title="Auto-generate next CS invoice number"
-                    className="flex items-center gap-1 text-[10px] px-1.5 py-1 bg-slate-100 text-slate-600 border border-slate-200 rounded hover:bg-slate-200 font-medium whitespace-nowrap disabled:opacity-50">
+                    className="flex items-center gap-1 text-xs px-1.5 py-1 bg-slate-100 text-slate-600 border border-slate-200 rounded hover:bg-slate-200 font-medium whitespace-nowrap disabled:opacity-50">
                     {generating ? <Loader2 size={9} className="animate-spin" /> : null}
                     Generate
                   </button>
@@ -377,7 +377,7 @@ function TabPOsBilling({ rows, productionId, onRefresh }: {
                     {isSaving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
                     Save
                   </button>
-                  {err && <span className="text-red-500 text-[10px]">{err}</span>}
+                  {err && <span className="text-red-500 text-xs">{err}</span>}
                 </div>
               </td>
             </tr>
@@ -649,7 +649,7 @@ function TabWeeklyInvoice({ rows, productionId, onRefresh }: {
                     {isSaving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
                     Save
                   </button>
-                  {err && <span className="text-red-500 text-[10px]">{err}</span>}
+                  {err && <span className="text-red-500 text-xs">{err}</span>}
                 </div>
               </td>
             </tr>
@@ -1086,7 +1086,7 @@ function TabMasterBudget({ budget, productionId, productionSets, globalMarginRat
       {/* Grand total bar */}
       <div className="bg-blue-600 rounded-xl px-5 py-4 flex items-center justify-between text-white shadow-sm">
         <p className="font-semibold text-sm">Grand Total Budget</p>
-        <p className="text-2xl font-bold">{fmt(aboveTotal + setTotal)}</p>
+        <p className="text-lg font-bold">{fmt(aboveTotal + setTotal)}</p>
       </div>
 
       {/* Bottom save */}
@@ -1177,7 +1177,7 @@ function TabWeeklyPL({ rows, productionId, onRefresh, canEdit }: {
                 </span>
               </Td>
               <Td right>
-                <span className={`font-bold text-base ${r.running_total_profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                <span className={`font-bold text-sm ${r.running_total_profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>
                   {fmt(r.running_total_profit)}
                 </span>
               </Td>
@@ -1190,7 +1190,7 @@ function TabWeeklyPL({ rows, productionId, onRefresh, canEdit }: {
                       {isSaving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
                       Save
                     </button>
-                    {err && <span className="text-red-500 text-[10px]">{err}</span>}
+                    {err && <span className="text-red-500 text-xs">{err}</span>}
                   </div>
                 </td>
               )}

@@ -49,7 +49,7 @@ export default function LoginPage() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-8 py-8">
-        <h1 className="text-slate-900 font-bold text-xl mb-1">Sign in</h1>
+        <h1 className="text-slate-900 font-bold text-lg mb-1">Sign in</h1>
         <p className="text-slate-500 text-sm mb-6">Welcome back</p>
 
         {banner && (

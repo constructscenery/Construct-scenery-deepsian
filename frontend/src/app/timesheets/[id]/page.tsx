@@ -573,19 +573,19 @@ export default function TimesheetDetailPage() {
               <div>
                 <p className="text-slate-400 text-xs mb-0.5">Weekly Rate</p>
                 <p className="text-slate-900 font-semibold">{fmtGBP(weeklyRate)}</p>
-                <p className="text-slate-400 text-[10px]">{stdDays} day{stdDays !== 1 ? 's' : ''} × {fmtGBP(dailyRate)}</p>
+                <p className="text-slate-400 text-xs">{stdDays} day{stdDays !== 1 ? 's' : ''} × {fmtGBP(dailyRate)}</p>
               </div>
               {(saturdayPay > 0 || sundayPay > 0) && (
                 <div>
                   <p className="text-slate-400 text-xs mb-0.5">Weekend Premium</p>
                   <p className="text-slate-900 font-semibold">{fmtGBP(saturdayPay + sundayPay)}</p>
-                  <p className="text-slate-400 text-[10px]">{satWorked ? 'Sat ×1.5' : ''}{satWorked && sunWorked ? ' · ' : ''}{sunWorked ? 'Sun ×2' : ''}</p>
+                  <p className="text-slate-400 text-xs">{satWorked ? 'Sat ×1.5' : ''}{satWorked && sunWorked ? ' · ' : ''}{sunWorked ? 'Sun ×2' : ''}</p>
                 </div>
               )}
               <div>
                 <p className="text-slate-400 text-xs mb-0.5">OT Amount</p>
                 <p className="text-slate-900 font-semibold">{fmtGBP(overtimeAmount)}</p>
-                <p className="text-slate-400 text-[10px]">{totalOTHours}h × {fmtGBP(otRate)}</p>
+                <p className="text-slate-400 text-xs">{totalOTHours}h × {fmtGBP(otRate)}</p>
               </div>
               <div>
                 <p className="text-slate-400 text-xs mb-0.5">Meal Total</p>
@@ -641,7 +641,7 @@ export default function TimesheetDetailPage() {
             <div>
               <p className="text-slate-400 text-xs mb-0.5">OT Amount</p>
               <p className="text-slate-900 font-semibold">{fmtGBP(overtimeAmount)}</p>
-              <p className="text-slate-400 text-[10px]">{totalOTHours}h × {fmtGBP(otRate)}</p>
+              <p className="text-slate-400 text-xs">{totalOTHours}h × {fmtGBP(otRate)}</p>
             </div>
             <div>
               <p className="text-slate-400 text-xs mb-0.5">Travel Amount</p>
@@ -662,7 +662,7 @@ export default function TimesheetDetailPage() {
             <div>
               <p className="text-slate-400 text-xs mb-0.5">Food Amount</p>
               <p className="text-slate-900 font-semibold">{fmtGBP(foodTotal)}</p>
-              <p className="text-slate-400 text-[10px]">Breakfast + Lunch + Supper</p>
+              <p className="text-slate-400 text-xs">Breakfast + Lunch + Supper</p>
             </div>
             <div className="lg:col-span-1">
               <p className="text-slate-400 text-xs mb-0.5">Net Total Amount</p>

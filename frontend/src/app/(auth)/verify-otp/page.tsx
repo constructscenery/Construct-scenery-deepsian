@@ -98,7 +98,7 @@ export default function VerifyOtpPage() {
           <ShieldCheck size={22} className="text-blue-600" />
         </div>
 
-        <h1 className="text-slate-900 font-bold text-xl mb-1">Check your email</h1>
+        <h1 className="text-slate-900 font-bold text-lg mb-1">Check your email</h1>
         <p className="text-slate-500 text-sm mb-6">
           We sent a 6-digit code to{' '}
           <span className="font-semibold text-slate-700">{email}</span>
@@ -128,7 +128,7 @@ export default function VerifyOtpPage() {
               onChange={(e) => handleChange(i, e.target.value)}
               onKeyDown={(e) => handleKey(i, e)}
               onPaste={handlePaste}
-              className={`w-11 h-12 text-center text-xl font-bold border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
+              className={`w-11 h-12 text-center text-lg font-bold border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
                 d ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-900'
               }`}
             />

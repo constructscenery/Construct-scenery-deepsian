@@ -241,32 +241,32 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
           <p className="text-xs font-medium text-slate-500">Total Containers</p>
-          <p className="text-2xl font-bold text-slate-800 mt-1">{totalCount}</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">{ownedCount} Owned · {hiredCount} Hired</p>
+          <p className="text-lg font-bold text-slate-800 mt-1">{totalCount}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{ownedCount} Owned · {hiredCount} Hired</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
           <p className="text-xs font-medium text-slate-500">Available in Yard</p>
           <div className="flex items-center gap-2 mt-1">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-            <span className="text-2xl font-bold text-emerald-600">{availableCount}</span>
+            <span className="text-lg font-bold text-emerald-600">{availableCount}</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Ready for deployment</p>
+          <p className="text-xs text-slate-400 mt-0.5">Ready for deployment</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
           <p className="text-xs font-medium text-slate-500">On Site / In Use</p>
           <div className="flex items-center gap-2 mt-1">
             <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-            <span className="text-2xl font-bold text-blue-600">{inUseCount}</span>
+            <span className="text-lg font-bold text-blue-600">{inUseCount}</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">Allocated to productions</p>
+          <p className="text-xs text-slate-400 mt-0.5">Allocated to productions</p>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
           <p className="text-xs font-medium text-slate-500">Hired Equipment</p>
           <div className="flex items-center gap-2 mt-1">
             <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-            <span className="text-2xl font-bold text-purple-600">{hiredCount}</span>
+            <span className="text-lg font-bold text-purple-600">{hiredCount}</span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">External supplier containers</p>
+          <p className="text-xs text-slate-400 mt-0.5">External supplier containers</p>
         </div>
       </div>
 
@@ -434,19 +434,19 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
                           <span>{c.container_number}</span>
                         </div>
                         {c.is_archived && (
-                          <span className="text-[10px] text-amber-600 font-normal">Archived</span>
+                          <span className="text-xs text-amber-600 font-normal">Archived</span>
                         )}
                       </td>
 
                       {/* Type & Size */}
                       <td className="px-4 py-3 min-w-40">
                         <p className="text-slate-800 font-medium">{c.container_type}</p>
-                        {c.size && <p className="text-[11px] text-slate-400">Size: {c.size}</p>}
+                        {c.size && <p className="text-xs text-slate-400">Size: {c.size}</p>}
                       </td>
 
                       {/* Status */}
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${statusInfo.badgeCls}`}>
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${statusInfo.badgeCls}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotCls}`} />
                           {statusInfo.label}
                         </span>
@@ -454,13 +454,13 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
 
                       {/* Ownership */}
                       <td className="px-4 py-3 min-w-32">
-                        <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium uppercase tracking-wider ${
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider ${
                           c.ownership_status === 'hired' ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-slate-100 text-slate-600'
                         }`}>
                           {c.ownership_status}
                         </span>
                         {c.ownership_status === 'hired' && (
-                          <div className="mt-0.5 space-y-0.5 text-[11px] text-slate-500">
+                          <div className="mt-0.5 space-y-0.5 text-xs text-slate-500">
                             {c.supplier && <p className="font-medium truncate max-w-36">{c.supplier}</p>}
                             {c.weekly_cost != null && <p>{fmtCurrency(c.weekly_cost)} / wk</p>}
                           </div>
@@ -471,7 +471,7 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
                       <td className="px-4 py-3 min-w-36 max-w-56">
                         <p className="text-slate-800 font-medium truncate">{c.location || '—'}</p>
                         {c.production_name && (
-                          <div className="flex items-center gap-1 text-[11px] text-blue-600 mt-0.5">
+                          <div className="flex items-center gap-1 text-xs text-blue-600 mt-0.5">
                             <Building2 size={11} className="flex-shrink-0" />
                             <span className="truncate">{c.production_name}</span>
                           </div>
@@ -480,7 +480,7 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
 
                       {/* Condition */}
                       <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium border ${condInfo.cls}`}>
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium border ${condInfo.cls}`}>
                           {condInfo.label}
                         </span>
                       </td>
@@ -495,7 +495,7 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
                           <p className="text-slate-400 italic">Empty / no description</p>
                         )}
                         {c.notes && (
-                          <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5" title={c.notes}>
+                          <p className="text-xs text-slate-400 line-clamp-1 mt-0.5" title={c.notes}>
                             {c.notes}
                           </p>
                         )}
@@ -566,7 +566,7 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
                   <Box size={18} />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-slate-900 text-sm">
+                  <h3 className="font-semibold text-slate-900 text-lg">
                     {editingContainer ? 'Edit Container' : 'Add New Container'}
                   </h3>
                   <p className="text-xs text-slate-500">Site storage &amp; workshop container registry</p>
@@ -696,7 +696,7 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-700 mb-1">Supplier / Hire Company</label>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Supplier / Hire Company</label>
                       <input
                         type="text"
                         placeholder="e.g. Mobile Mini, Willbox, Elliott"
@@ -706,7 +706,7 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-700 mb-1">Weekly Cost (£)</label>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Weekly Cost (£)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -719,7 +719,7 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-700 mb-1">Hire Start Date</label>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Hire Start Date</label>
                       <input
                         type="date"
                         value={form.hire_start_date || ''}
@@ -728,7 +728,7 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-medium text-slate-700 mb-1">Hire End / Off-hire Date</label>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Hire End / Off-hire Date</label>
                       <input
                         type="date"
                         value={form.hire_end_date || ''}
@@ -823,7 +823,7 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
               <div className="p-2 bg-red-50 rounded-lg">
                 <AlertTriangle size={20} />
               </div>
-              <h3 className="font-semibold text-slate-900 text-sm">Remove Container</h3>
+              <h3 className="font-semibold text-slate-900 text-lg">Remove Container</h3>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed mb-4">
               Are you sure you want to remove container <strong className="text-slate-900">{deleteTarget.container_number}</strong>?

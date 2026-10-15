@@ -45,7 +45,7 @@ export default function ForgotPasswordPage() {
           <Mail size={22} className="text-blue-600" />
         </div>
 
-        <h1 className="text-slate-900 font-bold text-xl mb-1">Reset password</h1>
+        <h1 className="text-slate-900 font-bold text-lg mb-1">Reset password</h1>
         <p className="text-slate-500 text-sm mb-6">
           Enter your email and we&apos;ll send you a one-time code.
         </p>

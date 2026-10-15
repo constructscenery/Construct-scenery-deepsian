@@ -152,7 +152,7 @@ export default function ProductionForecastingPanel({
               <span className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
                 <TrendingUp size={16} />
               </span>
-              <h2 className="text-base font-bold text-slate-900">Forecasting & Labour Flow</h2>
+              <h2 className="text-lg font-bold text-slate-900">Forecasting & Labour Flow</h2>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Production cost estimates and weekly headcount plans linked to live BECTU rates

@@ -805,7 +805,7 @@ export default function SuppliersPage() {
                 <AlertCircle size={22} />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900">Permanently Delete Supplier?</h3>
+                <h3 className="text-lg font-bold text-slate-900">Permanently Delete Supplier?</h3>
                 <p className="text-[11px] text-rose-600 font-medium">This action cannot be undone</p>
               </div>
             </div>

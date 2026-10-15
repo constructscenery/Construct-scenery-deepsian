@@ -60,7 +60,7 @@ export default function ResetPasswordPage() {
           <KeyRound size={22} className="text-blue-600" />
         </div>
 
-        <h1 className="text-slate-900 font-bold text-xl mb-1">Create new password</h1>
+        <h1 className="text-slate-900 font-bold text-lg mb-1">Create new password</h1>
         <p className="text-slate-500 text-sm mb-6">
           Choose a strong password for your account.
         </p>

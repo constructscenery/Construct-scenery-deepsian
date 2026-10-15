@@ -406,55 +406,55 @@ export default function LaddersTab({ isCoordinatorOrMD }: { isCoordinatorOrMD: b
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Registered Ladders</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Registered Ladders</span>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-bold text-slate-900">{metrics.total}</span>
+            <span className="text-lg font-bold text-slate-900">{metrics.total}</span>
             <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
               <Barcode size={18} />
             </div>
           </div>
-          <span className="text-[11px] text-slate-400 mt-1">Active workshop & site plant</span>
+          <span className="text-xs text-slate-400 mt-1">Active workshop & site plant</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Overdue Inspection</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Overdue Inspection</span>
           <div className="flex items-baseline justify-between mt-2">
-            <span className={`text-2xl font-bold ${metrics.overdue > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+            <span className={`text-lg font-bold ${metrics.overdue > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
               {metrics.overdue}
             </span>
             <div className={`p-1.5 rounded-lg ${metrics.overdue > 0 ? 'bg-rose-100 text-rose-600 border border-rose-200' : 'bg-slate-100 text-slate-500'}`}>
               <ShieldAlert size={18} />
             </div>
           </div>
-          <span className={`text-[11px] font-medium mt-1 ${metrics.overdue > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+          <span className={`text-xs font-medium mt-1 ${metrics.overdue > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
             {metrics.overdue > 0 ? 'Immediate action required' : 'All up to date'}
           </span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Due ≤ 14 Days</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Due ≤ 14 Days</span>
           <div className="flex items-baseline justify-between mt-2">
-            <span className={`text-2xl font-bold ${metrics.dueSoon > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
+            <span className={`text-lg font-bold ${metrics.dueSoon > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
               {metrics.dueSoon}
             </span>
             <div className={`p-1.5 rounded-lg ${metrics.dueSoon > 0 ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-500'}`}>
               <Clock size={18} />
             </div>
           </div>
-          <span className={`text-[11px] font-medium mt-1 ${metrics.dueSoon > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+          <span className={`text-xs font-medium mt-1 ${metrics.dueSoon > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
             Inspection window open
           </span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Compliant</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Compliant</span>
           <div className="flex items-baseline justify-between mt-2">
-            <span className="text-2xl font-bold text-emerald-600">{metrics.valid}</span>
+            <span className="text-lg font-bold text-emerald-600">{metrics.valid}</span>
             <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100">
               <CheckCircle2 size={18} />
             </div>
           </div>
-          <span className="text-[11px] text-emerald-600 font-medium mt-1">Valid safety certificates</span>
+          <span className="text-xs text-emerald-600 font-medium mt-1">Valid safety certificates</span>
         </div>
       </div>
 
@@ -527,7 +527,7 @@ export default function LaddersTab({ isCoordinatorOrMD }: { isCoordinatorOrMD: b
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-600">
-            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold text-[10px] border-b border-slate-200">
+            <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold text-xs border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3.5">Ladder / Barcode</th>
                 <th className="px-4 py-3.5">Type & Location</th>
@@ -599,7 +599,7 @@ export default function LaddersTab({ isCoordinatorOrMD }: { isCoordinatorOrMD: b
                             {l.barcode}
                           </div>
                           {l.is_archived && (
-                            <span className="text-[10px] uppercase font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">
+                            <span className="text-xs uppercase font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">
                               Archived
                             </span>
                           )}
@@ -610,7 +610,7 @@ export default function LaddersTab({ isCoordinatorOrMD }: { isCoordinatorOrMD: b
                     {/* Type & Location */}
                     <td className="px-4 py-3">
                       <div className="font-semibold text-slate-900">{l.ladder_type || 'Step Ladder'}</div>
-                      <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                      <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
                         <MapPin size={11} className="text-slate-400" />
                         <span>{l.location || 'Workshop Bay'}</span>
                       </div>
@@ -647,13 +647,13 @@ export default function LaddersTab({ isCoordinatorOrMD }: { isCoordinatorOrMD: b
                     {/* Inspector / Notes */}
                     <td className="px-4 py-3 max-w-[200px]">
                       {l.inspector_name && (
-                        <div className="text-[11px] text-slate-700 flex items-center gap-1">
+                        <div className="text-xs text-slate-700 flex items-center gap-1">
                           <User size={11} className="text-slate-400" />
                           <span>{l.inspector_name}</span>
                         </div>
                       )}
                       {l.notes && (
-                        <p className="text-[11px] text-slate-500 truncate mt-0.5" title={l.notes}>
+                        <p className="text-xs text-slate-500 truncate mt-0.5" title={l.notes}>
                           {l.notes}
                         </p>
                       )}
@@ -737,7 +737,7 @@ export default function LaddersTab({ isCoordinatorOrMD }: { isCoordinatorOrMD: b
                   <Barcode size={20} />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-slate-900">
+                  <h2 className="text-lg font-bold text-slate-900">
                     {editingLadder ? `Edit Ladder — ${editingLadder.barcode}` : 'Add New Ladder'}
                   </h2>
                   <p className="text-xs text-slate-500">
@@ -834,7 +834,7 @@ export default function LaddersTab({ isCoordinatorOrMD }: { isCoordinatorOrMD: b
                     onChange={e => setNextInspectionDue(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <span className="text-[11px] text-slate-400 mt-1 block">Standard 6-monthly cycle</span>
+                  <span className="text-xs text-slate-400 mt-1 block">Standard 6-monthly cycle</span>
                 </div>
 
                 <div>
@@ -852,7 +852,7 @@ export default function LaddersTab({ isCoordinatorOrMD }: { isCoordinatorOrMD: b
                     />
                     <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">days</span>
                   </div>
-                  <span className="text-[11px] text-slate-400 mt-1 block">Flag as Due Soon before expiry</span>
+                  <span className="text-xs text-slate-400 mt-1 block">Flag as Due Soon before expiry</span>
                 </div>
               </div>
 
@@ -932,7 +932,7 @@ export default function LaddersTab({ isCoordinatorOrMD }: { isCoordinatorOrMD: b
                   <CheckCircle2 size={20} />
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-slate-900">Record Inspection</h2>
+                  <h2 className="text-lg font-bold text-slate-900">Record Inspection</h2>
                   <p className="text-xs text-slate-500 font-mono">Barcode #{inspectTarget.barcode}</p>
                 </div>
               </div>
@@ -985,7 +985,7 @@ export default function LaddersTab({ isCoordinatorOrMD }: { isCoordinatorOrMD: b
                   onChange={e => setInspectNextDue(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="text-[11px] text-slate-400 mt-1 block">Auto-bumped +6 months</span>
+                <span className="text-xs text-slate-400 mt-1 block">Auto-bumped +6 months</span>
               </div>
 
               <div>
@@ -1044,7 +1044,7 @@ export default function LaddersTab({ isCoordinatorOrMD }: { isCoordinatorOrMD: b
               <div className="p-2.5 bg-rose-50 rounded-xl border border-rose-100">
                 <AlertCircle size={22} />
               </div>
-              <h3 className="font-bold text-slate-900 text-base">Archive Ladder?</h3>
+              <h3 className="font-bold text-slate-900 text-lg">Archive Ladder?</h3>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
               Are you sure you want to archive Ladder barcode <strong className="font-mono text-slate-900">#{deleteTarget.barcode}</strong>?
@@ -1081,8 +1081,8 @@ export default function LaddersTab({ isCoordinatorOrMD }: { isCoordinatorOrMD: b
                 <AlertCircle size={22} />
               </div>
               <div>
-                <h3 className="font-bold text-slate-900 text-base">Permanently Delete?</h3>
-                <p className="text-[11px] text-rose-600 font-medium">This action cannot be undone</p>
+                <h3 className="font-bold text-slate-900 text-lg">Permanently Delete?</h3>
+                <p className="text-xs text-rose-600 font-medium">This action cannot be undone</p>
               </div>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">

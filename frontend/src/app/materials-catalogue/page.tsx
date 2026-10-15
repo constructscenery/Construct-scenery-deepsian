@@ -694,7 +694,7 @@ export default function MaterialsCataloguePage() {
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 sticky top-0 bg-white rounded-t-2xl z-10">
               <div>
-                <h2 className="text-slate-900 font-semibold text-base">
+                <h2 className="text-slate-900 font-semibold text-lg">
                   {editItem ? 'Edit Catalogue Entry' : 'Add Catalogue Entry'}
                 </h2>
                 <p className="text-slate-400 text-xs mt-0.5">
@@ -860,7 +860,7 @@ export default function MaterialsCataloguePage() {
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div>
-                <h2 className="text-slate-900 font-semibold text-base">{editInventory ? 'Edit Held Stock' : 'Add Held Stock'}</h2>
+                <h2 className="text-slate-900 font-semibold text-lg">{editInventory ? 'Edit Held Stock' : 'Add Held Stock'}</h2>
                 <p className="text-slate-400 text-xs mt-0.5">Select a catalogue material to populate its details.</p>
               </div>
               <button onClick={() => { if (!inventoryLoading) setShowInventoryModal(false); }} className="p-2 text-slate-400 hover:text-slate-600"><X size={18} /></button>
@@ -911,7 +911,7 @@ export default function MaterialsCataloguePage() {
                   <Trash2 size={18} className="text-red-600" />
                 </div>
                 <div>
-                  <h2 className="text-slate-900 font-semibold text-base">Delete Entry</h2>
+                  <h2 className="text-slate-900 font-semibold text-lg">Delete Entry</h2>
                   <p className="text-slate-500 text-xs mt-0.5">This action cannot be undone.</p>
                 </div>
               </div>
@@ -955,7 +955,7 @@ export default function MaterialsCataloguePage() {
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div>
-                <h2 className="text-slate-900 font-semibold text-base">Import Catalogue CSV</h2>
+                <h2 className="text-slate-900 font-semibold text-lg">Import Catalogue CSV</h2>
                 <p className="text-slate-400 text-xs mt-0.5">
                   Upload a CSV to bulk-import supplier price entries
                 </p>

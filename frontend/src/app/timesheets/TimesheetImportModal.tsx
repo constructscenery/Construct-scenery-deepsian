@@ -537,7 +537,7 @@ function ResultStep({ result, onDone }: ResultStepProps) {
       </div>
 
       <div>
-        <h3 className="text-base font-bold text-slate-900">Import Complete</h3>
+        <h3 className="text-lg font-bold text-slate-900">Import Complete</h3>
         <p className="text-xs text-slate-500 mt-1">
           Timesheet entries have been processed and saved to the database.
         </p>
@@ -547,15 +547,15 @@ function ResultStep({ result, onDone }: ResultStepProps) {
       <div className="grid grid-cols-3 gap-3 text-left max-w-md mx-auto">
         <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
           <p className="text-xs text-green-700 font-semibold">Created New</p>
-          <p className="text-xl font-bold text-green-900 mt-0.5">{result.created}</p>
+          <p className="text-lg font-bold text-green-900 mt-0.5">{result.created}</p>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
           <p className="text-xs text-amber-700 font-semibold">Updated</p>
-          <p className="text-xl font-bold text-amber-900 mt-0.5">{result.updated}</p>
+          <p className="text-lg font-bold text-amber-900 mt-0.5">{result.updated}</p>
         </div>
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
           <p className="text-xs text-slate-500 font-semibold">Skipped</p>
-          <p className="text-xl font-bold text-slate-700 mt-0.5">{result.skipped}</p>
+          <p className="text-lg font-bold text-slate-700 mt-0.5">{result.skipped}</p>
         </div>
       </div>
 
