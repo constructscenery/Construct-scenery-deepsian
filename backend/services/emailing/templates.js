@@ -16,40 +16,6 @@ const { formatUkDate } = require('./dates');
 
 const DEFAULT_TEMPLATES = [
   {
-    template_key: 'timesheet_reminder_default',
-    name: 'Timesheet reminder',
-    message_type: MESSAGE_TYPES.TIMESHEET_REMINDER,
-    subject: 'Timesheet due — week ending {{week_ending}} ({{production_name}})',
-    body: `Hi {{first_name}},
-
-Please submit your timesheet for {{production_name}} for the week ending {{week_ending}}.
-
-Use the button below to choose the week, fill in your days, overtime and allowances, and send it to the office. The office will approve it, or send it back with notes if anything needs changing.
-
-{{action_button}}
-
-Thanks,
-Construct Scenery`,
-  },
-  {
-    template_key: 'timesheet_reminder_followup',
-    name: 'Timesheet reminder — follow-up',
-    message_type: MESSAGE_TYPES.TIMESHEET_REMINDER,
-    subject: 'Reminder: timesheet still outstanding — week ending {{week_ending}}',
-    body: `Hi {{first_name}},
-
-We haven't received your timesheet for {{production_name}} for the week ending {{week_ending}} yet.
-
-Please submit it as soon as possible so it can be approved in time for the pay run.
-
-{{action_button}}
-
-If you've already sent it, please ignore this message.
-
-Thanks,
-Construct Scenery`,
-  },
-  {
     template_key: 'invoice_request_default',
     name: 'Invoice request',
     message_type: MESSAGE_TYPES.INVOICE_REQUEST,
@@ -165,7 +131,6 @@ const MERGE_FIELDS = [
 ];
 
 const ACTION_LABELS = {
-  [MESSAGE_TYPES.TIMESHEET_REMINDER]:  'Submit timesheet',
   [MESSAGE_TYPES.INVOICE_REQUEST]:     'Upload invoice',
   [MESSAGE_TYPES.AVAILABILITY_POLL]:   'Confirm availability',
   [MESSAGE_TYPES.SUBMISSION_RETURNED]: 'Update and resubmit',

@@ -52,7 +52,7 @@ const qs = (params: Record<string, string | number | boolean | null | undefined>
 export type MessageType =
   | 'timesheet_reminder' | 'invoice_request' | 'availability_poll' | 'manual'
   | 'submission_approved' | 'submission_returned' | 'submission_declined';
-export type SendableMessageType = 'timesheet_reminder' | 'invoice_request' | 'availability_poll' | 'manual';
+export type SendableMessageType = 'invoice_request' | 'availability_poll' | 'manual';
 export type DeliveryStatus =
   | 'queued' | 'sending' | 'sent' | 'delivered' | 'delayed' | 'soft_bounced' | 'bounced'
   | 'complained' | 'rejected' | 'failed' | 'suppressed' | 'cancelled';
@@ -340,7 +340,7 @@ export const emailingApi = {
   resetTemplate: (id: string) => call<EmailTemplate>(`${E}/templates/${id}/reset`, { method: 'POST' }),
 
   recipients: (params: { search?: string; production_id?: string }) => call<RecipientRow[]>(`${E}/recipients${qs(params)}`),
-  recipientGroup: (params: { group: 'timesheet_missing' | 'invoice_missing' | 'poll_non_responders'; production_id?: string; week_ending_date?: string; poll_id?: string }) =>
+  recipientGroup: (params: { group: 'invoice_missing' | 'poll_non_responders'; production_id?: string; week_ending_date?: string; poll_id?: string }) =>
     call<RecipientRow[]>(`${E}/recipient-groups${qs(params)}`),
   preview: (req: SendRequest) => call<PreviewResult>(`${E}/preview`, { method: 'POST', body: req }),
   send: (req: SendRequest) => call<SendResult>(`${E}/send`, { method: 'POST', body: req }),

@@ -28,7 +28,7 @@ export default function OverviewTab({ onNavigate, onCompose, readOnly }: { onNav
   if (!data) return <ErrorNote message={error} />;
 
   const s = data.settings;
-  const automationsOn = [s.automation_timesheet_reminders, s.automation_timesheet_followups, s.automation_invoice_requests].filter(Boolean).length;
+  const automationsOn = [s.automation_invoice_requests].filter(Boolean).length;
 
   const tiles = [
     { label: 'Timesheets to review', value: data.submissions.timesheets_pending, icon: ClipboardList, tab: 'submissions', tone: 'text-blue-600' },
@@ -70,8 +70,7 @@ export default function OverviewTab({ onNavigate, onCompose, readOnly }: { onNav
         {readOnly ? (
           <p className="text-sm text-slate-500">Guest access is read-only.</p>
         ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
-            <button className={btnSecondary} onClick={() => onCompose({ messageType: 'timesheet_reminder', group: 'timesheet_missing' })}>Remind missing timesheets</button>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
             <button className={btnSecondary} onClick={() => onCompose({ messageType: 'invoice_request', group: 'invoice_missing' })}>Request missing invoices</button>
             <button className={btnSecondary} onClick={() => onNavigate('availability')}>Ask for availability</button>
             <button className={btnSecondary} onClick={() => onCompose({ messageType: 'manual' })}>Send a message</button>

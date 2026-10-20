@@ -5,7 +5,7 @@ import { Plus, RotateCcw, Trash2, Save } from 'lucide-react';
 import { emailingApi, MESSAGE_TYPE_LABELS, fmtDateTime, type EmailTemplate, type MergeField, type MessageType } from '@/lib/emailingApi';
 import { Card, Empty, ErrorNote, InfoNote, Spinner, Toggle, btnDanger, btnPrimary, btnSecondary, inputCls, labelCls } from './shared';
 
-const TYPES = Object.keys(MESSAGE_TYPE_LABELS) as MessageType[];
+const TYPES = (Object.keys(MESSAGE_TYPE_LABELS) as MessageType[]).filter((t) => t !== 'timesheet_reminder');
 type Draft = { id?: string; name: string; message_type: MessageType; subject: string; body: string; is_active: boolean; is_system: boolean };
 
 export default function TemplatesTab({ readOnly }: { readOnly: boolean }) {
@@ -22,7 +22,7 @@ export default function TemplatesTab({ readOnly }: { readOnly: boolean }) {
     setLoading(true);
     try {
       const res = await emailingApi.templates();
-      setTemplates(res.templates);
+      setTemplates(res.templates.filter((x) => x.message_type !== 'timesheet_reminder'));
       setFields(res.merge_fields);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load templates');
@@ -121,7 +121,7 @@ export default function TemplatesTab({ readOnly }: { readOnly: boolean }) {
                 </div>
               )}
             </div>
-            <InfoNote>Plain text with merge fields. <code className="font-mono">{'{{action_button}}'}</code> inserts the button linking to the crew member&apos;s secure portal (timesheet, invoice or availability page, depending on the message type).</InfoNote>
+            <InfoNote>Plain text with merge fields. <code className="font-mono">{'{{action_button}}'}</code> inserts the button linking to the crew member&apos;s secure portal (invoice or availability page, depending on the message type).</InfoNote>
             {draft.id && (
               <label className="flex items-center gap-2 text-sm text-slate-700">
                 <Toggle checked={draft.is_active} disabled={readOnly} onChange={(v) => setDraft({ ...draft, is_active: v })} label="Active" /> Active (available in Compose)

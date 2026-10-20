@@ -8,21 +8,11 @@
  */
 const { MESSAGE_TYPES } = require('./constants');
 const { getSettings } = require('./settings');
-const { timesheetMissing, invoiceMissing } = require('./recipients');
+const { invoiceMissing } = require('./recipients');
 const { sendMessages } = require('./composer');
-const { londonToday, weekEndingFor, previousWeekEnding, isSunday } = require('./dates');
+const { londonToday, previousWeekEnding, isSunday } = require('./dates');
 
 const AUTOMATIONS = {
-  timesheet_reminders: {
-    settingKey: 'automation_timesheet_reminders',
-    label: 'Timesheet reminder (Sunday 16:00)',
-    defaultWeek: () => weekEndingFor(londonToday()),
-  },
-  timesheet_followups: {
-    settingKey: 'automation_timesheet_followups',
-    label: 'Timesheet follow-up (Monday 10:00)',
-    defaultWeek: () => previousWeekEnding(londonToday()),
-  },
   invoice_requests: {
     settingKey: 'automation_invoice_requests',
     label: 'Invoice request (Tuesday 10:00)',
@@ -58,21 +48,10 @@ async function runAutomation(type, { weekEndingDate, dryRun = false, scheduled =
   const week = weekEndingDate || def.defaultWeek();
   if (!isSunday(week)) throw Object.assign(new Error('week_ending_date must be a Sunday (YYYY-MM-DD)'), { status: 400 });
 
-  let rows;
-  let messageType;
-  let templateKey;
-  let stage;
-  if (type === 'invoice_requests') {
-    rows = (await invoiceMissing({ weekEndingDate: week })).map((r) => ({ ...r, week_ending_date: week }));
-    messageType = MESSAGE_TYPES.INVOICE_REQUEST;
-    templateKey = 'invoice_request_default';
-    stage = 'auto-invoice';
-  } else {
-    rows = (await timesheetMissing({ weekEndingDate: week })).map((r) => ({ ...r, week_ending_date: week }));
-    messageType = MESSAGE_TYPES.TIMESHEET_REMINDER;
-    templateKey = type === 'timesheet_followups' ? 'timesheet_reminder_followup' : 'timesheet_reminder_default';
-    stage = type === 'timesheet_followups' ? 'auto-followup' : 'auto-initial';
-  }
+  const rows = (await invoiceMissing({ weekEndingDate: week })).map((r) => ({ ...r, week_ending_date: week }));
+  const messageType = MESSAGE_TYPES.INVOICE_REQUEST;
+  const templateKey = 'invoice_request_default';
+  const stage = 'auto-invoice';
 
   const preview = rows.map((r) => ({
     crew_member_id: r.id,

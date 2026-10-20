@@ -10,8 +10,6 @@ import {
 import { Card, Empty, ErrorNote, InfoNote, Modal, Spinner, Toggle, btnPrimary, btnSecondary, inputCls, labelCls } from './shared';
 
 const AUTOMATIONS: { type: AutomationType; key: keyof EmailSettings; title: string; when: string; what: string }[] = [
-  { type: 'timesheet_reminders', key: 'automation_timesheet_reminders', title: 'Timesheet reminder', when: 'Sundays 16:00 (UK)', what: 'Active crew on an active production who have not submitted that week’s timesheet.' },
-  { type: 'timesheet_followups', key: 'automation_timesheet_followups', title: 'Timesheet follow-up', when: 'Mondays 10:00 (UK)', what: 'Anyone still missing last week’s timesheet.' },
   { type: 'invoice_requests', key: 'automation_invoice_requests', title: 'Invoice request', when: 'Tuesdays 10:00 (UK)', what: 'Self-employed crew whose timesheet for last week has no invoice yet.' },
 ];
 const SUPPRESSION_LABEL: Record<Suppression['reason'], string> = { hard_bounce: 'Hard bounce', complaint: 'Spam complaint', invalid_address: 'Invalid address', manual: 'Added manually' };

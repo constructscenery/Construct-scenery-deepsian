@@ -59,7 +59,7 @@ function EmailingContent() {
 
   return (
     <>
-      <TopBar title="Emailing" subtitle="Crew timesheet reminders, invoice requests, availability and messages" />
+      <TopBar title="Emailing" subtitle="Crew invoice requests, availability and messages" />
       <main className="flex-1 p-4 md:p-6 space-y-4 md:space-y-5 min-w-0">
         <nav className="bg-white rounded-xl border border-slate-200 shadow-sm p-1.5 overflow-x-auto" aria-label="Emailing sections">
           <div className="flex gap-1 min-w-max">

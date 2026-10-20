@@ -125,8 +125,12 @@ const getProviderStatus = handle(async (_req, res) => res.json(await ses.getProv
 const listTemplates = handle(async (req, res) => {
   await templatesSvc.ensureDefaultTemplates();
   const params = [];
-  let where = '';
-  if (req.query.message_type) { params.push(req.query.message_type); where = 'WHERE t.message_type = $1'; }
+  const clauses = ["t.message_type != 'timesheet_reminder'"];
+  if (req.query.message_type) {
+    params.push(req.query.message_type);
+    clauses.push(`t.message_type = $${params.length}`);
+  }
+  const where = `WHERE ${clauses.join(' AND ')}`;
   const { rows } = await db.query(
     `SELECT t.*, u.full_name AS updated_by_name
      FROM email_templates t LEFT JOIN users u ON u.id = t.updated_by
@@ -137,7 +141,7 @@ const listTemplates = handle(async (req, res) => {
   res.json({ templates: rows, merge_fields: templatesSvc.MERGE_FIELDS });
 });
 
-const ALL_TEMPLATE_TYPES = Object.values(MESSAGE_TYPES);
+const ALL_TEMPLATE_TYPES = Object.values(MESSAGE_TYPES).filter((t) => t !== MESSAGE_TYPES.TIMESHEET_REMINDER);
 function validateTemplateInput(body, { partial = false } = {}) {
   const out = {};
   if (!partial || body.name !== undefined) {
@@ -230,18 +234,14 @@ const getRecipientGroup = handle(async (req, res) => {
   const productionId = req.query.production_id && isUuid(req.query.production_id) ? req.query.production_id : null;
   const policy = await settingsSvc.getSendPolicy();
   let rows;
-  if (group === 'timesheet_missing') {
-    if (!isSunday(req.query.week_ending_date)) throw badRequest('week_ending_date must be a Sunday (YYYY-MM-DD)');
-    rows = (await recipientsSvc.timesheetMissing({ weekEndingDate: req.query.week_ending_date, productionId }))
-      .map((r) => ({ ...r, week_ending_date: req.query.week_ending_date }));
-  } else if (group === 'invoice_missing') {
+  if (group === 'invoice_missing') {
     if (req.query.week_ending_date && !isSunday(req.query.week_ending_date)) throw badRequest('week_ending_date must be a Sunday (YYYY-MM-DD)');
     rows = await recipientsSvc.invoiceMissing({ weekEndingDate: req.query.week_ending_date || null, productionId });
   } else if (group === 'poll_non_responders') {
     requireUuid(req.query.poll_id, 'poll_id');
     rows = await recipientsSvc.pollNonResponders(req.query.poll_id);
   } else {
-    throw badRequest('group must be timesheet_missing, invoice_missing or poll_non_responders');
+    throw badRequest('group must be invoice_missing or poll_non_responders');
   }
   res.json(rows.map((c) => ({ ...c, ...recipientsSvc.eligibility(c, policy) })));
 });

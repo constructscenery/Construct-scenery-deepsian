@@ -15,7 +15,6 @@ const { loadCrewByIds, eligibility } = require('./recipients');
 const { isSunday } = require('./dates');
 
 const DEFAULT_KEY_BY_TYPE = {
-  [MESSAGE_TYPES.TIMESHEET_REMINDER]:  'timesheet_reminder_default',
   [MESSAGE_TYPES.INVOICE_REQUEST]:     'invoice_request_default',
   [MESSAGE_TYPES.AVAILABILITY_POLL]:   'availability_poll_default',
   [MESSAGE_TYPES.MANUAL]:              'manual_default',
@@ -60,8 +59,6 @@ async function loadPoll(pollId) {
 /** Portal deep link (with token marker) for a message type. */
 function actionUrlFor(messageType, { productionId, weekEndingDate, pollId, tab }) {
   switch (messageType) {
-    case MESSAGE_TYPES.TIMESHEET_REMINDER:
-      return portalUrl({ tab: 'timesheet', production: productionId, week: weekEndingDate });
     case MESSAGE_TYPES.INVOICE_REQUEST:
       return portalUrl({ tab: 'invoices', production: productionId, week: weekEndingDate });
     case MESSAGE_TYPES.AVAILABILITY_POLL:
@@ -81,8 +78,8 @@ function validateSendRequest({ messageType, recipients, pollId }) {
   if (recipients.length > 500) throw badRequest('A single send is limited to 500 recipients');
   for (const r of recipients) {
     if (!r || !r.crewMemberId) throw badRequest('Each recipient needs a crew_member_id');
-    if ([MESSAGE_TYPES.TIMESHEET_REMINDER, MESSAGE_TYPES.INVOICE_REQUEST].includes(messageType)) {
-      if (!r.productionId) throw badRequest('Timesheet reminders and invoice requests need a production for each recipient');
+    if (messageType === MESSAGE_TYPES.INVOICE_REQUEST) {
+      if (!r.productionId) throw badRequest('Invoice requests need a production for each recipient');
       if (!isSunday(r.weekEndingDate)) throw badRequest('week_ending_date must be a Sunday (YYYY-MM-DD)');
     }
   }

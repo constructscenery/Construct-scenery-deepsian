@@ -10,7 +10,7 @@ import {
 } from '@/lib/emailingApi';
 import { Card, EmailFrame, Empty, ErrorNote, InfoNote, Modal, Spinner, StatusBadge, btnPrimary, btnSecondary, inputCls, labelCls } from './shared';
 
-export type RecipientGroup = 'timesheet_missing' | 'invoice_missing' | 'poll_non_responders';
+export type RecipientGroup = 'invoice_missing' | 'poll_non_responders';
 export type ComposePreset = {
   messageType: SendableMessageType;
   group?: RecipientGroup;
@@ -20,14 +20,12 @@ export type ComposePreset = {
   nonce?: number;
 };
 
-const TYPES: SendableMessageType[] = ['timesheet_reminder', 'invoice_request', 'availability_poll', 'manual'];
+const TYPES: SendableMessageType[] = ['invoice_request', 'availability_poll', 'manual'];
 const GROUP_FOR: Partial<Record<SendableMessageType, RecipientGroup>> = {
-  timesheet_reminder: 'timesheet_missing',
   invoice_request: 'invoice_missing',
   availability_poll: 'poll_non_responders',
 };
 const GROUP_LABEL: Record<RecipientGroup, string> = {
-  timesheet_missing: 'Crew missing a timesheet for the week',
   invoice_missing: 'Self-employed crew with no invoice',
   poll_non_responders: 'Not yet responded to this request',
 };
@@ -86,7 +84,7 @@ export default function ComposeTab({ preset, onSent }: { preset: ComposePreset |
   }, [messageType]);
 
   const group = GROUP_FOR[messageType];
-  const needsProductionWeek = messageType === 'timesheet_reminder' || messageType === 'invoice_request';
+  const needsProductionWeek = messageType === 'invoice_request';
   const useGroup = source === 'group' && !!group;
 
   const loadRows = useCallback(async () => {
