@@ -219,3 +219,88 @@ html.dark ::-webkit-scrollbar-thumb:hover { background: #475a80; }
 .border-orange-100, .border-orange-200 {
   border-color: #e2e8f0 !important; /* slate-200 */
 }
+
+/* ─── Unified Day/Night Mode Accent Color Palette ──────────────────────────── */
+html.dark .bg-slate-850 {
+  background-color: #0b1120;
+}
+html.dark .bg-slate-900 {
+  background-color: #0d1527;
+}
+html.dark .border-slate-800 {
+  border-color: #1e293b;
+}
+
+/* Amber / Gold / Forecaster accents in Dark Mode */
+html.dark .bg-amber-50,
+html.dark .bg-amber-50\/20,
+html.dark .bg-amber-50\/40 {
+  background-color: rgba(245, 158, 11, 0.12);
+}
+html.dark .bg-amber-100 {
+  background-color: rgba(245, 158, 11, 0.22);
+}
+html.dark .border-amber-200,
+html.dark .border-amber-300 {
+  border-color: rgba(245, 158, 11, 0.35);
+}
+html.dark .text-amber-700,
+html.dark .text-amber-800,
+html.dark .text-amber-900 {
+  color: #fbbf24;
+}
+
+/* Blue accents in Dark Mode */
+html.dark .bg-blue-50,
+html.dark .bg-blue-50\/20 {
+  background-color: rgba(59, 130, 246, 0.12);
+}
+html.dark .bg-blue-100 {
+  background-color: rgba(59, 130, 246, 0.22);
+}
+html.dark .border-blue-200 {
+  border-color: rgba(59, 130, 246, 0.3);
+}
+html.dark .text-blue-600,
+html.dark .text-blue-700,
+html.dark .text-blue-800 {
+  color: #60a5fa;
+}
+
+/* Emerald / Green / Active badges in Dark Mode */
+html.dark .bg-emerald-50,
+html.dark .bg-green-50 {
+  background-color: rgba(16, 185, 129, 0.12);
+}
+html.dark .bg-emerald-100,
+html.dark .bg-green-100 {
+  background-color: rgba(16, 185, 129, 0.22);
+}
+html.dark .border-emerald-200,
+html.dark .border-green-200 {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+html.dark .text-emerald-700,
+html.dark .text-emerald-800,
+html.dark .text-green-700 {
+  color: #34d399;
+}
+
+/* Rose / Red accents in Dark Mode */
+html.dark .bg-rose-50,
+html.dark .bg-rose-50\/20,
+html.dark .bg-red-50 {
+  background-color: rgba(244, 63, 94, 0.12);
+}
+html.dark .bg-rose-100,
+html.dark .bg-red-100 {
+  background-color: rgba(244, 63, 94, 0.22);
+}
+html.dark .border-rose-200,
+html.dark .border-red-200 {
+  border-color: rgba(244, 63, 94, 0.3);
+}
+html.dark .text-rose-700,
+html.dark .text-red-700 {
+  color: #fb7185;
+}

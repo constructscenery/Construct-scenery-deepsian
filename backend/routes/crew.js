@@ -60,5 +60,7 @@ router.patch('/:id/availability',      requireRole(...ALL_ROLES), ctrl.updateAva
 router.post('/:id/documents',          upload.single('file'), requireRole(...ALL_ROLES), ctrl.addDocument);
 router.delete('/:id/documents/:docId', requireRole(...ALL_ROLES), ctrl.deleteDocument);
 router.post('/:id/productions',        requireRole(...ALL_ROLES), ctrl.linkToProduction);
+router.get('/:id/earnings-report',      ctrl.getCrewEarningsReport);
+router.post('/:id/earnings-report/send', requireRole(...ALL_ROLES), ctrl.sendCrewEarningsReport);
 
 module.exports = router;

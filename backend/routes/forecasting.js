@@ -3,9 +3,11 @@ const router  = express.Router();
 const ctrl = require('../Controllers/forecastingController');
 const costForecastsCtrl = require('../Controllers/costForecastsController');
 const labourFlowsCtrl = require('../Controllers/labourFlowsController');
+const weeklyEstimatorCtrl = require('../Controllers/weeklyEstimatorController');
 const { requireRole } = require('../Middleware/requireRole');
 
 const ALL_ROLES = ['managing_director', 'construction_accountant', 'construction_coordinator', 'guest'];
+const STAFF_ROLES = ['managing_director', 'construction_accountant', 'construction_coordinator'];
 
 // ─── TOOL 1: COST FORECASTS (Addendum 4) ──────────────────────────────────────
 router.get('/cost-forecasts',              costForecastsCtrl.listCostForecasts);
@@ -27,6 +29,14 @@ router.post('/labour-flows/:id/lock',    requireRole(...ALL_ROLES), labourFlowsC
 router.post('/labour-flows/:id/version', requireRole(...ALL_ROLES), labourFlowsCtrl.versionLabourFlow);
 router.delete('/labour-flows/:id',       requireRole(...ALL_ROLES), labourFlowsCtrl.deleteLabourFlow);
 router.get('/labour-flows/:id/export/csv', labourFlowsCtrl.exportLabourFlowCsv);
+
+// ─── TOOL 3: WEEKLY CUSTOM ESTIMATOR (Warren's Multi-Week Estimator) ────────
+router.get('/weekly-custom-estimates/rates/lookup', weeklyEstimatorCtrl.getRatesLookup);
+router.get('/weekly-custom-estimates',              weeklyEstimatorCtrl.listEstimates);
+router.post('/weekly-custom-estimates',             requireRole(...STAFF_ROLES), weeklyEstimatorCtrl.createEstimate);
+router.get('/weekly-custom-estimates/:id',          weeklyEstimatorCtrl.getEstimateById);
+router.put('/weekly-custom-estimates/:id',          requireRole(...STAFF_ROLES), weeklyEstimatorCtrl.updateEstimate);
+router.delete('/weekly-custom-estimates/:id',       requireRole(...STAFF_ROLES), weeklyEstimatorCtrl.deleteEstimate);
 
 // ─── LEGACY / AUXILIARY FORECASTING & PERCENTOMETER ───────────────────────────
 router.get('/forecasts',        ctrl.getAllForecasts);

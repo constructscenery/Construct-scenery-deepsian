@@ -20,6 +20,7 @@ import CostForecastEditor from '@/components/forecasting/CostForecastEditor';
 import LabourFlowEditor from '@/components/forecasting/LabourFlowEditor';
 import NewCostForecastModal from '@/components/forecasting/NewCostForecastModal';
 import NewLabourFlowModal from '@/components/forecasting/NewLabourFlowModal';
+import WeeklyCustomEstimator from '@/components/forecasting/WeeklyCustomEstimator';
 
 const fmtGBP = (n: number) =>
   new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 2 }).format(n);
@@ -52,7 +53,7 @@ function ForecastingContent() {
   const isMD = !isGuest;
   const isAccountant = !isGuest;
 
-  const [activeTab, setActiveTab] = useState<'cost_forecasts' | 'labour_flows' | 'percentometer' | 'scenarios'>('cost_forecasts');
+  const [activeTab, setActiveTab] = useState<'cost_forecasts' | 'labour_flows' | 'weekly_estimator' | 'percentometer' | 'scenarios'>('cost_forecasts');
 
   // ── Productions (shared) ──────────────────────────────────────────────────────
   const [productions, setProductions] = useState<Production[]>([]);
@@ -309,6 +310,7 @@ function ForecastingContent() {
   const tabs: { id: typeof activeTab; label: string; count?: number }[] = [
     { id: 'cost_forecasts', label: 'Cost Forecasts', count: costForecasts.length },
     { id: 'labour_flows', label: 'Weekly Labour Flow', count: labourFlows.length },
+    { id: 'weekly_estimator', label: 'Weekly Estimator' },
     { id: 'percentometer', label: 'The Percentometer' },
     { id: 'scenarios', label: 'Saved Scenarios' },
   ];
@@ -690,6 +692,11 @@ function ForecastingContent() {
           </div>
         )}
 
+        {/* ── TOOL 3: WEEKLY CUSTOM ESTIMATOR (Warren's Multi-Week Estimator) ─── */}
+        {activeTab === 'weekly_estimator' && (
+          <WeeklyCustomEstimator productions={productions} />
+        )}
+
         {/* ── SECTION 1: PERCENTOMETER ─────────────────────────────────────────── */}
         {activeTab === 'percentometer' && (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
@@ -958,11 +965,11 @@ function ForecastingContent() {
                 </tbody>
               </table>
             </div>
-            
+
             {/* Chart Section */}
             {varianceData.length > 0 && (
               <div className="p-5 border-t border-slate-100 flex flex-col xl:flex-row gap-8">
-                
+
                 {/* Bar Chart: Predicted vs Actual Totals */}
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-semibold text-slate-900 mb-4">Predicted vs Actual Cost Breakdown</h3>
@@ -979,22 +986,22 @@ function ForecastingContent() {
                         margin={{ top: 20, right: 30, left: 20, bottom: 25 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis 
-                          dataKey="name" 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tick={{ fontSize: 12, fill: '#64748b' }} 
+                        <XAxis
+                          dataKey="name"
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fontSize: 12, fill: '#64748b' }}
                           interval={0}
                           angle={-25}
                           textAnchor="end"
                         />
-                        <YAxis 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tick={{ fontSize: 12, fill: '#64748b' }} 
-                          tickFormatter={(val) => `£${(val/1000).toFixed(0)}k`} 
+                        <YAxis
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fontSize: 12, fill: '#64748b' }}
+                          tickFormatter={(val) => `£${(val / 1000).toFixed(0)}k`}
                         />
-                        <RechartsTooltip 
+                        <RechartsTooltip
                           formatter={(value: any) => fmtGBP(value)}
                           contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                           cursor={{ fill: '#f8fafc' }}
@@ -1055,19 +1062,19 @@ function ForecastingContent() {
                           margin={{ top: 20, right: 30, left: 20, bottom: 25 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis 
-                            dataKey="week" 
-                            axisLine={false} 
-                            tickLine={false} 
+                          <XAxis
+                            dataKey="week"
+                            axisLine={false}
+                            tickLine={false}
                             tick={{ fontSize: 11, fill: '#64748b' }}
                           />
-                          <YAxis 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{ fontSize: 12, fill: '#64748b' }} 
-                            tickFormatter={(val) => `£${(val/1000).toFixed(0)}k`} 
+                          <YAxis
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 12, fill: '#64748b' }}
+                            tickFormatter={(val) => `£${(val / 1000).toFixed(0)}k`}
                           />
-                          <RechartsTooltip 
+                          <RechartsTooltip
                             formatter={(value: any) => fmtGBP(value)}
                             contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                           />
@@ -1260,7 +1267,7 @@ function EditRatiosModal({ ratios, onClose, onSaved }: EditRatiosModalProps) {
             ))}
           </div>
           <div className="px-6 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-          <span className={`text-xs font-semibold ${Math.abs(total - 100) < 0.001 ? 'text-green-600' : 'text-amber-600'}`}>
+            <span className={`text-xs font-semibold ${Math.abs(total - 100) < 0.001 ? 'text-green-600' : 'text-amber-600'}`}>
               Total: {total.toFixed(2)}%{Math.abs(total - 100) > 0.001 ? ' (must equal 100%)' : ' ✓'}
             </span>
             <div className="flex items-center gap-3">

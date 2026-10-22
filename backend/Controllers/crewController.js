@@ -718,8 +718,372 @@ const importCSV = async (req, res) => {
   });
 };
 
+// ─── GET /api/crew/:id/earnings-report ────────────────────────────────────────
+const getCrewEarningsReport = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { start_date, end_date, production_id, status } = req.query;
+
+    const { rows: [member] } = await db.query(
+      `SELECT id, crew_number, first_name, last_name, email, employment_status, crew_trade, crew_rank, company_name
+       FROM crew_members
+       WHERE id = $1 AND deleted_at IS NULL`,
+      [id]
+    );
+    if (!member) return res.status(404).json({ error: 'Crew member not found' });
+
+    const decrypted = decryptCrewMember(member);
+
+    const conds = ['t.crew_member_id = $1'];
+    const params = [id];
+    let pIdx = 2;
+
+    if (start_date) {
+      conds.push(`t.week_ending_date >= $${pIdx++}::date`);
+      params.push(start_date);
+    }
+    if (end_date) {
+      conds.push(`t.week_ending_date <= $${pIdx++}::date`);
+      params.push(end_date);
+    }
+    if (production_id) {
+      conds.push(`t.production_id = $${pIdx++}::uuid`);
+      params.push(production_id);
+    }
+    if (status && status !== 'all') {
+      conds.push(`t.status = $${pIdx++}`);
+      params.push(status);
+    }
+
+    const { rows: timesheets } = await db.query(
+      `SELECT
+         t.id AS timesheet_id,
+         t.week_ending_date,
+         t.status,
+         t.weekly_rate,
+         t.sixth_day_payment,
+         t.seventh_day_payment,
+         t.overtime_amount,
+         t.meal_allowance_total,
+         t.mileage_and_travel,
+         t.vat,
+         t.gross_total,
+         t.grand_total,
+         p.id AS production_id,
+         p.name AS production_name,
+         COUNT(te.id) FILTER (WHERE te.full_day_worked = true) AS days_worked,
+         COALESCE(SUM(te.overtime_hours), 0) AS overtime_hours,
+         COALESCE(SUM(te.travel), 0) AS travel_amount,
+         COALESCE(SUM(te.mileage), 0) AS mileage_amount,
+         COALESCE(SUM(te.per_diem), 0) AS per_diem_amount
+       FROM timesheets t
+       JOIN productions p ON t.production_id = p.id
+       LEFT JOIN timesheet_entries te ON te.timesheet_id = t.id
+       WHERE ${conds.join(' AND ')}
+       GROUP BY t.id, p.id, p.name
+       ORDER BY t.week_ending_date DESC`,
+      params
+    );
+
+    let totalDaysWorked = 0;
+    let totalOvertimeHours = 0;
+    let totalBasicPay = 0;
+    let totalOvertimePay = 0;
+    let totalWeekendPay = 0;
+    let totalMealAllowances = 0;
+    let totalMileageTravel = 0;
+    let totalVat = 0;
+    let totalGross = 0;
+    let grandTotal = 0;
+
+    const formattedWeeks = timesheets.map((ts) => {
+      const daysWorked = parseInt(ts.days_worked || 0, 10);
+      const otHours = parseFloat(ts.overtime_hours || 0);
+      const basicPay = parseFloat(ts.weekly_rate || 0);
+      const otPay = parseFloat(ts.overtime_amount || 0);
+      const weekendPay = parseFloat(ts.sixth_day_payment || 0) + parseFloat(ts.seventh_day_payment || 0);
+      const meals = parseFloat(ts.meal_allowance_total || 0);
+      const travelMileage = parseFloat(ts.mileage_and_travel || 0);
+      const vat = parseFloat(ts.vat || 0);
+      const gross = parseFloat(ts.gross_total || 0);
+      const total = parseFloat(ts.grand_total || 0);
+
+      totalDaysWorked += daysWorked;
+      totalOvertimeHours += otHours;
+      totalBasicPay += basicPay;
+      totalOvertimePay += otPay;
+      totalWeekendPay += weekendPay;
+      totalMealAllowances += meals;
+      totalMileageTravel += travelMileage;
+      totalVat += vat;
+      totalGross += gross;
+      grandTotal += total;
+
+      return {
+        timesheet_id: ts.timesheet_id,
+        week_ending_date: ts.week_ending_date,
+        production_id: ts.production_id,
+        production_name: ts.production_name,
+        status: ts.status,
+        days_worked: daysWorked,
+        overtime_hours: otHours,
+        basic_pay: basicPay,
+        overtime_pay: otPay,
+        weekend_pay: weekendPay,
+        meal_allowance: meals,
+        mileage_travel: travelMileage,
+        vat,
+        gross_total: gross,
+        grand_total: total,
+      };
+    });
+
+    const crewData = {
+      id: decrypted.id,
+      name: [decrypted.first_name, decrypted.last_name].filter(Boolean).join(' '),
+      first_name: decrypted.first_name,
+      last_name: decrypted.last_name,
+      crew_number: decrypted.crew_number,
+      email: decrypted.email,
+      employment_status: decrypted.employment_status,
+      trade: decrypted.crew_trade,
+      rank: decrypted.crew_rank,
+      company_name: decrypted.company_name,
+    };
+
+    res.json({
+      crew_member: crewData,
+      crew: crewData,
+      period: {
+        start_date: start_date || null,
+        end_date: end_date || null,
+      },
+      summary: {
+        total_timesheets: timesheets.length,
+        timesheet_count: timesheets.length,
+        total_days_worked: totalDaysWorked,
+        total_overtime_hours: Number(totalOvertimeHours.toFixed(2)),
+        total_basic_pay: Number(totalBasicPay.toFixed(2)),
+        total_overtime_pay: Number(totalOvertimePay.toFixed(2)),
+        total_weekend_pay: Number(totalWeekendPay.toFixed(2)),
+        total_meal_allowances: Number(totalMealAllowances.toFixed(2)),
+        total_mileage_travel: Number(totalMileageTravel.toFixed(2)),
+        total_vat: Number(totalVat.toFixed(2)),
+        total_gross: Number(totalGross.toFixed(2)),
+        grand_total: Number(grandTotal.toFixed(2)),
+      },
+      weeks: formattedWeeks,
+      breakdown: formattedWeeks,
+    });
+  } catch (err) {
+    console.error('getCrewEarningsReport error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─── POST /api/crew/:id/earnings-report/send ──────────────────────────────────
+const sendCrewEarningsReport = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { start_date, end_date, production_id, status, recipient_email, notes } = req.body || {};
+
+    const { rows: [member] } = await db.query(
+      `SELECT id, crew_number, first_name, last_name, email, employment_status, crew_trade, crew_rank, company_name
+       FROM crew_members
+       WHERE id = $1 AND deleted_at IS NULL`,
+      [id]
+    );
+    if (!member) return res.status(404).json({ error: 'Crew member not found' });
+
+    const decrypted = decryptCrewMember(member);
+    const targetEmail = (recipient_email || decrypted.email || '').trim();
+    if (!targetEmail) {
+      return res.status(400).json({ error: 'No recipient email address specified or on file for this crew member.' });
+    }
+
+    const conds = ['t.crew_member_id = $1'];
+    const params = [id];
+    let pIdx = 2;
+
+    if (start_date) {
+      conds.push(`t.week_ending_date >= $${pIdx++}::date`);
+      params.push(start_date);
+    }
+    if (end_date) {
+      conds.push(`t.week_ending_date <= $${pIdx++}::date`);
+      params.push(end_date);
+    }
+    if (production_id) {
+      conds.push(`t.production_id = $${pIdx++}::uuid`);
+      params.push(production_id);
+    }
+    if (status && status !== 'all') {
+      conds.push(`t.status = $${pIdx++}`);
+      params.push(status);
+    }
+
+    const { rows: timesheets } = await db.query(
+      `SELECT
+         t.id AS timesheet_id,
+         t.week_ending_date,
+         t.status,
+         t.weekly_rate,
+         t.sixth_day_payment,
+         t.seventh_day_payment,
+         t.overtime_amount,
+         t.meal_allowance_total,
+         t.mileage_and_travel,
+         t.vat,
+         t.gross_total,
+         t.grand_total,
+         p.name AS production_name,
+         COUNT(te.id) FILTER (WHERE te.full_day_worked = true) AS days_worked,
+         COALESCE(SUM(te.overtime_hours), 0) AS overtime_hours
+       FROM timesheets t
+       JOIN productions p ON t.production_id = p.id
+       LEFT JOIN timesheet_entries te ON te.timesheet_id = t.id
+       WHERE ${conds.join(' AND ')}
+       GROUP BY t.id, p.id, p.name
+       ORDER BY t.week_ending_date DESC`,
+      params
+    );
+
+    let totalDaysWorked = 0;
+    let totalOvertimeHours = 0;
+    let totalGross = 0;
+    let grandTotal = 0;
+
+    const rowsHtml = timesheets.map((ts) => {
+      const daysWorked = parseInt(ts.days_worked || 0, 10);
+      const otHours = parseFloat(ts.overtime_hours || 0);
+      const gross = parseFloat(ts.gross_total || 0);
+      const total = parseFloat(ts.grand_total || 0);
+      totalDaysWorked += daysWorked;
+      totalOvertimeHours += otHours;
+      totalGross += gross;
+      grandTotal += total;
+
+      const dateStr = ts.week_ending_date ? new Date(ts.week_ending_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+      return `<tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#334155">${dateStr}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#334155">${ts.production_name}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;text-align:center;color:#334155">${daysWorked}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;text-align:center;color:#334155">${otHours > 0 ? otHours + 'h' : '—'}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;text-align:right;font-weight:600;color:#0f172a">£${total.toFixed(2)}</td>
+      </tr>`;
+    }).join('\n');
+
+    const periodStr = start_date && end_date
+      ? `${new Date(start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} to ${new Date(end_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+      : 'All Available Timesheets';
+
+    const subject = `Construct Scenery — Earnings Statement (${decrypted.first_name} ${decrypted.last_name})`;
+
+    const html = `<div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#ffffff">
+      <div style="background:#0f172a;padding:20px 24px">
+        <span style="color:#ffffff;font-size:20px;font-weight:800;letter-spacing:1px">Construct Scenery</span>
+        <span style="color:#94a3b8;font-size:12px;margin-left:12px">Construct Scenery Limited</span>
+      </div>
+      <div style="padding:28px 24px">
+        <h2 style="margin:0 0 4px;font-size:18px;color:#0f172a;font-weight:700">Earnings Summary Statement</h2>
+        <p style="margin:0 0 18px;font-size:13px;color:#64748b">Period: <strong>${periodStr}</strong></p>
+
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;margin-bottom:22px">
+          <p style="margin:0 0 6px;font-size:13px;color:#334155"><strong>Crew Member:</strong> ${decrypted.first_name} ${decrypted.last_name} (${decrypted.crew_number || '—'})</p>
+          <p style="margin:0 0 6px;font-size:13px;color:#334155"><strong>Trade / Role:</strong> ${decrypted.crew_trade || 'Crew'}${decrypted.crew_rank ? ` — ${decrypted.crew_rank}` : ''}</p>
+          <p style="margin:0;font-size:13px;color:#334155"><strong>Employment Status:</strong> ${decrypted.employment_status === 'self_employed' ? 'Self-Employed' : 'PAYE'}</p>
+        </div>
+
+        ${notes ? `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#1e40af"><strong>Note from office:</strong> ${notes.replace(/</g, '&lt;')}</div>` : ''}
+
+        <table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin-bottom:20px;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
+          <thead>
+            <tr style="background:#f1f5f9;text-align:left;font-size:12px;color:#475569;text-transform:uppercase;letter-spacing:0.5px">
+              <th style="padding:10px 12px;border-bottom:2px solid #cbd5e1">Week Ending</th>
+              <th style="padding:10px 12px;border-bottom:2px solid #cbd5e1">Production</th>
+              <th style="padding:10px 12px;border-bottom:2px solid #cbd5e1;text-align:center">Days</th>
+              <th style="padding:10px 12px;border-bottom:2px solid #cbd5e1;text-align:center">OT</th>
+              <th style="padding:10px 12px;border-bottom:2px solid #cbd5e1;text-align:right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml.length > 0 ? rowsHtml : '<tr><td colspan="5" style="padding:20px;text-align:center;color:#94a3b8;font-size:13px">No timesheets recorded for this period.</td></tr>'}
+          </tbody>
+          <tfoot>
+            <tr style="background:#f8fafc;font-weight:700;color:#0f172a">
+              <td style="padding:12px;border-top:2px solid #cbd5e1" colspan="2">TOTALS (${timesheets.length} weeks)</td>
+              <td style="padding:12px;border-top:2px solid #cbd5e1;text-align:center">${totalDaysWorked}</td>
+              <td style="padding:12px;border-top:2px solid #cbd5e1;text-align:center">${totalOvertimeHours > 0 ? totalOvertimeHours + 'h' : '0'}</td>
+              <td style="padding:12px;border-top:2px solid #cbd5e1;text-align:right;font-size:15px;color:#2563eb">£${grandTotal.toFixed(2)}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <p style="font-size:12px;color:#64748b;line-height:1.5;margin:20px 0 0">
+          This earnings statement has been generated from verified Construct Scenery timesheets. For any queries regarding this breakdown, please reply to this email or contact the accounts team.
+        </p>
+      </div>
+      <div style="background:#f8fafc;padding:14px 24px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center">
+        Construct Scenery Limited · Unit 4C Canal Wharf, Station Road, Langley, SL3 6EG
+      </div>
+    </div>`;
+
+    const text = `Construct Scenery — Earnings Statement
+Crew Member: ${decrypted.first_name} ${decrypted.last_name} (${decrypted.crew_number})
+Period: ${periodStr}
+
+Total Timesheets: ${timesheets.length}
+Total Days Worked: ${totalDaysWorked}
+Total Overtime Hours: ${totalOvertimeHours}
+Grand Total Earnings: £${grandTotal.toFixed(2)}
+
+Construct Scenery Limited · Unit 4C Canal Wharf, Station Road, Langley, SL3 6EG`;
+
+    const ses = require('../services/emailing/sesSender');
+    let emailResult = null;
+    try {
+      emailResult = await ses.sendEmail({
+        fromName: 'Construct Scenery Accounts',
+        to: targetEmail,
+        subject,
+        html,
+        text,
+      });
+    } catch (sendErr) {
+      console.warn('SES send warning in sendCrewEarningsReport:', sendErr.message);
+    }
+
+    await logAudit({
+      userId: req.user?.id,
+      userName: req.user?.full_name,
+      userRole: req.user?.role,
+      category: 'crew',
+      action: 'crew_earnings_report_sent',
+      entityType: 'crew_members',
+      entityId: id,
+      details: `Sent earnings statement for ${decrypted.first_name} ${decrypted.last_name} (${periodStr}) to ${targetEmail}`,
+      metadata: { target_email: targetEmail, start_date, end_date, grand_total: grandTotal },
+    });
+
+    res.json({
+      success: true,
+      recipient_email: targetEmail,
+      message_id: emailResult?.messageId || null,
+      summary: {
+        total_timesheets: timesheets.length,
+        total_days_worked: totalDaysWorked,
+        grand_total: Number(grandTotal.toFixed(2)),
+      },
+    });
+  } catch (err) {
+    console.error('sendCrewEarningsReport error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 module.exports = {
   getTrades, getAllCrew, createCrewMember, getCrewById, updateCrewMember, updateAvailability,
   deleteCrewMember, restoreCrewMember, addDocument, deleteDocument, linkToProduction,
   getImportTemplate, previewImport, importCSV,
+  getCrewEarningsReport, sendCrewEarningsReport,
 };

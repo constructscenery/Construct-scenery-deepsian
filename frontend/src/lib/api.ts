@@ -802,6 +802,79 @@ export type PublicCrewRegistrationData = {
   notes?: string;
 };
 
+// ─── Crew Earnings Report Types ──────────────────────────────────────────────
+export type CrewEarningsPeriod = {
+  start_date: string | null;
+  end_date: string | null;
+};
+
+export type CrewEarningsSummary = {
+  total_timesheets: number;
+  timesheet_count?: number;
+  total_days_worked: number;
+  total_overtime_hours: number;
+  total_basic_pay: number;
+  total_overtime_pay: number;
+  total_weekend_pay: number;
+  total_meal_allowances: number;
+  total_mileage_travel: number;
+  total_vat: number;
+  total_gross: number;
+  grand_total: number;
+};
+
+export type CrewEarningsWeekItem = {
+  timesheet_id: string;
+  week_ending_date: string;
+  status: string;
+  production_id: string;
+  production_name: string;
+  production_code: string;
+  days_worked: number;
+  overtime_hours: number;
+  weekly_rate: number;
+  basic_pay: number;
+  overtime_amount: number;
+  sixth_day_payment: number;
+  seventh_day_payment: number;
+  meal_allowance_total: number;
+  mileage_and_travel: number;
+  vat: number;
+  gross_total: number;
+  grand_total: number;
+};
+
+export type CrewEarningsReportResponse = {
+  crew_member: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    name?: string;
+    crew_number?: string;
+    email?: string;
+    employment_status?: string;
+    trade?: string;
+    rank?: string;
+    company_name?: string;
+  };
+  crew?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    name?: string;
+    crew_number?: string;
+    email?: string;
+    employment_status?: string;
+    trade?: string;
+    rank?: string;
+    company_name?: string;
+  };
+  period: CrewEarningsPeriod;
+  summary: CrewEarningsSummary;
+  weeks: CrewEarningsWeekItem[];
+  breakdown?: CrewEarningsWeekItem[];
+};
+
 export const crewApi = {
   list: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
@@ -855,6 +928,14 @@ export const crewApi = {
     request<{ message: string; request: CrewRegistrationRequest }>(`/api/crew/requests/${id}/reject`, { method: 'POST', body: data }),
   deleteRequest: (id: string) =>
     request<{ message: string }>(`/api/crew/requests/${id}`, { method: 'DELETE' }),
+
+  // ── Earnings Report ──────────────────────────────────────────────────────────
+  getEarningsReport: (id: string, params?: { start_date?: string; end_date?: string; production_id?: string; status?: string }) => {
+    const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
+    return request<CrewEarningsReportResponse>(`/api/crew/${id}/earnings-report${qs}`);
+  },
+  sendEarningsReport: (id: string, data: { start_date?: string; end_date?: string; recipient_email?: string; custom_message?: string; production_id?: string }) =>
+    request<{ message: string; recipient: string; message_id?: string }>(`/api/crew/${id}/earnings-report/send`, { method: 'POST', body: data }),
 
   // ── Public Portal endpoints (no auth required) ──────────────────────────────
   getPublicTrades: () =>
@@ -1212,6 +1293,126 @@ export const labourFlowsApi = {
     a.remove();
     URL.revokeObjectURL(url);
   },
+};
+
+// ─── Tool 3: Weekly Custom Estimator (Warren's Multi-Week Estimator) ────────
+export type WeeklyEstimateRoleLine = {
+  id: string;
+  trade: string;
+  rank: string;
+  quantity: number;
+  unit_type: 'days' | 'weeks'; // 'D' or 'W'
+  days_count?: number;
+  weeks_count?: number;
+  daily_rate: number;
+  weekly_rate: number;
+  travel_hours: number;
+  travel_hourly_rate: number;
+  overtime_hours: number; // General OT
+  overtime_hourly_rate: number;
+  saturday_ot_hours?: number; // Saturday OT
+  saturday_ot_rate?: number;
+  sunday_ot_hours?: number; // Sunday OT
+  sunday_ot_rate?: number;
+  line_cost: number;
+};
+
+export type WeeklyEstimateVehicleLine = {
+  id: string;
+  name: string;
+  quantity: number;
+  rate: number;
+  unit_type: 'days' | 'weeks';
+  units_count: number;
+  line_cost: number;
+};
+
+export type WeeklyEstimateWeekConfig = {
+  week_number: number;
+  week_label: string;
+  roles: WeeklyEstimateRoleLine[];
+  vehicles: WeeklyEstimateVehicleLine[];
+  week_subtotal: number;
+  week_margin_amount: number;
+  week_total_with_margin: number;
+};
+
+export type WeeklyEstimateSummary = {
+  num_weeks: number;
+  subtotal_labour: number;
+  subtotal_travel: number;
+  subtotal_overtime: number;
+  subtotal_ot_general?: number;
+  subtotal_ot_saturday?: number;
+  subtotal_ot_sunday?: number;
+  subtotal_vehicles: number;
+  net_subtotal: number;
+  margin_enabled: boolean;
+  margin_percentage: number;
+  margin_amount: number;
+  grand_total_with_margin: number;
+};
+
+export type WeeklyCustomEstimate = {
+  id: string;
+  production_id: string | null;
+  production_name?: string | null;
+  production_code?: string | null;
+  production_status?: string | null;
+  title: string;
+  num_weeks: number;
+  start_date: string | null;
+  margin_enabled: boolean;
+  margin_percentage: number;
+  weeks_config: WeeklyEstimateWeekConfig[];
+  summary_totals: WeeklyEstimateSummary;
+  notes: string | null;
+  created_by?: string | null;
+  created_by_name?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WeeklyEstimatesRatesLookup = {
+  rates: Array<{
+    id: string;
+    trade: string;
+    rank: string;
+    daily_rate: number;
+    overtime_rate: number;
+    weekly_rate: number;
+    rate_type: string;
+  }>;
+  presets: {
+    vehicles: Array<{ name: string; default_weekly_rate: number; default_daily_rate: number }>;
+    defaultTravelHourlyRate: number;
+    defaultMarginPercentage: number;
+  };
+};
+
+export const weeklyEstimatesApi = {
+  list: (params?: { production_id?: string }) => {
+    const qs = params?.production_id ? `?production_id=${params.production_id}` : '';
+    return request<{ estimates: WeeklyCustomEstimate[] }>(`/api/forecasting/weekly-custom-estimates${qs}`);
+  },
+  getById: (id: string) =>
+    request<{ estimate: WeeklyCustomEstimate }>(`/api/forecasting/weekly-custom-estimates/${id}`),
+  create: (data: Partial<WeeklyCustomEstimate>) =>
+    request<{ estimate: WeeklyCustomEstimate }>('/api/forecasting/weekly-custom-estimates', {
+      method: 'POST',
+      body: data,
+    }),
+  update: (id: string, data: Partial<WeeklyCustomEstimate>) =>
+    request<{ estimate: WeeklyCustomEstimate }>(`/api/forecasting/weekly-custom-estimates/${id}`, {
+      method: 'PUT',
+      body: data,
+    }),
+  delete: (id: string) =>
+    request<{ message: string; id: string }>(`/api/forecasting/weekly-custom-estimates/${id}`, {
+      method: 'DELETE',
+    }),
+  getRatesLookup: () =>
+    request<WeeklyEstimatesRatesLookup>('/api/forecasting/weekly-custom-estimates/rates/lookup'),
 };
 
 // ─── Crew Rates types ─────────────────────────────────────────────────────────

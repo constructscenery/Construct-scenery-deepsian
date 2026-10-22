@@ -393,10 +393,20 @@ export default function PurchaseOrdersPage() {
   const activeFilterCount = Object.values(poFilters).filter((v) => v !== '').length;
 
   const [showNewModal, setShowNewModal] = useState(false);
+  const [showAllProductionsInRaiseModal, setShowAllProductionsInRaiseModal] = useState(false);
   const [newStep, setNewStep] = useState<1 | 2 | 3>(1);
   const [newForm, setNewForm] = useState<NewPOForm>(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
+
+  const activeProductions = useMemo(() => {
+    return productions.filter(p => p.status === 'active_build' || p.status === 'pre_production' || p.status === 'strike');
+  }, [productions]);
+
+  const raiseModalProductions = useMemo(() => {
+    if (showAllProductionsInRaiseModal) return productions;
+    return activeProductions.length > 0 ? activeProductions : productions;
+  }, [showAllProductionsInRaiseModal, activeProductions, productions]);
 
   const [viewMode, setViewMode] = useState<'purchasing' | 'accounting'>('purchasing');
   const [viewFullPO, setViewFullPO] = useState<PurchaseOrder | null>(null);
@@ -2258,25 +2268,43 @@ export default function PurchaseOrdersPage() {
                     <h3 className="text-slate-700 text-xs font-semibold uppercase tracking-wide">Production Details</h3>
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-xs font-medium text-slate-600">Production <span className="text-red-500">*</span></label>
-                        {(isMD || isAccountant || isCoordinator) && (
-                          <button
-                            type="button"
-                            onClick={() => { setQuickProdError(''); setShowQuickProdModal(true); }}
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1 cursor-pointer"
-                          >
-                            <Plus size={12} /> Add New Production
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300">Production <span className="text-red-500">*</span></label>
+                          <span className="text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/70 px-1.5 py-0.2 rounded">
+                            {showAllProductionsInRaiseModal ? 'All Productions' : 'Active Only'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <label className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={showAllProductionsInRaiseModal}
+                              onChange={(e) => setShowAllProductionsInRaiseModal(e.target.checked)}
+                              className="rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 bg-white dark:bg-slate-800"
+                            />
+                            Show all ({productions.length})
+                          </label>
+                          {(isMD || isAccountant || isCoordinator) && (
+                            <button
+                              type="button"
+                              onClick={() => { setQuickProdError(''); setShowQuickProdModal(true); }}
+                              className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1 cursor-pointer"
+                            >
+                              <Plus size={12} /> Add New Production
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <select
                         value={newForm.production_id}
                         onChange={(e) => { updateField('production_id', e.target.value); updateField('set_code', ''); loadSetsForProduction(e.target.value); }}
                         className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 bg-white"
                       >
-                        <option value="">Select production…</option>
-                        {productions.map((p) => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
+                        <option value="">Select active production…</option>
+                        {raiseModalProductions.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} {p.status ? `(${p.status === 'active_build' ? 'Active Build' : p.status.replace('_', ' ')})` : ''}
+                          </option>
                         ))}
                       </select>
                     </div>

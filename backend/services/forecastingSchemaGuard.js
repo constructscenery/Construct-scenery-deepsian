@@ -87,6 +87,22 @@ async function ensureForecastingTables() {
         row_total_cost NUMERIC(12,2) DEFAULT 0,
         sort_order INT DEFAULT 0
       );
+
+      CREATE TABLE IF NOT EXISTS weekly_custom_estimates (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        production_id UUID REFERENCES productions(id) ON DELETE SET NULL,
+        title VARCHAR(255) NOT NULL,
+        num_weeks INT NOT NULL DEFAULT 3,
+        start_date DATE,
+        margin_enabled BOOLEAN DEFAULT true,
+        margin_percentage NUMERIC(5,2) DEFAULT 10.00,
+        weeks_config JSONB NOT NULL DEFAULT '[]',
+        summary_totals JSONB NOT NULL DEFAULT '{}',
+        notes TEXT,
+        created_by UUID REFERENCES users(id),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
     `);
     console.log('✅ Schema guard: Forecasting Addendum 4 tables ensured');
   } catch (err) {

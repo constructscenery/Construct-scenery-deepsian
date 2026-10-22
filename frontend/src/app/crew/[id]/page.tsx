@@ -7,13 +7,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   ArrowLeft, Pencil, Trash2, Upload, FileText, X, Loader2,
   Building2, CreditCard, Phone, Calendar, Link2, CheckCircle2,
-  Clock, AlertCircle, Plus, ChevronDown, Check,
+  Clock, AlertCircle, Plus, ChevronDown, Check, Receipt,
 } from 'lucide-react';
 import {
   crewApi, productionsApi, crewRatesApi,
   CrewDetail, CrewDocument, CrewProductionHistory, CrewRate,
   Production, EmploymentStatus, CrewAvailabilityStatus,
 } from '@/lib/api';
+import CrewEarningsReportModal from '@/components/crew/CrewEarningsReportModal';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -479,6 +480,7 @@ export default function CrewDetailPage() {
 
   const [showEdit, setShowEdit]       = useState(false);
   const [showLink, setShowLink]       = useState(false);
+  const [showEarningsModal, setShowEarningsModal] = useState(false);
   const [uploadContext, setUploadContext] = useState<'crew_identity' | 'crew_contract' | null>(null);
   const [deletingDoc, setDeletingDoc] = useState<string | null>(null);
   const [updatingAvailability, setUpdatingAvailability] = useState(false);
@@ -563,6 +565,13 @@ export default function CrewDetailPage() {
           onUploaded={() => { setUploadContext(null); load(); }}
         />
       )}
+      {showEarningsModal && m && (
+        <CrewEarningsReportModal
+          crewMember={m}
+          productions={productions}
+          onClose={() => setShowEarningsModal(false)}
+        />
+      )}
 
       <TopBar
         title={loading ? 'Loading…' : `${m?.first_name ?? ''} ${m?.last_name ?? ''}`}
@@ -580,15 +589,27 @@ export default function CrewDetailPage() {
             <ArrowLeft size={15} />
             Back to Crew
           </button>
-          {canEdit && m && (
-            <button
-              onClick={() => setShowEdit(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
-            >
-              <Pencil size={14} />
-              Edit Profile
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {m && (
+              <button
+                onClick={() => setShowEarningsModal(true)}
+                className="flex items-center gap-2 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-sm font-bold rounded-lg shadow-sm transition-colors"
+                title="Search earnings between dates, view breakdown, and send branded statement"
+              >
+                <Receipt size={15} />
+                Earnings Report
+              </button>
+            )}
+            {canEdit && m && (
+              <button
+                onClick={() => setShowEdit(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+              >
+                <Pencil size={14} />
+                Edit Profile
+              </button>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -910,9 +931,18 @@ export default function CrewDetailPage() {
             {/* Timesheet History */}
             {m.timesheet_history.length > 0 && (
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-4 border-b border-slate-100">
-                  <h3 className="text-slate-900 font-semibold text-sm">Timesheet History</h3>
-                  <p className="text-slate-400 text-xs mt-0.5">{m.timesheet_history.length} timesheet{m.timesheet_history.length !== 1 ? 's' : ''} on record</p>
+                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-slate-900 font-semibold text-sm">Timesheet History</h3>
+                    <p className="text-slate-400 text-xs mt-0.5">{m.timesheet_history.length} timesheet{m.timesheet_history.length !== 1 ? 's' : ''} on record</p>
+                  </div>
+                  <button
+                    onClick={() => setShowEarningsModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-semibold transition-colors"
+                  >
+                    <Receipt size={13} />
+                    Run Earnings Report
+                  </button>
                 </div>
                 <div className="divide-y divide-slate-100">
                   {m.timesheet_history.map(ts => {
