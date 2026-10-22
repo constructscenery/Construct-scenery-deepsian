@@ -561,6 +561,9 @@ export type PurchaseOrder = {
   // joined
   prod_name?: string;
   prod_status?: string;
+  supplier_phone?: string | null;
+  supplier_contact_name?: string | null;
+  created_by_name?: string | null;
 };
 
 export const purchaseOrdersApi = {

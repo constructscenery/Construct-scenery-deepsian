@@ -13,98 +13,245 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-dig
 
 const generatePoPdf = (po, productionName) => {
   return new Promise((resolve, reject) => {
-    const doc    = new PDFDocument({ margin: 50, size: 'A4' });
+    const doc    = new PDFDocument({
+      margins: { top: 36, bottom: 20, left: 40, right: 40 },
+      size: 'A4',
+      bufferPages: true,
+    });
     const chunks = [];
 
     doc.on('data',  (c) => chunks.push(c));
     doc.on('end',   ()  => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
+    const L = 40;
+    const R = 555;
+    const W = 515;
+
     // ── Header ──────────────────────────────────────────────────────────────────
-    try { doc.image(LOGO_PATH, 50, 44, { width: 34, height: 34 }); } catch (e) { console.error('PO PDF logo load failed:', e.message); }
-    doc.fontSize(18).font('Helvetica-Bold').fillColor('#0f172a').text('Construct Scenery', 90, 50);
-    doc.fontSize(9).font('Helvetica').fillColor('#64748b')
-       .text('Construct Scenery Limited', 90, 72)
-       .text('info@constructscenery.co.uk', 90, 84);
-
-    doc.fontSize(20).font('Helvetica-Bold').fillColor('#0f172a')
-       .text('PURCHASE ORDER', 350, 50, { align: 'right' });
-    doc.fontSize(11).font('Helvetica').fillColor('#475569')
-       .text(`PO Number: ${po.po_number}`, 350, 78, { align: 'right' })
-       .text(`Date: ${fmtDate(po.date_of_po)}`, 350, 93, { align: 'right' });
-
-    doc.moveTo(50, 120).lineTo(545, 120).strokeColor('#e2e8f0').lineWidth(1).stroke();
-
-    // ── Supplier & Production ────────────────────────────────────────────────────
-    let y = 135;
-    doc.fontSize(9).font('Helvetica-Bold').fillColor('#64748b').text('SUPPLIER', 50, y);
-    doc.fontSize(10).font('Helvetica').fillColor('#0f172a')
-       .text(po.supplier_name || '—', 50, y + 14);
-    if (po.supplier_address) {
-      doc.fontSize(9).fillColor('#475569').text(po.supplier_address, 50, y + 28, { width: 220 });
+    try {
+      doc.image(LOGO_PATH, L, 40, { width: 42, height: 42 });
+    } catch (e) {
+      console.error('PO PDF logo load failed:', e.message);
     }
 
-    doc.fontSize(9).font('Helvetica-Bold').fillColor('#64748b').text('PRODUCTION', 350, y, { align: 'right', width: 195 });
-    doc.fontSize(10).font('Helvetica').fillColor('#0f172a')
-       .text(productionName || '—', 350, y + 14, { align: 'right', width: 195 });
+    // Company Info (Left)
+    doc.fontSize(16).font('Helvetica-Bold').fillColor('#0f172a').text('Construct Scenery', L + 50, 40);
+    doc.fontSize(8.5).font('Helvetica').fillColor('#64748b')
+       .text('Construct Scenery Limited', L + 50, 58)
+       .text('Unit 4C Canal Wharf, Station Road, Langley, SL3 6EG', L + 50, 70)
+       .text('General: info@constructscenery.co.uk  ·  Invoices: invoice@constructscenery.co.uk', L + 50, 82);
 
-    // ── PO Details table ─────────────────────────────────────────────────────────
-    y = 210;
-    const col = [50, 200, 350, 450];
-    doc.rect(50, y, 495, 20).fill('#f8fafc');
-    doc.fontSize(8).font('Helvetica-Bold').fillColor('#475569')
-       .text('Set Code',     col[0], y + 6)
-       .text('Account Code', col[1], y + 6)
-       .text('Paid From',    col[2], y + 6);
+    // Document Meta (Right)
+    doc.fontSize(18).font('Helvetica-Bold').fillColor('#0f172a')
+       .text('PURCHASE ORDER', 320, 40, { align: 'right', width: 235 });
 
-    y += 20;
-    doc.fontSize(9).font('Helvetica').fillColor('#0f172a')
-       .text(po.set_code     || '—', col[0], y + 5)
-       .text(po.account_code || '—', col[1], y + 5)
-       .text((po.paid_from || '—').replace(/_/g, ' '), col[2], y + 5);
+    doc.fontSize(10).font('Helvetica-Bold').fillColor('#2563eb')
+       .text(`PO Number: ${po.po_number}`, 320, 62, { align: 'right', width: 235 });
 
-    // ── Description ──────────────────────────────────────────────────────────────
-    y += 35;
-    doc.fontSize(8).font('Helvetica-Bold').fillColor('#64748b').text('TITLE', 50, y);
-    doc.fontSize(8).font('Helvetica-Bold').fillColor('#64748b').text('DESCRIPTION', 250, y);
-    y += 13;
-    doc.fontSize(9).font('Helvetica').fillColor('#0f172a')
-       .text(po.title || '—', 50, y, { width: 190 })
-       .text(po.description || '—', 250, y, { width: 295 });
+    doc.fontSize(8.5).font('Helvetica').fillColor('#475569')
+       .text(`Date: ${fmtDate(po.date_of_po)}`, 320, 76, { align: 'right', width: 235 })
+       .text(`Status: ${(po.status || 'draft').toUpperCase()}`, 320, 88, { align: 'right', width: 235 });
 
-    // ── Financials ───────────────────────────────────────────────────────────────
-    y = doc.y + 20;
-    doc.moveTo(50, y).lineTo(545, y).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
-    y += 10;
+    // Header Divider
+    doc.moveTo(L, 102).lineTo(R, 102).strokeColor('#cbd5e1').lineWidth(1).stroke();
 
-    const right = 495;
-    const labelX = 380;
-    const valueX = 495;
+    // ── Two Columns: Supplier vs Invoice & Delivery ─────────────────────────────
+    const boxY   = 112;
+    const boxW   = 250;
+    const boxPad = 10;
 
-    const row = (label, value, bold = false) => {
-      doc.fontSize(9)
-         .font(bold ? 'Helvetica-Bold' : 'Helvetica')
-         .fillColor('#475569')
-         .text(label, labelX, y, { width: 100 });
-      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica')
-         .fillColor('#0f172a')
-         .text(value, valueX, y, { align: 'right', width: 50 });
-      y += 16;
+    // Build supplier address and contact lines
+    const supLines = [];
+    if (po.supplier_contact_name) supLines.push(`Attn: ${po.supplier_contact_name}`);
+    if (po.street_name) {
+      supLines.push(po.street_name);
+    } else if (po.supplier_address) {
+      supLines.push(po.supplier_address);
+    }
+
+    const cityCounty = [po.city, po.county].filter(Boolean).join(', ');
+    if (cityCounty) supLines.push(cityCounty);
+    if (po.zip_code) supLines.push(po.zip_code);
+    if (po.supplier_phone || po.phone) supLines.push(`Tel: ${po.supplier_phone || po.phone}`);
+    if (po.supplier_email || po.email) supLines.push(`Email: ${po.supplier_email || po.email}`);
+    if (po.supplier_account_number || po.supplier_code || po.account_number) {
+      supLines.push(`Account Ref: ${po.supplier_account_number || po.supplier_code || po.account_number}`);
+    }
+
+    // Dynamic box height based on address lines
+    const leftContentH  = 24 + (Math.max(supLines.length, 1) * 12);
+    const rightContentH = 24 + (5 * 12);
+    const boxH          = Math.max(leftContentH, rightContentH, 95) + 14;
+
+    // Left Box - Vendor / Supplier
+    doc.roundedRect(L, boxY, boxW, boxH, 4).fillAndStroke('#f8fafc', '#e2e8f0');
+    doc.fontSize(8).font('Helvetica-Bold').fillColor('#64748b')
+       .text('VENDOR / SUPPLIER', L + boxPad, boxY + boxPad);
+    doc.fontSize(9.5).font('Helvetica-Bold').fillColor('#0f172a')
+       .text(po.supplier_name || '—', L + boxPad, boxY + boxPad + 13, { width: boxW - (boxPad * 2) });
+
+    let sy = boxY + boxPad + 28;
+    doc.fontSize(8).font('Helvetica').fillColor('#334155');
+    if (supLines.length === 0) {
+      doc.text('No address details on file', L + boxPad, sy);
+    } else {
+      supLines.forEach((line) => {
+        doc.text(line, L + boxPad, sy, { width: boxW - (boxPad * 2) });
+        sy += 12;
+      });
+    }
+
+    // Right Box - Invoice To & Production
+    const rightX = L + W - boxW;
+    doc.roundedRect(rightX, boxY, boxW, boxH, 4).fillAndStroke('#f8fafc', '#e2e8f0');
+    doc.fontSize(8).font('Helvetica-Bold').fillColor('#64748b')
+       .text('INVOICE TO & PRODUCTION', rightX + boxPad, boxY + boxPad);
+    doc.fontSize(9.5).font('Helvetica-Bold').fillColor('#0f172a')
+       .text('Construct Scenery Limited', rightX + boxPad, boxY + boxPad + 13, { width: boxW - (boxPad * 2) });
+
+    const ry = boxY + boxPad + 28;
+    doc.fontSize(8).font('Helvetica').fillColor('#334155')
+       .text('Unit 4C Canal Wharf, Station Road', rightX + boxPad, ry)
+       .text('Langley, Berkshire, SL3 6EG', rightX + boxPad, ry + 12);
+
+    doc.font('Helvetica-Bold').fillColor('#2563eb')
+       .text('Send Invoices: invoice@constructscenery.co.uk', rightX + boxPad, ry + 25);
+
+    doc.font('Helvetica').fillColor('#475569')
+       .text(`Production: ${productionName || '—'}`, rightX + boxPad, ry + 38, { width: boxW - (boxPad * 2) });
+    if (po.created_by_name) {
+      doc.text(`Raised By: ${po.created_by_name}`, rightX + boxPad, ry + 50, { width: boxW - (boxPad * 2) });
+    }
+
+    // ── Order Coding Table ───────────────────────────────────────────────────────
+    let curY = boxY + boxH + 12;
+    doc.roundedRect(L, curY, W, 38, 4).fillAndStroke('#f1f5f9', '#cbd5e1');
+
+    const colW = W / 4;
+    const c1 = L + 12;
+    const c2 = L + colW + 6;
+    const c3 = L + (colW * 2) + 6;
+    const c4 = L + (colW * 3) + 6;
+
+    doc.fontSize(7.5).font('Helvetica-Bold').fillColor('#64748b')
+       .text('SET CODE', c1, curY + 6)
+       .text('ACCOUNT CODE', c2, curY + 6)
+       .text('DEPARTMENT', c3, curY + 6)
+       .text('PAYMENT METHOD', c4, curY + 6);
+
+    doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#0f172a')
+       .text(po.set_code || '—', c1, curY + 19)
+       .text(po.account_code || '—', c2, curY + 19)
+       .text(po.department || '—', c3, curY + 19)
+       .text((po.paid_from || '—').replace(/_/g, ' ').toUpperCase(), c4, curY + 19);
+
+    curY += 50;
+
+    // ── Items / Description Table ───────────────────────────────────────────────
+    doc.rect(L, curY, W, 20).fill('#0f172a');
+    doc.fontSize(8).font('Helvetica-Bold').fillColor('#ffffff')
+       .text('ITEM / DESCRIPTION', L + 12, curY + 6)
+       .text('NET AMOUNT', R - 75, curY + 6, { align: 'right', width: 65 });
+
+    curY += 20;
+
+    const descTopY = curY;
+    doc.fontSize(9).font('Helvetica-Bold').fillColor('#0f172a')
+       .text(po.title || 'Order Line Item', L + 12, curY + 10, { width: 380 });
+
+    const textY = doc.y + 4;
+    if (po.description) {
+      doc.fontSize(8.5).font('Helvetica').fillColor('#334155')
+         .text(po.description, L + 12, textY, { width: 380, lineGap: 2 });
+    }
+
+    const descBottomY = Math.max(doc.y + 12, descTopY + 50);
+
+    // Border around description row
+    doc.rect(L, descTopY, W, descBottomY - descTopY).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
+
+    // Net amount on right of row
+    doc.fontSize(9.5).font('Helvetica-Bold').fillColor('#0f172a')
+       .text(fmt(po.net_amount), R - 75, descTopY + 10, { align: 'right', width: 65 });
+
+    curY = descBottomY + 10;
+
+    // ── Financial Summary Box ───────────────────────────────────────────────────
+    const sumW = 200;
+    const sumX = R - sumW;
+    let sumY = curY;
+
+    const row = (label, val, bold = false, isTotal = false) => {
+      if (isTotal) {
+        doc.rect(sumX, sumY, sumW, 24).fill('#0f172a');
+        doc.fontSize(9).font('Helvetica-Bold').fillColor('#ffffff')
+           .text(label, sumX + 10, sumY + 7);
+        doc.fontSize(10).font('Helvetica-Bold').fillColor('#ffffff')
+           .text(val, sumX + 100, sumY + 7, { align: 'right', width: 90 });
+        sumY += 24;
+      } else {
+        doc.fontSize(8.5).font(bold ? 'Helvetica-Bold' : 'Helvetica').fillColor('#475569')
+           .text(label, sumX + 10, sumY + 4);
+        doc.fontSize(8.5).font(bold ? 'Helvetica-Bold' : 'Helvetica').fillColor('#0f172a')
+           .text(val, sumX + 100, sumY + 4, { align: 'right', width: 90 });
+        sumY += 16;
+      }
     };
 
-    row('Net Amount', fmt(po.net_amount));
-    row('VAT', fmt(po.vat));
-    doc.moveTo(labelX, y - 2).lineTo(545, y - 2).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
-    row('Gross Amount', fmt(po.gross_amount), true);
+    doc.rect(sumX, sumY, sumW, 36).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
+    row('Net Subtotal:', fmt(po.net_amount));
+    row('VAT (20%):', fmt(po.vat));
+    row('Total Gross:', fmt(po.gross_amount), true, true);
 
-    // ── Footer ───────────────────────────────────────────────────────────────────
-    const footerY = 760;
-    doc.moveTo(50, footerY).lineTo(545, footerY).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
-    doc.fontSize(8).font('Helvetica').fillColor('#94a3b8')
-       .text(
-         `Construct Scenery Limited  ·  Production: ${productionName || '—'}  ·  Please quote ${po.po_number} on all invoices.`,
-         50, footerY + 8, { align: 'center', width: 495 }
-       );
+    curY = sumY + 12;
+
+    // Check if instructions box fits on current page (needs ~68pt before footer line at 788)
+    if (curY + 68 > 780) {
+      doc.addPage();
+      curY = 40;
+    }
+
+    // ── Invoicing Instructions Box ──────────────────────────────────────────────
+    const noteBoxH = 64;
+    const noteBoxY = curY;
+    doc.roundedRect(L, noteBoxY, W, noteBoxH, 4).fillAndStroke('#eff6ff', '#bfdbfe');
+
+    doc.fontSize(8).font('Helvetica-Bold').fillColor('#1e40af')
+       .text('INVOICING INSTRUCTIONS & SUBMISSION', L + 10, noteBoxY + 7, { lineBreak: false });
+
+    let iy = noteBoxY + 20;
+    doc.fontSize(7.5).font('Helvetica').fillColor('#1e3a8a')
+       .text('• Send PDF Invoices To: ', L + 10, iy, { continued: true })
+       .font('Helvetica-Bold').fillColor('#1d4ed8').text('invoice@constructscenery.co.uk', { continued: true })
+       .font('Helvetica').fillColor('#1e3a8a').text(`  |  Mandatory PO Reference: `, { continued: true })
+       .font('Helvetica-Bold').fillColor('#0f172a').text(po.po_number || '—', { lineBreak: false });
+
+    iy += 13;
+    doc.font('Helvetica').fillColor('#1e3a8a')
+       .text('• Invoice Address: Construct Scenery Limited, Unit 4C Canal Wharf, Station Road, Langley, Berkshire, SL3 6EG.', L + 10, iy, { lineBreak: false });
+
+    iy += 13;
+    doc.font('Helvetica').fillColor('#1e3a8a')
+       .text('• Payment Terms: Please ensure company bank details (sort code & account number) and VAT number are stated on all invoices.', L + 10, iy, { lineBreak: false });
+
+    // ── Footers on all pages ────────────────────────────────────────────────────
+    const range = doc.bufferedPageRange();
+    for (let i = range.start; i < range.start + range.count; i++) {
+      doc.switchToPage(i);
+      const footerY = 788;
+      doc.moveTo(L, footerY).lineTo(R, footerY).strokeColor('#cbd5e1').lineWidth(0.5).stroke();
+      doc.fontSize(7.5).font('Helvetica').fillColor('#94a3b8')
+         .text(
+           'Construct Scenery Limited  ·  Unit 4C Canal Wharf, Station Road, Langley, SL3 6EG  ·  invoice@constructscenery.co.uk',
+           L, footerY + 5, { align: 'left', width: W - 70, lineBreak: false }
+         );
+      doc.fontSize(7.5).font('Helvetica').fillColor('#94a3b8')
+         .text(
+           `Page ${i + 1} of ${range.count}`,
+           R - 65, footerY + 5, { align: 'right', width: 65, lineBreak: false }
+         );
+    }
 
     doc.end();
   });

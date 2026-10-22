@@ -3134,7 +3134,21 @@ export default function PurchaseOrdersPage() {
                 <div>
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Supplier</p>
                   <p className="font-medium text-slate-900 mt-1">{viewFullPO.supplier_name}</p>
-                  {viewFullPO.supplier_address && <p className="text-xs text-slate-500">{viewFullPO.supplier_address}</p>}
+                  {([
+                    viewFullPO.supplier_address || viewFullPO.street_name,
+                    [viewFullPO.city, viewFullPO.county].filter(Boolean).join(', '),
+                    viewFullPO.zip_code
+                  ].filter(Boolean).length > 0) && (
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {[
+                        viewFullPO.supplier_address || viewFullPO.street_name,
+                        [viewFullPO.city, viewFullPO.county].filter(Boolean).join(', '),
+                        viewFullPO.zip_code
+                      ].filter(Boolean).join(', ')}
+                    </p>
+                  )}
+                  {viewFullPO.supplier_email && <p className="text-xs text-slate-500 mt-0.5">✉ {viewFullPO.supplier_email}</p>}
+                  {viewFullPO.supplier_phone && <p className="text-xs text-slate-500 mt-0.5">☎ {viewFullPO.supplier_phone}</p>}
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Coding</p>
@@ -3149,8 +3163,31 @@ export default function PurchaseOrdersPage() {
                   <p className="text-xs mt-1">Paid From: {PAID_FROM_LABEL[viewFullPO.paid_from] || viewFullPO.paid_from}</p>
                 </div>
               </div>
+
+              <div className="mt-4 p-3.5 bg-blue-50/70 border border-blue-100 rounded-xl text-xs text-blue-900">
+                <p className="font-semibold text-blue-950 mb-1">Invoice Submission Information</p>
+                <p className="text-blue-800">
+                  Send PDF invoices to <strong className="text-blue-950 font-mono">invoice@constructscenery.co.uk</strong> quoting PO <strong className="text-blue-950 font-mono">{viewFullPO.po_number}</strong>.
+                </p>
+                <p className="text-blue-700 mt-0.5">
+                  Addressed to: Construct Scenery Limited, Unit 4C Canal Wharf, Station Road, Langley, SL3 6EG
+                </p>
+              </div>
             </div>
-            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
+              <button 
+                type="button"
+                onClick={async () => {
+                  try {
+                    await purchaseOrdersApi.downloadPdf(viewFullPO.id, viewFullPO.po_number);
+                  } catch (err) {
+                    console.error('Download PDF failed:', err);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
+              >
+                <Download size={14} className="text-slate-500" /> Download PDF
+              </button>
               <button onClick={() => setViewFullPO(null)} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-white transition-colors">
                 Close
               </button>

@@ -302,14 +302,42 @@ const createPO = async (req, res) => {
   }
 };
 
+// ─── Shared SQL: Enriched PO with full supplier and creator details ──────────
+const ENRICHED_PO_SELECT = `
+  SELECT 
+    po.*, 
+    p.id AS prod_id,
+    p.name AS prod_name,
+    p.status AS prod_status,
+    COALESCE(po.supplier_name, s.name) AS supplier_name,
+    COALESCE(po.supplier_email, s.email) AS supplier_email,
+    COALESCE(po.street_name, s.street_name) AS street_name,
+    COALESCE(po.city, s.city) AS city,
+    COALESCE(po.county, s.county) AS county,
+    COALESCE(po.zip_code, s.zip_code) AS zip_code,
+    COALESCE(po.supplier_address, CONCAT_WS(', ', NULLIF(COALESCE(po.street_name, s.street_name), ''), NULLIF(COALESCE(po.city, s.city), ''), NULLIF(COALESCE(po.county, s.county), ''), NULLIF(COALESCE(po.zip_code, s.zip_code), ''))) AS supplier_address,
+    s.phone AS supplier_phone,
+    s.primary_contact_name AS supplier_contact_name,
+    s.account_number AS supplier_account_number,
+    u.full_name AS created_by_name
+  FROM purchase_orders po
+  JOIN productions p ON po.production_id = p.id
+  LEFT JOIN users u ON po.created_by = u.id
+  LEFT JOIN LATERAL (
+    SELECT s.*
+    FROM suppliers s
+    WHERE (po.supplier_id IS NOT NULL AND s.id = po.supplier_id)
+       OR (po.supplier_id IS NULL AND LOWER(BTRIM(po.supplier_name)) = LOWER(BTRIM(s.name)))
+    ORDER BY (s.id = po.supplier_id) DESC, s.id
+    LIMIT 1
+  ) s ON TRUE
+`;
+
 // ─── GET /api/purchase-orders/:id ────────────────────────────────────────────
 const getPOById = async (req, res) => {
   try {
     const { rows } = await db.query(
-      `SELECT po.*, p.id AS prod_id, p.name AS prod_name
-       FROM   purchase_orders po
-       JOIN   productions p ON po.production_id = p.id
-       WHERE  po.id = $1`,
+      `${ENRICHED_PO_SELECT} WHERE po.id = $1`,
       [req.params.id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Purchase order not found' });
@@ -366,10 +394,7 @@ const issuePO = async (req, res) => {
     await client.query('BEGIN');
 
     const { rows: [po] } = await client.query(
-      `SELECT po.*, p.name AS prod_name
-       FROM purchase_orders po
-       JOIN productions p ON po.production_id = p.id
-       WHERE po.id = $1`,
+      `${ENRICHED_PO_SELECT} WHERE po.id = $1`,
       [req.params.id]
     );
     if (!po)                     { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Purchase order not found' }); }
@@ -414,10 +439,7 @@ const submitPO = async (req, res) => {
     await client.query('BEGIN');
 
     const { rows: [po] } = await client.query(
-      `SELECT po.*, p.name AS prod_name
-       FROM purchase_orders po
-       JOIN productions p ON po.production_id = p.id
-       WHERE po.id = $1`,
+      `${ENRICHED_PO_SELECT} WHERE po.id = $1`,
       [req.params.id]
     );
     if (!po)                    { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Purchase order not found' }); }
@@ -727,10 +749,7 @@ const downloadConfirmation = async (req, res) => {
 const downloadPdf = async (req, res) => {
   try {
     const { rows: [po] } = await db.query(
-      `SELECT po.*, p.name AS prod_name
-       FROM purchase_orders po
-       JOIN productions p ON po.production_id = p.id
-       WHERE po.id = $1`,
+      `${ENRICHED_PO_SELECT} WHERE po.id = $1`,
       [req.params.id]
     );
     if (!po) return res.status(404).json({ error: 'Purchase order not found' });

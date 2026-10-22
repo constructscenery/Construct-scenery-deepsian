@@ -66,34 +66,70 @@ const templates = {
   /**
    * PO issued to supplier (triggered by POST /api/purchase-orders/:id/issue)
    */
-  poIssued: (po, productionName) => ({
-    subject: `Purchase Order ${po.po_number} — Construct Scenery Limited`,
-    html: `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-        <div style="background:#0f172a;padding:20px 24px;margin-bottom:24px">
-          <span style="color:#fff;font-size:20px;font-weight:700;letter-spacing:1px">Construct Scenery</span>
-          <span style="color:#94a3b8;font-size:12px;margin-left:12px">Construct Scenery Limited</span>
+  poIssued: (po, productionName) => {
+    const supplierAddress = [
+      po.supplier_address || po.street_name,
+      [po.city, po.county].filter(Boolean).join(', '),
+      po.zip_code
+    ].filter(Boolean).join(', ');
+
+    return {
+      subject: `Purchase Order ${po.po_number} — Construct Scenery Limited`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#0f172a;line-height:1.5">
+          <div style="background:#0f172a;padding:20px 24px;border-radius:6px 6px 0 0">
+            <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:1px">Construct Scenery</span>
+            <span style="color:#94a3b8;font-size:12px;margin-left:12px">Construct Scenery Limited</span>
+          </div>
+          <div style="border:1px solid #e2e8f0;border-top:none;padding:24px;background:#ffffff;border-radius:0 0 6px 6px">
+            <h2 style="color:#0f172a;margin:0 0 6px;font-size:20px">Purchase Order: ${po.po_number}</h2>
+            <p style="color:#64748b;margin:0 0 18px;font-size:13px">Production: <strong>${productionName || '—'}</strong></p>
+            
+            <p>Dear ${po.supplier_contact_name || po.supplier_name},</p>
+            <p>Please find attached Purchase Order <strong>${po.po_number}</strong> issued by <strong>Construct Scenery Limited</strong>.</p>
+            
+            <table style="width:100%;border-collapse:collapse;margin:18px 0;font-size:13px">
+              <tr style="background:#f8fafc"><td style="padding:8px 12px;border:1px solid #e2e8f0;width:35%"><strong>PO Number</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>${po.po_number}</strong></td></tr>
+              <tr><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>Date of PO</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">${po.date_of_po || '—'}</td></tr>
+              <tr style="background:#f8fafc"><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>Supplier</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">${po.supplier_name}${supplierAddress ? `<br/><span style="color:#64748b;font-size:12px">${supplierAddress}</span>` : ''}</td></tr>
+              <tr><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>Production</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">${productionName || '—'}</td></tr>
+              ${po.title ? `<tr style="background:#f8fafc"><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>Title</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">${po.title}</td></tr>` : ''}
+              <tr><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>Description</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">${po.description || '—'}</td></tr>
+              <tr style="background:#f8fafc"><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>Net Amount</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">£${parseFloat(po.net_amount || 0).toFixed(2)}</td></tr>
+              <tr><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>VAT</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">£${parseFloat(po.vat || 0).toFixed(2)}</td></tr>
+              <tr style="background:#0f172a;color:#ffffff"><td style="padding:10px 12px;border:1px solid #0f172a"><strong>Gross Amount</strong></td><td style="padding:10px 12px;border:1px solid #0f172a"><strong>£${parseFloat(po.gross_amount || 0).toFixed(2)}</strong></td></tr>
+            </table>
+
+            <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:16px;margin:20px 0">
+              <h4 style="margin:0 0 8px;color:#1e40af;font-size:14px">Invoice Submission Instructions</h4>
+              <p style="margin:0 0 6px;font-size:12px;color:#1e3a8a">
+                • Please email all PDF invoices and credit notes to: <a href="mailto:invoice@constructscenery.co.uk" style="color:#2563eb;font-weight:bold">invoice@constructscenery.co.uk</a>
+              </p>
+              <p style="margin:0 0 6px;font-size:12px;color:#1e3a8a">
+                • <strong>Mandatory Reference:</strong> Please ensure the PO number <strong>${po.po_number}</strong> is clearly quoted on all invoices and delivery notes.
+              </p>
+              <p style="margin:0 0 6px;font-size:12px;color:#1e3a8a">
+                • <strong>Invoice To:</strong><br/>
+                Construct Scenery Limited<br/>
+                Unit 4C Canal Wharf, Station Road<br/>
+                Langley, Berkshire, SL3 6EG
+              </p>
+              <p style="margin:0;font-size:12px;color:#1e3a8a">
+                • Please ensure complete company bank details (sort code & account number) and VAT registration number are included on every invoice.
+              </p>
+            </div>
+
+            <p style="font-size:13px;color:#64748b;margin-top:24px">
+              Regards,<br/>
+              <strong>Construct Scenery Limited</strong><br/>
+              Unit 4C Canal Wharf, Station Road, Langley, SL3 6EG<br/>
+              Invoicing: <a href="mailto:invoice@constructscenery.co.uk" style="color:#2563eb">invoice@constructscenery.co.uk</a> &nbsp;·&nbsp; General: <a href="mailto:info@constructscenery.co.uk" style="color:#2563eb">info@constructscenery.co.uk</a>
+            </p>
+          </div>
         </div>
-        <h2 style="color:#0f172a;margin:0 0 4px">Purchase Order: ${po.po_number}</h2>
-        <p style="color:#64748b;margin:0 0 20px">Production: <strong>${productionName || '—'}</strong></p>
-        <p>Dear ${po.supplier_name},</p>
-        <p>Please find attached a purchase order issued by <strong>Construct Scenery Limited</strong>.</p>
-        <table style="width:100%;border-collapse:collapse;margin:16px 0">
-          <tr style="background:#f8fafc"><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>PO Number</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">${po.po_number}</td></tr>
-          <tr><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>Date</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">${po.date_of_po}</td></tr>
-          <tr style="background:#f8fafc"><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>Production</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">${productionName || '—'}</td></tr>
-          <tr><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>Description</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">${po.description || '—'}</td></tr>
-          <tr style="background:#f8fafc"><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>Net Amount</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">£${parseFloat(po.net_amount).toFixed(2)}</td></tr>
-          <tr><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>VAT</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">£${parseFloat(po.vat || 0).toFixed(2)}</td></tr>
-          <tr style="background:#f8fafc"><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>Gross Amount</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0"><strong>£${parseFloat(po.gross_amount).toFixed(2)}</strong></td></tr>
-        </table>
-        <p>Please confirm receipt of this order and supply the goods/services as specified.</p>
-        <p>When invoicing, please quote the PO number <strong>${po.po_number}</strong> on your invoice.</p>
-        <br/>
-        <p style="color:#666">Regards,<br/><strong>Construct Scenery Limited</strong><br/>warren@constructscenery.co.uk</p>
-      </div>
-    `,
-  }),
+      `,
+    };
+  },
 
   /**
    * Timesheet distributed to crew member.
