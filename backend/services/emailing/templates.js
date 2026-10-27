@@ -16,22 +16,6 @@ const { formatUkDate } = require('./dates');
 
 const DEFAULT_TEMPLATES = [
   {
-    template_key: 'invoice_request_default',
-    name: 'Invoice request',
-    message_type: MESSAGE_TYPES.INVOICE_REQUEST,
-    subject: 'Invoice required — week ending {{week_ending}} ({{production_name}})',
-    body: `Hi {{first_name}},
-
-Your timesheet for {{production_name}} for the week ending {{week_ending}} has been approved. Please upload your invoice for this week{{amount_sentence}}.
-
-Quote your crew number {{crew_number}} on the invoice. You can upload a PDF, JPEG or PNG using the button below.
-
-{{action_button}}
-
-Thanks,
-Construct Scenery`,
-  },
-  {
     template_key: 'availability_poll_default',
     name: 'Availability request',
     message_type: MESSAGE_TYPES.AVAILABILITY_POLL,
@@ -119,7 +103,6 @@ const MERGE_FIELDS = [
   { key: 'crew_number', label: 'Crew number' },
   { key: 'production_name', label: 'Production' },
   { key: 'week_ending', label: 'Week ending (e.g. 12 Oct 2026)' },
-  { key: 'amount_sentence', label: 'Invoice amount sentence (invoice requests)' },
   { key: 'poll_title', label: 'Availability title' },
   { key: 'poll_dates', label: 'Availability dates' },
   { key: 'poll_message', label: 'Availability message' },
@@ -131,7 +114,6 @@ const MERGE_FIELDS = [
 ];
 
 const ACTION_LABELS = {
-  [MESSAGE_TYPES.INVOICE_REQUEST]:     'Upload invoice',
   [MESSAGE_TYPES.AVAILABILITY_POLL]:   'Confirm availability',
   [MESSAGE_TYPES.SUBMISSION_RETURNED]: 'Update and resubmit',
   [MESSAGE_TYPES.MANUAL]:              'Open crew portal',

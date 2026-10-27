@@ -54,9 +54,7 @@ function start(cron) {
     }
   }, { timezone: 'Europe/London' });
 
-  schedule('0 10 * * 2', 'invoice_requests');
-
-  console.log('✅ Cron: crew emailing queue (every minute) + reminder automations (Europe/London) scheduled');
+  console.log('✅ Cron: crew emailing queue (every minute) scheduled');
 }
 
 module.exports = { start };

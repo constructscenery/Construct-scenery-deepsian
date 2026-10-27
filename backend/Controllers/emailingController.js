@@ -125,7 +125,7 @@ const getProviderStatus = handle(async (_req, res) => res.json(await ses.getProv
 const listTemplates = handle(async (req, res) => {
   await templatesSvc.ensureDefaultTemplates();
   const params = [];
-  const clauses = ["t.message_type != 'timesheet_reminder'"];
+  const clauses = ["t.message_type NOT IN ('timesheet_reminder', 'invoice_request')"];
   if (req.query.message_type) {
     params.push(req.query.message_type);
     clauses.push(`t.message_type = $${params.length}`);
@@ -141,7 +141,7 @@ const listTemplates = handle(async (req, res) => {
   res.json({ templates: rows, merge_fields: templatesSvc.MERGE_FIELDS });
 });
 
-const ALL_TEMPLATE_TYPES = Object.values(MESSAGE_TYPES).filter((t) => t !== MESSAGE_TYPES.TIMESHEET_REMINDER);
+const ALL_TEMPLATE_TYPES = Object.values(MESSAGE_TYPES).filter((t) => t !== MESSAGE_TYPES.TIMESHEET_REMINDER && t !== MESSAGE_TYPES.INVOICE_REQUEST);
 function validateTemplateInput(body, { partial = false } = {}) {
   const out = {};
   if (!partial || body.name !== undefined) {
@@ -234,14 +234,11 @@ const getRecipientGroup = handle(async (req, res) => {
   const productionId = req.query.production_id && isUuid(req.query.production_id) ? req.query.production_id : null;
   const policy = await settingsSvc.getSendPolicy();
   let rows;
-  if (group === 'invoice_missing') {
-    if (req.query.week_ending_date && !isSunday(req.query.week_ending_date)) throw badRequest('week_ending_date must be a Sunday (YYYY-MM-DD)');
-    rows = await recipientsSvc.invoiceMissing({ weekEndingDate: req.query.week_ending_date || null, productionId });
-  } else if (group === 'poll_non_responders') {
+  if (group === 'poll_non_responders') {
     requireUuid(req.query.poll_id, 'poll_id');
     rows = await recipientsSvc.pollNonResponders(req.query.poll_id);
   } else {
-    throw badRequest('group must be invoice_missing or poll_non_responders');
+    throw badRequest('group must be poll_non_responders');
   }
   res.json(rows.map((c) => ({ ...c, ...recipientsSvc.eligibility(c, policy) })));
 });

@@ -15,7 +15,6 @@ const { loadCrewByIds, eligibility } = require('./recipients');
 const { isSunday } = require('./dates');
 
 const DEFAULT_KEY_BY_TYPE = {
-  [MESSAGE_TYPES.INVOICE_REQUEST]:     'invoice_request_default',
   [MESSAGE_TYPES.AVAILABILITY_POLL]:   'availability_poll_default',
   [MESSAGE_TYPES.MANUAL]:              'manual_default',
   [MESSAGE_TYPES.SUBMISSION_APPROVED]: 'submission_approved_default',
@@ -59,12 +58,10 @@ async function loadPoll(pollId) {
 /** Portal deep link (with token marker) for a message type. */
 function actionUrlFor(messageType, { productionId, weekEndingDate, pollId, tab }) {
   switch (messageType) {
-    case MESSAGE_TYPES.INVOICE_REQUEST:
-      return portalUrl({ tab: 'invoices', production: productionId, week: weekEndingDate });
     case MESSAGE_TYPES.AVAILABILITY_POLL:
       return portalUrl({ tab: 'availability', poll: pollId });
     case MESSAGE_TYPES.SUBMISSION_RETURNED:
-      return portalUrl({ tab: tab || 'timesheet', production: productionId, week: weekEndingDate });
+      return portalUrl({ tab: tab || 'timesheet', productionId, week: weekEndingDate });
     case MESSAGE_TYPES.MANUAL:
       return portalUrl({});
     default:
@@ -78,10 +75,6 @@ function validateSendRequest({ messageType, recipients, pollId }) {
   if (recipients.length > 500) throw badRequest('A single send is limited to 500 recipients');
   for (const r of recipients) {
     if (!r || !r.crewMemberId) throw badRequest('Each recipient needs a crew_member_id');
-    if (messageType === MESSAGE_TYPES.INVOICE_REQUEST) {
-      if (!r.productionId) throw badRequest('Invoice requests need a production for each recipient');
-      if (!isSunday(r.weekEndingDate)) throw badRequest('week_ending_date must be a Sunday (YYYY-MM-DD)');
-    }
   }
   if (messageType === MESSAGE_TYPES.AVAILABILITY_POLL && !pollId) throw badRequest('poll_id is required for availability requests');
 }

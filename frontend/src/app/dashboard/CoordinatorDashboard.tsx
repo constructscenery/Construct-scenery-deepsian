@@ -1,11 +1,11 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
 import {
   Clapperboard, ShoppingCart, Users, ArrowUpRight,
-  CheckCircle2, Clock, AlertCircle, Layers, Loader2,
+  CheckCircle2, Clock, AlertCircle, Layers, Loader2, Paperclip,
 } from 'lucide-react';
 import {
   dashboardApi, purchaseOrdersApi,
@@ -239,7 +239,23 @@ export default function CoordinatorDashboard() {
                     <div key={po.id} className="px-5 py-3.5 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                       <div className="min-w-0">
                         <p className="text-slate-800 text-sm font-medium truncate">{po.supplier_name}</p>
-                        <p className="text-slate-400 text-xs">{po.po_number} · {po.prod_name}</p>
+                        <p className="text-slate-400 text-xs flex items-center gap-1.5">
+                          <span>{po.po_number} · {po.prod_name}</span>
+                          {Boolean(po.confirmation_attachment_url || po.invoice_attachment_url) && (
+                            <span
+                              title={
+                                po.confirmation_attachment_url && po.invoice_attachment_url
+                                  ? 'Pro Forma & Invoice attached'
+                                  : po.confirmation_attachment_url
+                                    ? 'Pro Forma / Order Confirmation attached'
+                                    : 'Invoice attached'
+                              }
+                              className="inline-flex items-center text-blue-600"
+                            >
+                              <Paperclip size={12} className="-rotate-45 shrink-0" />
+                            </span>
+                          )}
+                        </p>
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0 ml-3">
                         <span className="text-slate-900 text-sm font-semibold">{fmtGBP(po.gross_amount)}</span>

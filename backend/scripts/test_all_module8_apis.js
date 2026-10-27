@@ -27,7 +27,7 @@ async function runTestSuite() {
   // 1. Fetch Users to generate valid JWTs
   const { rows: users } = await pool.query(`SELECT id, email, role, full_name, avatar_url FROM users`);
   const mdUser = users.find(u => u.role === 'managing_director') || { id: '00000000-0000-0000-0000-000000000001', email: 'warren@constructscenery.co.uk', role: 'managing_director', full_name: 'Warren Lever' };
-  const coordUser = users.find(u => u.role === 'construction_coordinator') || { id: '00000000-0000-0000-0000-000000000002', email: 'sian@constructscenery.co.uk', role: 'construction_coordinator', full_name: 'Sian Lynn Jones' };
+  const coordUser = users.find(u => u.role === 'construction_coordinator') || { id: '00000000-0000-0000-0000-000000000002', email: 'sian@constructscenery.co.uk', role: 'construction_coordinator', full_name: 'Sian Lyn-Jones' };
   const acctUser = users.find(u => u.role === 'construction_accountant') || { id: '00000000-0000-0000-0000-000000000003', email: 'invoice@constructscenery.co.uk', role: 'construction_accountant', full_name: 'Ben Keville' };
 
   const secret = process.env.JWT_SECRET || 'cshq_super_secret_jwt_key_change_this_in_production_min_64_chars_long';

@@ -138,13 +138,12 @@ type Action = 'approve' | 'return' | 'decline';
 
 function ActionPanel({ kind, selfEmployed, busy, onSubmit, timesheetFinalised }: {
   kind: Kind; selfEmployed: boolean; busy: boolean; timesheetFinalised: boolean;
-  onSubmit: (action: Action, opts: { notes: string; finalise: boolean; notify: boolean; request_invoice: boolean }) => void;
+  onSubmit: (action: Action, opts: { notes: string; finalise: boolean; notify: boolean }) => void;
 }) {
   const [action, setAction] = useState<Action | null>(null);
   const [notes, setNotes] = useState('');
   const [finalise, setFinalise] = useState(false);
   const [notify, setNotify] = useState(true);
-  const [requestInvoice, setRequestInvoice] = useState(true);
 
   if (!action) {
     return (
@@ -171,12 +170,6 @@ function ActionPanel({ kind, selfEmployed, busy, onSubmit, timesheetFinalised }:
           <span>Also finalise (lock for the pay run){selfEmployed && kind === 'timesheets' ? ' — self-employed crew need an invoice attached first, so this will be skipped if none is on file' : ''}</span>
         </label>
       )}
-      {action === 'approve' && kind === 'timesheets' && selfEmployed && (
-        <label className="flex items-start gap-2 text-sm text-slate-700">
-          <input type="checkbox" className="mt-1" checked={requestInvoice} onChange={(e) => setRequestInvoice(e.target.checked)} />
-          <span>Email the crew member an invoice request now</span>
-        </label>
-      )}
       {needsNotes && (
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} /> Email the crew member with these notes
@@ -187,7 +180,7 @@ function ActionPanel({ kind, selfEmployed, busy, onSubmit, timesheetFinalised }:
         <button
           className={action === 'approve' ? btnPrimary : action === 'return' ? btnWarn : btnDanger}
           disabled={busy || (needsNotes && !notes.trim())}
-          onClick={() => onSubmit(action, { notes, finalise, notify, request_invoice: requestInvoice })}
+          onClick={() => onSubmit(action, { notes, finalise, notify })}
         >
           {busy ? 'Saving…' : 'Confirm'}
         </button>
@@ -198,14 +191,12 @@ function ActionPanel({ kind, selfEmployed, busy, onSubmit, timesheetFinalised }:
 
 function ResultNote({ result }: { result: ReviewResult }) {
   const s = result.submission.status;
-  const inv = result.invoice_request && 'queued' in result.invoice_request ? result.invoice_request.queued : 0;
   return (
     <InfoNote tone={s === 'approved' ? 'emerald' : 'amber'}>
       <strong className="capitalize">{s}.</strong>{' '}
       {result.timesheet_id && <>Timesheet {result.timesheet_created ? 'created' : 'updated'} — <Link className="underline" href={`/timesheets/${result.timesheet_id}`}>open in Timesheets</Link>. </>}
       {result.finalise?.finalised && 'Finalised for the pay run. '}
       {result.finalise && !result.finalise.finalised && result.finalise.reason && `Not finalised: ${result.finalise.reason}. `}
-      {inv ? 'Invoice request queued. ' : ''}
       {result.notification && `Crew email: ${result.notification.status}${result.notification.reason ? ` (${result.notification.reason})` : ''}.`}
     </InfoNote>
   );
@@ -222,11 +213,11 @@ function TimesheetReview({ id, readOnly, onClose, onDone }: { id: string; readOn
   }, [id]);
   useEffect(load, [load]);
 
-  const submit = async (action: Action, opts: { notes: string; finalise: boolean; notify: boolean; request_invoice: boolean }) => {
+  const submit = async (action: Action, opts: { notes: string; finalise: boolean; notify: boolean }) => {
     setBusy(true);
     setError('');
     try {
-      const res = await emailingApi.reviewTimesheet(id, action, { notes: opts.notes || undefined, finalise: opts.finalise, notify: opts.notify, request_invoice: opts.request_invoice });
+      const res = await emailingApi.reviewTimesheet(id, action, { notes: opts.notes || undefined, finalise: opts.finalise, notify: opts.notify });
       setResult(res);
       onDone();
       load();

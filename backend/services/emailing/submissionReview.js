@@ -176,34 +176,12 @@ async function approveTimesheet(id, { user, notes, finalise = false, requestInvo
     metadata: { submission_id: id, timesheet_id: timesheet.id, created_timesheet: !!createdTimesheetId, finalised: finaliseResult.finalised },
   });
 
-  // Self-employed crew: ask for the invoice straight away (repeat-safe per timesheet).
-  let invoiceRequest = null;
-  if (requestInvoice && submission.employment_status === 'self_employed' && !finaliseResult.finalised) {
-    const { rows: [ts] } = await db.query('SELECT grand_total, invoice_attachment_url FROM timesheets WHERE id = $1', [timesheet.id]);
-    if (ts && !ts.invoice_attachment_url) {
-      try {
-        invoiceRequest = await sendMessages({
-          messageType: MESSAGE_TYPES.INVOICE_REQUEST,
-          recipients: [{
-            crewMemberId: submission.crew_member_id, productionId: submission.production_id,
-            weekEndingDate: submission.week_ending_date, amount: Number(ts.grand_total || 0),
-            relatedRecordType: 'timesheet', relatedRecordId: timesheet.id,
-          }],
-          userId: user?.id,
-          idempotencyScope: `on-approval-${timesheet.id}`,
-        });
-      } catch (err) {
-        invoiceRequest = { error: err.message };
-      }
-    }
-  }
-
   return {
     submission: updated,
     timesheet_id: timesheet.id,
     timesheet_created: !!createdTimesheetId,
     finalise: finaliseResult,
-    invoice_request: invoiceRequest ? (invoiceRequest.summary || invoiceRequest) : null,
+    invoice_request: null,
   };
 }
 

@@ -10,7 +10,7 @@ import {
 } from '@/lib/emailingApi';
 import { Card, EmailFrame, Empty, ErrorNote, InfoNote, Modal, Spinner, StatusBadge, btnPrimary, btnSecondary, inputCls, labelCls } from './shared';
 
-export type RecipientGroup = 'invoice_missing' | 'poll_non_responders';
+export type RecipientGroup = 'poll_non_responders';
 export type ComposePreset = {
   messageType: SendableMessageType;
   group?: RecipientGroup;
@@ -20,13 +20,11 @@ export type ComposePreset = {
   nonce?: number;
 };
 
-const TYPES: SendableMessageType[] = ['invoice_request', 'availability_poll', 'manual'];
+const TYPES: SendableMessageType[] = ['availability_poll', 'manual'];
 const GROUP_FOR: Partial<Record<SendableMessageType, RecipientGroup>> = {
-  invoice_request: 'invoice_missing',
   availability_poll: 'poll_non_responders',
 };
 const GROUP_LABEL: Record<RecipientGroup, string> = {
-  invoice_missing: 'Self-employed crew with no invoice',
   poll_non_responders: 'Not yet responded to this request',
 };
 
@@ -84,7 +82,6 @@ export default function ComposeTab({ preset, onSent }: { preset: ComposePreset |
   }, [messageType]);
 
   const group = GROUP_FOR[messageType];
-  const needsProductionWeek = messageType === 'invoice_request';
   const useGroup = source === 'group' && !!group;
 
   const loadRows = useCallback(async () => {
@@ -96,9 +93,7 @@ export default function ComposeTab({ preset, onSent }: { preset: ComposePreset |
         if (group === 'poll_non_responders' && !pollId) { setRows([]); return; }
         data = await emailingApi.recipientGroup({
           group,
-          production_id: productionId || undefined,
-          week_ending_date: group === 'poll_non_responders' ? undefined : week,
-          poll_id: group === 'poll_non_responders' ? pollId : undefined,
+          poll_id: pollId || undefined,
         });
         // Preselect everyone who can receive email.
         setSelected(new Map(data.filter((r) => r.eligible).map((r) => [keyOf(r), r])));
@@ -160,7 +155,6 @@ export default function ComposeTab({ preset, onSent }: { preset: ComposePreset |
 
   const buildRequest = (): SendRequest | null => {
     if (!selected.size) { setError('Select at least one recipient'); return null; }
-    if (needsProductionWeek && !useGroup && !productionId) { setError('Choose a production for this message'); return null; }
     if (messageType === 'availability_poll' && !pollId) { setError('Choose the availability request to send'); return null; }
     return {
       message_type: messageType,
@@ -170,9 +164,7 @@ export default function ComposeTab({ preset, onSent }: { preset: ComposePreset |
       poll_id: messageType === 'availability_poll' ? pollId : undefined,
       recipients: Array.from(selected.values()).map((r) => ({
         crew_member_id: r.id,
-        production_id: needsProductionWeek ? (r.production_id ?? productionId) : (productionId || null),
-        week_ending_date: needsProductionWeek ? (r.week_ending_date ?? week) : null,
-        amount: r.grand_total ? Number(r.grand_total) : undefined,
+        production_id: productionId || null,
       })),
       client_request_id: requestId.current,
     };
@@ -232,23 +224,13 @@ export default function ComposeTab({ preset, onSent }: { preset: ComposePreset |
               </div>
             </div>
 
-            {(needsProductionWeek || messageType === 'manual') && (
-              <div className="grid sm:grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls} htmlFor="prod">Production{needsProductionWeek ? '' : ' (optional filter)'}</label>
-                  <select id="prod" className={inputCls} value={productionId} onChange={(e) => setProductionId(e.target.value)}>
-                    <option value="">{needsProductionWeek && useGroup ? 'All active productions' : 'Any production'}</option>
-                    {productions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-                {needsProductionWeek && (
-                  <div>
-                    <label className={labelCls} htmlFor="week">Week ending</label>
-                    <select id="week" className={inputCls} value={week} onChange={(e) => setWeek(e.target.value)}>
-                      {sundays.map((d, i) => <option key={d} value={d}>{fmtDate(d)}{i === 0 ? ' (this week)' : i === 1 ? ' (last week)' : ''}</option>)}
-                    </select>
-                  </div>
-                )}
+            {messageType === 'manual' && (
+              <div>
+                <label className={labelCls} htmlFor="prod">Production (optional filter)</label>
+                <select id="prod" className={inputCls} value={productionId} onChange={(e) => setProductionId(e.target.value)}>
+                  <option value="">Any production</option>
+                  {productions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
               </div>
             )}
 
@@ -350,7 +332,6 @@ export default function ComposeTab({ preset, onSent }: { preset: ComposePreset |
                             {r.email || 'No email'}
                             {r.employment_status ? ` · ${r.employment_status === 'self_employed' ? 'Self-employed' : 'PAYE'}` : ''}
                             {r.production_name ? ` · ${r.production_name}` : ''}
-                            {r.week_ending_date && group === 'invoice_missing' ? ` · w/e ${fmtDate(r.week_ending_date)}` : ''}
                           </span>
                         </span>
                         {!r.eligible && r.reason && (

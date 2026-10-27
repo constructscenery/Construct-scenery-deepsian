@@ -11,7 +11,6 @@ const DEFAULTS = Object.freeze({
   live_sending_enabled:          'false',
   automation_timesheet_reminders: 'false', // Sunday 16:00 (Europe/London) — current week
   automation_timesheet_followups: 'false', // Monday 10:00 — previous week, still missing
-  automation_invoice_requests:   'false', // Tuesday 10:00 — self-employed, invoice missing
   reply_to_address:              process.env.EMAIL_REPLY_TO || 'invoice@constructscenery.co.uk',
   from_name:                     process.env.EMAIL_FROM_NAME || 'Construct Scenery',
   portal_link_ttl_days:          '60',
@@ -21,7 +20,6 @@ const BOOLEAN_KEYS = [
   'live_sending_enabled',
   'automation_timesheet_reminders',
   'automation_timesheet_followups',
-  'automation_invoice_requests',
 ];
 
 const EMAIL_RE = /^[^\s@<>(),;:"[\]]+@[^\s@<>(),;:"[\]]+\.[^\s@<>(),;:"[\]]{2,}$/;

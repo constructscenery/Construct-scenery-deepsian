@@ -38,6 +38,7 @@ import {
   RotateCcw,
   ChevronDown,
   Building2,
+  Paperclip,
 } from 'lucide-react';
 import { EmptyStateRow } from '@/components/EmptyState';
 import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
@@ -388,6 +389,7 @@ export default function PurchaseOrdersPage() {
     department: '',
     title: '',
     supplier_name: '',
+    attachment_status: '',
   });
 
   const activeFilterCount = Object.values(poFilters).filter((v) => v !== '').length;
@@ -779,7 +781,12 @@ export default function PurchaseOrdersPage() {
         po.vat,
         po.date_of_po,
       ].some(v => v != null && String(v).toLowerCase().includes(q));
-    return matchStatus && matchSearch;
+    const hasAttachment = Boolean(po.confirmation_attachment_url || po.invoice_attachment_url);
+    const matchAttachment =
+      !poFilters.attachment_status ? true :
+      poFilters.attachment_status === 'has_attachment' ? hasAttachment :
+      !hasAttachment;
+    return matchStatus && matchSearch && matchAttachment;
   });
 
   const sortedPos = useMemo(() => {
@@ -1539,6 +1546,19 @@ export default function PurchaseOrdersPage() {
                     className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-800 outline-none focus:ring-1 focus:ring-blue-400"
                   />
                 </div>
+                {/* Attachment Status */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Attachment</label>
+                  <select
+                    value={poFilters.attachment_status}
+                    onChange={e => { setPoFilters(f => ({ ...f, attachment_status: e.target.value })); setPage(1); }}
+                    className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-800 outline-none focus:ring-1 focus:ring-blue-400"
+                  >
+                    <option value="">All POs</option>
+                    <option value="has_attachment">With Attachment</option>
+                    <option value="no_attachment">Missing Attachment</option>
+                  </select>
+                </div>
                 {/* Gross Amount Max */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Gross £ Max</label>
@@ -1556,7 +1576,7 @@ export default function PurchaseOrdersPage() {
               {activeFilterCount > 0 && (
                 <button
                   onClick={() => {
-                    setPoFilters({ production_id: '', date_from: '', date_to: '', net_amount_min: '', net_amount_max: '', gross_amount_min: '', gross_amount_max: '', set_code: '', account_code: '', paid_from: '', department: '', title: '', supplier_name: '' });
+                    setPoFilters({ production_id: '', date_from: '', date_to: '', net_amount_min: '', net_amount_max: '', gross_amount_min: '', gross_amount_max: '', set_code: '', account_code: '', paid_from: '', department: '', title: '', supplier_name: '', attachment_status: '' });
                     setPage(1);
                   }}
                   className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 font-medium transition-colors"
@@ -1599,7 +1619,12 @@ export default function PurchaseOrdersPage() {
                       <ColumnHeader label="Approval Status" sortKey="status" sort={sort} onSort={setSort} />
                     </>
                   )}
-                  <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-center">Invoice</th>
+                  <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-center">
+                    <span className="inline-flex items-center gap-1 justify-center">
+                      <Paperclip size={12} className="text-slate-400 -rotate-45" />
+                      Attachment
+                    </span>
+                  </th>
                   <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-right">Actions</th>
                 </tr>
               </thead>
@@ -1631,7 +1656,7 @@ export default function PurchaseOrdersPage() {
                           action={{
                             label: 'Clear Filters',
                             onClick: () => {
-                              setPoFilters({ production_id: '', date_from: '', date_to: '', net_amount_min: '', net_amount_max: '', gross_amount_min: '', gross_amount_max: '', set_code: '', account_code: '', paid_from: '', department: '', title: '', supplier_name: '' });
+                              setPoFilters({ production_id: '', date_from: '', date_to: '', net_amount_min: '', net_amount_max: '', gross_amount_min: '', gross_amount_max: '', set_code: '', account_code: '', paid_from: '', department: '', title: '', supplier_name: '', attachment_status: '' });
                               setSearch('');
                               setPage(1);
                             },
@@ -1646,7 +1671,33 @@ export default function PurchaseOrdersPage() {
                       return (
                         <tr key={po.id} className="hover:bg-slate-50/50 transition-colors even:bg-slate-50/50 border-b border-slate-100 last:border-0">
                           <td className="px-5 py-2 sticky left-0 bg-white group-hover:bg-slate-50/50 z-10">
-                            <span className="text-slate-600 text-xs font-normal whitespace-nowrap">{po.po_number}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-slate-600 text-xs font-normal whitespace-nowrap">{po.po_number}</span>
+                              {Boolean(po.confirmation_attachment_url || po.invoice_attachment_url) && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (po.confirmation_attachment_url) {
+                                      purchaseOrdersApi.downloadConfirmation(po.id, po.confirmation_attachment_name || 'order-confirmation');
+                                    } else if (po.invoice_attachment_url) {
+                                      const url = po.invoice_attachment_url.startsWith('http') ? po.invoice_attachment_url : encodeURI(decodeURI(po.invoice_attachment_url));
+                                      window.open(url, '_blank', 'noopener,noreferrer');
+                                    }
+                                  }}
+                                  title={
+                                    po.confirmation_attachment_url && po.invoice_attachment_url
+                                      ? `Attachments uploaded:\n• Pro Forma: ${po.confirmation_attachment_name || 'Attached'}\n• Invoice: ${po.invoice_attachment_name || 'Attached'}`
+                                      : po.confirmation_attachment_url
+                                        ? `Pro Forma / Order Confirmation attached: ${po.confirmation_attachment_name || 'Attached'}`
+                                        : `Invoice attached: ${po.invoice_attachment_name || 'Attached'}`
+                                  }
+                                  className="inline-flex items-center justify-center p-0.5 rounded text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors"
+                                >
+                                  <Paperclip size={13} className="-rotate-45 shrink-0" />
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-2 text-slate-600 text-xs font-normal whitespace-nowrap">
                             {fmtDate(po.date_of_po)}
@@ -1720,17 +1771,69 @@ export default function PurchaseOrdersPage() {
                           )}
 
                           <td className="px-4 py-2 text-center whitespace-nowrap">
-                            {po.invoice_attachment_url ? (() => {
-                              const url = po.invoice_attachment_url.startsWith('http') ? po.invoice_attachment_url : encodeURI(decodeURI(po.invoice_attachment_url));
+                            {(() => {
+                              const hasConf = Boolean(po.confirmation_attachment_url);
+                              const hasInv = Boolean(po.invoice_attachment_url);
+
+                              if (hasConf && hasInv) {
+                                const invUrl = po.invoice_attachment_url!.startsWith('http') ? po.invoice_attachment_url! : encodeURI(decodeURI(po.invoice_attachment_url!));
+                                return (
+                                  <div className="inline-flex items-center gap-1.5 justify-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => purchaseOrdersApi.downloadConfirmation(po.id, po.confirmation_attachment_name || 'order-confirmation')}
+                                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium border border-blue-200 transition-colors"
+                                      title={`Pro Forma / Confirmation: ${po.confirmation_attachment_name || 'Attached'}`}
+                                    >
+                                      <Paperclip size={11} className="-rotate-45 text-blue-600" />
+                                      <span>Pro Forma</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => window.open(invUrl, '_blank', 'noopener,noreferrer')}
+                                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium border border-emerald-200 transition-colors"
+                                      title={`Invoice: ${po.invoice_attachment_name || 'Attached'}`}
+                                    >
+                                      <CheckCircle2 size={11} className="text-emerald-600" />
+                                      <span>Invoice</span>
+                                    </button>
+                                  </div>
+                                );
+                              }
+
+                              if (hasConf) {
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => purchaseOrdersApi.downloadConfirmation(po.id, po.confirmation_attachment_name || 'order-confirmation')}
+                                    className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium border border-blue-200 transition-colors"
+                                    title={`Pro Forma / Order Confirmation attached: ${po.confirmation_attachment_name || 'Attached'}`}
+                                  >
+                                    <Paperclip size={12} className="-rotate-45 text-blue-600" />
+                                    <span>Pro Forma</span>
+                                  </button>
+                                );
+                              }
+
+                              if (hasInv) {
+                                const invUrl = po.invoice_attachment_url!.startsWith('http') ? po.invoice_attachment_url! : encodeURI(decodeURI(po.invoice_attachment_url!));
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => window.open(invUrl, '_blank', 'noopener,noreferrer')}
+                                    className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium border border-emerald-200 transition-colors"
+                                    title={`Invoice attached: ${po.invoice_attachment_name || 'Attached'}`}
+                                  >
+                                    <CheckCircle2 size={12} className="text-emerald-600" />
+                                    <span>Invoice</span>
+                                  </button>
+                                );
+                              }
+
                               return (
-                                <button onClick={() => window.open(url, '_blank', 'noopener,noreferrer')} className="inline-flex items-center gap-1 text-slate-600 hover:text-slate-900 font-normal text-xs">
-                                  <CheckCircle2 size={13} className="text-emerald-500" />
-                                  <span>View</span>
-                                </button>
+                                <span className="text-slate-300 text-xs font-normal" title="No attachments uploaded yet">—</span>
                               );
-                            })() : (
-                              <span title="No invoice attached"><AlertCircle size={14} className="text-amber-400 mx-auto" /></span>
-                            )}
+                            })()}
                           </td>
                           <td className="px-4 py-2 text-right whitespace-nowrap">
                             <div className="relative inline-block text-left">
@@ -1856,8 +1959,8 @@ export default function PurchaseOrdersPage() {
                                             }}
                                             className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors disabled:opacity-50"
                                           >
-                                            <Upload size={13} className="text-slate-400" />
-                                            <span>{po.confirmation_attachment_url ? 'View Confirmation' : 'Confirm'}</span>
+                                            <Paperclip size={13} className="text-slate-400 -rotate-45" />
+                                            <span>{po.confirmation_attachment_url ? 'View / Replace Pro Forma' : 'Attach Pro Forma'}</span>
                                           </button>
                                         )}
                                         {/* Attach Invoice */}
@@ -3162,6 +3265,52 @@ export default function PurchaseOrdersPage() {
                   <p className="font-bold text-slate-900">Gross: {fmt(viewFullPO.gross_amount)}</p>
                   <p className="text-xs mt-1">Paid From: {PAID_FROM_LABEL[viewFullPO.paid_from] || viewFullPO.paid_from}</p>
                 </div>
+              </div>
+
+              <div className="mt-4 p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                <div className="flex items-center gap-1.5 font-semibold text-slate-800 mb-2">
+                  <Paperclip size={13} className="text-slate-500 -rotate-45" />
+                  <span>Attached Documents</span>
+                </div>
+                {viewFullPO.confirmation_attachment_url || viewFullPO.invoice_attachment_url ? (
+                  <div className="space-y-2">
+                    {viewFullPO.confirmation_attachment_url && (
+                      <div className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-lg border border-slate-200">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Paperclip size={13} className="text-blue-600 shrink-0 -rotate-45" />
+                          <span className="font-medium text-slate-700 truncate">{viewFullPO.confirmation_attachment_name || 'Pro Forma / Order Confirmation'}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => purchaseOrdersApi.downloadConfirmation(viewFullPO.id, viewFullPO.confirmation_attachment_name || 'order-confirmation')}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium shrink-0 px-2 py-1 rounded bg-blue-50 border border-blue-200"
+                        >
+                          Download
+                        </button>
+                      </div>
+                    )}
+                    {viewFullPO.invoice_attachment_url && (
+                      <div className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-lg border border-slate-200">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                          <span className="font-medium text-slate-700 truncate">{viewFullPO.invoice_attachment_name || 'Supplier Invoice'}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = viewFullPO.invoice_attachment_url!.startsWith('http') ? viewFullPO.invoice_attachment_url! : encodeURI(decodeURI(viewFullPO.invoice_attachment_url!));
+                            window.open(url, '_blank', 'noopener,noreferrer');
+                          }}
+                          className="text-xs text-emerald-600 hover:text-emerald-800 font-medium shrink-0 px-2 py-1 rounded bg-emerald-50 border border-emerald-200"
+                        >
+                          View
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-slate-400 italic">No attachments (pro forma or invoice) uploaded to this PO yet.</p>
+                )}
               </div>
 
               <div className="mt-4 p-3.5 bg-blue-50/70 border border-blue-100 rounded-xl text-xs text-blue-900">

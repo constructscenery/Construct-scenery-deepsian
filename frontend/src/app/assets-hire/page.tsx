@@ -1260,7 +1260,7 @@ function VehicleFormModal({
                   <label className="block text-slate-700 font-semibold mb-1">Assigned To / Keyholder</label>
                   <input
                     type="text"
-                    placeholder="e.g. Warren Lever / Sian Lynn Jones"
+                    placeholder="e.g. Warren Lever / Sian Lyn-Jones"
                     value={assignedTo}
                     onChange={e => setAssignedTo(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"

@@ -9,9 +9,7 @@ import {
 } from '@/lib/emailingApi';
 import { Card, Empty, ErrorNote, InfoNote, Modal, Spinner, Toggle, btnPrimary, btnSecondary, inputCls, labelCls } from './shared';
 
-const AUTOMATIONS: { type: AutomationType; key: keyof EmailSettings; title: string; when: string; what: string }[] = [
-  { type: 'invoice_requests', key: 'automation_invoice_requests', title: 'Invoice request', when: 'Tuesdays 10:00 (UK)', what: 'Self-employed crew whose timesheet for last week has no invoice yet.' },
-];
+const AUTOMATIONS: { type: AutomationType; key: keyof EmailSettings; title: string; when: string; what: string }[] = [];
 const SUPPRESSION_LABEL: Record<Suppression['reason'], string> = { hard_bounce: 'Hard bounce', complaint: 'Spam complaint', invalid_address: 'Invalid address', manual: 'Added manually' };
 
 export default function SettingsTab({ readOnly }: { readOnly: boolean }) {
@@ -120,25 +118,29 @@ export default function SettingsTab({ readOnly }: { readOnly: boolean }) {
           {recentSundays(6).map((d) => <option key={d} value={d}>w/e {fmtDate(d)}</option>)}
         </select>
       }>
-        <ul className="space-y-3">
-          {AUTOMATIONS.map((a) => (
-            <li key={a.type} className="rounded-lg border border-slate-200 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-slate-800">{a.title} <span className="font-normal text-xs text-slate-500">· {a.when}</span></div>
-                  <p className="text-xs text-slate-500 mt-0.5">{a.what}</p>
+        {AUTOMATIONS.length === 0 ? (
+          <p className="text-xs text-slate-500">No automated reminders are active.</p>
+        ) : (
+          <ul className="space-y-3">
+            {AUTOMATIONS.map((a) => (
+              <li key={a.type} className="rounded-lg border border-slate-200 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-800">{a.title} <span className="font-normal text-xs text-slate-500">· {a.when}</span></div>
+                    <p className="text-xs text-slate-500 mt-0.5">{a.what}</p>
+                  </div>
+                  <Toggle checked={!!settings[a.key]} disabled={readOnly || busy === a.key} onChange={(v) => toggle(a.key, v)} label={a.title} />
                 </div>
-                <Toggle checked={!!settings[a.key]} disabled={readOnly || busy === a.key} onChange={(v) => toggle(a.key, v)} label={a.title} />
-              </div>
-              {!readOnly && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button className={btnSecondary} disabled={!!busy} onClick={() => runAutomation(a.type, true)}><Eye size={14} /> Who would get it?</button>
-                  <button className={btnSecondary} disabled={!!busy} onClick={() => runAutomation(a.type, false)}><Play size={14} /> Run now</button>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
+                {!readOnly && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button className={btnSecondary} disabled={!!busy} onClick={() => runAutomation(a.type, true)}><Eye size={14} /> Who would get it?</button>
+                    <button className={btnSecondary} disabled={!!busy} onClick={() => runAutomation(a.type, false)}><Play size={14} /> Run now</button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
 
       <PortalLinks readOnly={readOnly} />
