@@ -81,7 +81,7 @@ const getVehicles = async (req, res) => {
     }
 
     const { rows } = await db.query(
-      `SELECT * FROM vehicles WHERE ${conds.join(' AND ')} ORDER BY make ASC, model ASC, registration_number ASC`,
+      `SELECT * FROM vehicles WHERE ${conds.join(' AND ')} ORDER BY created_at DESC NULLS LAST, make ASC, model ASC`,
       params
     );
 

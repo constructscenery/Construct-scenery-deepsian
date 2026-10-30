@@ -607,12 +607,12 @@ const saveEntries = async (req, res) => {
 
     // ─── Weekly totals ────────────────────────────────────────────────────────
     const worked    = rows.filter(e => e.full_day_worked);
-    const saturday  = rows.find(e => e.day_of_week === 'Saturday'  && e.full_day_worked);
-    const sunday    = rows.find(e => e.day_of_week === 'Sunday'    && e.full_day_worked);
-    const stdDays   = worked.filter(e => !['Saturday', 'Sunday'].includes(e.day_of_week)).length;
+    const sunday    = rows.find(e => e.day_of_week === 'Sunday' && e.full_day_worked);
+    // Saturday has no weekend premium; paid at normal day rate. Only Sunday has premium (double time).
+    const stdDays   = worked.filter(e => e.day_of_week !== 'Sunday').length;
 
     const weeklyRate        = dailyRate * stdDays;
-    const sixthDayPayment   = saturday ? dailyRate * 1.5 : 0;
+    const sixthDayPayment   = 0;
     const seventhDayPayment = sunday   ? dailyRate * 2.0 : 0;
     const totalOT           = rows.reduce((s, e) => s + e.overtime_hours, 0);
     const overtimeAmount    = totalOT * otRate;
@@ -704,17 +704,31 @@ const submitTimesheet = async (req, res) => {
 };
 
 // ─── POST /api/timesheets/bulk-distribute ─────────────────────────────────────
-// Sends all DRAFT timesheets for the week. Status advances to distributed only
-// on successful email send. Already-distributed timesheets are skipped entirely.
+// Sends all DRAFT / SUBMITTED timesheets for the week (or explicitly selected timesheet_ids).
+// Status advances to distributed on successful email send or if no email.
+// Already-distributed timesheets are skipped unless specifically selected by ID.
 const bulkDistribute = async (req, res) => {
-  const { week_ending_date, production_id } = req.body;
-  if (!week_ending_date)
+  const { week_ending_date, production_id, timesheet_ids } = req.body;
+  if (!week_ending_date && (!timesheet_ids || !timesheet_ids.length))
     return res.status(400).json({ error: 'week_ending_date is required' });
 
   try {
-    const conditions = ["t.week_ending_date = $1", "t.status = 'submitted'"];  // TimesheetStatus.SUBMITTED
-    const params     = [week_ending_date];
-    if (production_id) { conditions.push(`t.production_id = $2`); params.push(production_id); }
+    const conditions = [];
+    const params     = [];
+
+    if (timesheet_ids && Array.isArray(timesheet_ids) && timesheet_ids.length > 0) {
+      params.push(timesheet_ids);
+      conditions.push(`t.id = ANY($${params.length})`);
+      conditions.push(`t.status IN ('draft', 'submitted', 'amendment_requested', 'distributed')`);
+    } else {
+      params.push(week_ending_date);
+      conditions.push(`t.week_ending_date = $${params.length}`);
+      conditions.push(`t.status IN ('draft', 'submitted', 'amendment_requested')`);
+      if (production_id) {
+        params.push(production_id);
+        conditions.push(`t.production_id = $${params.length}`);
+      }
+    }
 
     const { rows: timesheets } = await db.query(
       `SELECT t.*,
@@ -729,7 +743,7 @@ const bulkDistribute = async (req, res) => {
     );
 
     if (!timesheets.length)
-      return res.status(400).json({ error: 'No submitted timesheets found for this week' });
+      return res.status(400).json({ error: 'No draft or pending timesheets found for this week' });
 
     const results = { sent: [], failed: [], no_email: [] };
 
@@ -849,7 +863,7 @@ const sendSingleTimesheet = async (req, res) => {
     if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
 
     if (!ts.email) {
-      if (ts.status === 'draft' || ts.status === 'amendment_requested') {
+      if (ts.status === 'draft' || ts.status === 'submitted' || ts.status === 'amendment_requested') {
         await db.query(`UPDATE timesheets SET status = 'distributed' WHERE id = $1`, [ts.id]);
         return res.json({ message: 'Marked as distributed (crew member has no email address)', timesheet_id: ts.id });
       }
@@ -863,8 +877,8 @@ const sendSingleTimesheet = async (req, res) => {
 
     await sendTimesheetEmail(ts, entries);
     
-    // Move to distributed if it was draft or amendment_requested
-    if (ts.status === 'draft' || ts.status === 'amendment_requested') {
+    // Move to distributed if it was draft, submitted, or amendment_requested
+    if (ts.status === 'draft' || ts.status === 'submitted' || ts.status === 'amendment_requested') {
       await db.query(`UPDATE timesheets SET status = 'distributed' WHERE id = $1`, [req.params.id]);
     }
     
@@ -1893,12 +1907,12 @@ const parseImportTimesheetRow = (row, idx, context) => {
   const otRate = rates.overtime_rate || (dailyRate > 0 ? (dailyRate / 9.5 * 1.5) : 0);
 
   const workedEntries = entries.filter(e => e.full_day_worked);
-  const saturday = entries.find(e => e.day_of_week === 'Saturday' && e.full_day_worked);
   const sunday = entries.find(e => e.day_of_week === 'Sunday' && e.full_day_worked);
-  const stdDays = workedEntries.filter(e => !['Saturday', 'Sunday'].includes(e.day_of_week)).length;
+  // Saturday has no weekend premium; paid at normal day rate. Only Sunday has premium (double time).
+  const stdDays = workedEntries.filter(e => e.day_of_week !== 'Sunday').length;
 
   const weeklyRate = dailyRate * stdDays;
-  const sixthDayPayment = saturday ? dailyRate * 1.5 : 0;
+  const sixthDayPayment = 0;
   const seventhDayPayment = sunday ? dailyRate * 2.0 : 0;
   const totalOtHours = entries.reduce((s, e) => s + e.overtime_hours, 0);
   const overtimeAmount = totalOtHours * otRate;

@@ -161,7 +161,11 @@ export default function AssetsPlantTab({ isCoordinatorOrMD, productions }: { isC
     !search || a.name.toLowerCase().includes(search.toLowerCase()) || 
     a.category?.toLowerCase().includes(search.toLowerCase()) ||
     a.assigned_to?.toLowerCase().includes(search.toLowerCase())
-  );
+  ).sort((a, b) => {
+    const aDate = new Date(a.purchase_date || a.created_at || 0).getTime();
+    const bDate = new Date(b.purchase_date || b.created_at || 0).getTime();
+    return bDate - aDate;
+  });
 
   return (
     <div className="space-y-4">

@@ -3,7 +3,7 @@ const db = require('../config/db');
 // GET /api/buildings
 const getBuildings = async (req, res) => {
   try {
-    const { rows } = await db.query('SELECT * FROM buildings ORDER BY name ASC');
+    const { rows } = await db.query('SELECT * FROM buildings ORDER BY lease_expiry DESC NULLS LAST, created_at DESC, name ASC');
     res.json({ buildings: rows });
   } catch (err) {
     console.error('getBuildings error:', err);

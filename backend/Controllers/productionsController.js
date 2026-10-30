@@ -77,7 +77,7 @@ const getAllProductions = async (req, res) => {
          GROUP BY production_id
        ) sc ON sc.production_id = p.id
        ${where}
-       ORDER BY p.created_at DESC`,
+       ORDER BY p.start_date DESC NULLS LAST, p.created_at DESC`,
       params
     );
     res.json(rows);

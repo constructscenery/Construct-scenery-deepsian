@@ -54,7 +54,7 @@ const getContainers = async (req, res) => {
       FROM containers c
       LEFT JOIN productions p ON c.assigned_production_id = p.id
       ${where}
-      ORDER BY c.container_number ASC, c.created_at DESC
+      ORDER BY c.hire_start_date DESC NULLS LAST, c.created_at DESC, c.container_number ASC
     `;
 
     const { rows } = await db.query(query, params);

@@ -6,7 +6,7 @@ const getITResources = async (req, res) => {
   try {
     const { rows } = await db.query(
       `SELECT id, name, type, vendor, subscription_start, renewal_date, cost, billing_cycle, reminder_enabled, reminder_days, notes, created_at, updated_at
-       FROM it_resources ORDER BY name ASC`
+       FROM it_resources ORDER BY renewal_date DESC NULLS LAST, subscription_start DESC NULLS LAST, created_at DESC`
     );
     res.json({ it_resources: rows });
   } catch (err) {

@@ -134,6 +134,10 @@ export default function AssetsHirePage() {
       }
 
       return matchesSearch && matchesType && matchesStatus;
+    }).sort((a, b) => {
+      const aDate = new Date(a.created_at || 0).getTime();
+      const bDate = new Date(b.created_at || 0).getTime();
+      return bDate - aDate;
     });
   }, [vehicles, vSearch, vTypeFilter, vStatusFilter]);
 
@@ -147,6 +151,10 @@ export default function AssetsHirePage() {
       const matchesProd = !hProdFilter || h.production_id === hProdFilter;
 
       return matchesSearch && matchesStatus && matchesProd;
+    }).sort((a, b) => {
+      const aDate = new Date(a.hire_start_date || a.created_at || 0).getTime();
+      const bDate = new Date(b.hire_start_date || b.created_at || 0).getTime();
+      return bDate - aDate;
     });
   }, [hireList, hSearch, hStatusFilter, hProdFilter]);
 

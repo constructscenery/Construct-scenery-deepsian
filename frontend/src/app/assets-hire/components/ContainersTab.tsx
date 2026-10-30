@@ -224,6 +224,10 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
       if (!match) return false;
     }
     return true;
+  }).sort((a, b) => {
+    const aDate = new Date(a.hire_start_date || a.created_at || 0).getTime();
+    const bDate = new Date(b.hire_start_date || b.created_at || 0).getTime();
+    return bDate - aDate;
   });
 
   // KPI Metrics

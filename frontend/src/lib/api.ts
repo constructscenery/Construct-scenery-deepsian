@@ -458,6 +458,7 @@ export type Timesheet = {
   // joined from crew_members
   first_name?: string;
   last_name?: string;
+  email?: string;
   crew_number?: string;
   crew_trade?: string;
   crew_rank?: string;
@@ -491,8 +492,8 @@ export const timesheetsApi = {
     request<{ success: boolean; message: string }>(`/api/timesheets/${id}`, { method: 'DELETE' }),
   submit: (id: string) =>
     request<{ message: string; timesheet: Timesheet }>(`/api/timesheets/${id}/submit`, { method: 'POST' }),
-  bulkDistribute: (data: { week_ending_date: string; production_id?: string }) =>
-    request<{ message: string }>('/api/timesheets/bulk-distribute', { method: 'POST', body: data }),
+  bulkDistribute: (data: { week_ending_date?: string; production_id?: string; timesheet_ids?: string[] }) =>
+    request<{ message: string; results?: { sent: string[]; failed: string[]; no_email: string[] } }>('/api/timesheets/bulk-distribute', { method: 'POST', body: data }),
   getWeeklyDocuments: (params: { production_id: string; week_ending_date: string }) => {
     const qs = '?' + new URLSearchParams(params).toString();
     return request<WeeklyTimesheetDocument[]>(`/api/timesheets/weekly-documents${qs}`, { cache: 'no-store' });

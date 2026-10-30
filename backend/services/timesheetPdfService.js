@@ -178,8 +178,12 @@ const generateTimesheetPdf = (ts, entries) => {
     };
 
     totRow('Weekly Rate',      ts.weekly_rate);
-    totRow('6th Day Payment',  ts.sixth_day_payment);
-    totRow('7th Day Payment',  ts.seventh_day_payment);
+    if (parseFloat(ts.sixth_day_payment || 0) > 0) {
+      totRow('6th Day Payment',  ts.sixth_day_payment);
+    }
+    if (parseFloat(ts.seventh_day_payment || 0) > 0) {
+      totRow('Sunday Premium',   ts.seventh_day_payment);
+    }
     totRow('Overtime Amount',  ts.overtime_amount);
     totRow('Meal Allowance',   ts.meal_allowance_total);
     totRow('Mileage & Travel', ts.mileage_and_travel);

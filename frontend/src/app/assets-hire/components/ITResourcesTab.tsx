@@ -181,7 +181,11 @@ export default function ITResourcesTab({ isCoordinatorOrMD }: { isCoordinatorOrM
     !search || r.name.toLowerCase().includes(search.toLowerCase()) || 
     r.vendor?.toLowerCase().includes(search.toLowerCase()) ||
     r.type?.toLowerCase().includes(search.toLowerCase())
-  );
+  ).sort((a, b) => {
+    const aDate = new Date(a.renewal_date || a.subscription_start || a.created_at || 0).getTime();
+    const bDate = new Date(b.renewal_date || b.subscription_start || b.created_at || 0).getTime();
+    return bDate - aDate;
+  });
 
   return (
     <div className="space-y-4">

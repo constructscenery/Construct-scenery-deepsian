@@ -156,11 +156,7 @@ const templates = {
             <td style="padding:10px 16px"><strong>£${parseFloat(grandTotal || 0).toFixed(2)}</strong></td>
           </tr>
         </table>
-        <p>If everything looks correct, please sign the timesheet and reply to this email with:</p>
-        <ol>
-          <li>Your <strong>signed timesheet</strong> (the attached PDF, signed and scanned/photographed)</li>
-          <li>Your <strong>invoice</strong> for the amount shown above</li>
-        </ol>
+        <p>If everything looks correct, please reply to this email with your <strong>invoice</strong> for the amount shown above.</p>
         <p>If anything needs correcting, please reply explaining the issue and we will amend and resend.</p>
         <br/>
         <p style="color:#666;font-size:13px">Regards,<br/><strong>Construct Scenery Limited</strong><br/>invoice@constructscenery.co.uk</p>

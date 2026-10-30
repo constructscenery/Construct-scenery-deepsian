@@ -116,7 +116,7 @@ const listRoleContacts = async (req, res) => {
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const { rows } = await db.query(
-      `SELECT * FROM crew_role_contacts ${where} ORDER BY is_favourite DESC, full_name ASC, created_at DESC`,
+      `SELECT * FROM crew_role_contacts ${where} ORDER BY is_favourite DESC, created_at DESC, full_name ASC`,
       params
     );
 

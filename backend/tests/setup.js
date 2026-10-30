@@ -18,13 +18,16 @@ const { checkPolicy } = require('../Middleware/roleCheck');
 function createDbMock() {
   const mock = {
     _responses: [],
-    query: jest.fn(async () => {
+    queries: [],
+    query: jest.fn(async (sql, params) => {
+      mock.queries.push({ sql, params });
       if (mock._responses.length) return mock._responses.shift();
       return { rows: [], rowCount: 0 };
     }),
     connect: jest.fn(() => {
       const client = {
-        query: jest.fn(async () => {
+        query: jest.fn(async (sql, params) => {
+          mock.queries.push({ sql, params });
           if (mock._responses.length) return mock._responses.shift();
           return { rows: [], rowCount: 0 };
         }),
@@ -43,6 +46,7 @@ function createDbMock() {
     },
     reset: () => {
       mock._responses = [];
+      mock.queries = [];
       mock.query.mockClear();
       mock.connect.mockClear();
     },
@@ -103,8 +107,9 @@ jest.mock('../config/crypto', () => ({
 jest.mock('../config/email', () => ({
   sendEmail: jest.fn().mockResolvedValue(true),
   templates: {
-    invoiceChase:   () => ({ subject: 'Test', html: '<p>test</p>' }),
-    handoverAlert:  () => ({ subject: 'Test', html: '<p>test</p>' }),
+    invoiceChase:         () => ({ subject: 'Test', html: '<p>test</p>' }),
+    handoverAlert:        () => ({ subject: 'Test', html: '<p>test</p>' }),
+    timesheetDistributed: () => ({ subject: 'Test', html: '<p>test</p>' }),
   },
   logEmail: jest.fn().mockResolvedValue(true),
 }));

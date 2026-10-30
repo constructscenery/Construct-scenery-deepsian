@@ -126,7 +126,11 @@ export default function BuildingsTab({ isCoordinatorOrMD }: { isCoordinatorOrMD:
   const filteredBuildings = buildings.filter(b => 
     !search || b.name.toLowerCase().includes(search.toLowerCase()) || 
     b.address?.toLowerCase().includes(search.toLowerCase())
-  );
+  ).sort((a, b) => {
+    const aDate = new Date(a.lease_expiry || a.created_at || 0).getTime();
+    const bDate = new Date(b.lease_expiry || b.created_at || 0).getTime();
+    return bDate - aDate;
+  });
 
   return (
     <div className="space-y-4">

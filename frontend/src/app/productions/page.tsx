@@ -380,7 +380,7 @@ export default function ProductionsPage() {
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState('');
   const [page, setPage]                   = useState(1);
-  const [sort, setSort]                   = useState<SortState>({ key: '', dir: null });
+  const [sort, setSort]                   = useState<SortState>({ key: 'start_date', dir: 'desc' });
   const [search, setSearch]               = useState('');
   const [activeTab, setActiveTab]         = useState<ProductionStatus | 'all'>('all');
   const [showArchived, setShowArchived]   = useState(false);
@@ -497,14 +497,29 @@ export default function ProductionsPage() {
   });
 
   const sortedProductions = useMemo(() => {
-    if (!sort.key || !sort.dir) return filtered;
+    const sortKey = sort.key || 'start_date';
+    const sortDir = sort.dir || 'desc';
+
     return [...filtered].sort((a, b) => {
-      let aVal = a[sort.key as keyof Production] ?? '';
-      let bVal = b[sort.key as keyof Production] ?? '';
+      if (sortKey === 'start_date' || sortKey === 'end_date' || sortKey === 'created_at') {
+        const aTime = a[sortKey as 'start_date' | 'end_date' | 'created_at']
+          ? new Date(a[sortKey as 'start_date' | 'end_date' | 'created_at']!).getTime()
+          : 0;
+        const bTime = b[sortKey as 'start_date' | 'end_date' | 'created_at']
+          ? new Date(b[sortKey as 'start_date' | 'end_date' | 'created_at']!).getTime()
+          : 0;
+        if (aTime !== bTime) return sortDir === 'asc' ? aTime - bTime : bTime - aTime;
+        const aCreated = new Date(a.created_at || 0).getTime();
+        const bCreated = new Date(b.created_at || 0).getTime();
+        return bCreated - aCreated;
+      }
+
+      let aVal = a[sortKey as keyof Production] ?? '';
+      let bVal = b[sortKey as keyof Production] ?? '';
       if (typeof aVal === 'string') aVal = aVal.toLowerCase();
       if (typeof bVal === 'string') bVal = bVal.toLowerCase();
-      if (aVal < bVal) return sort.dir === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sort.dir === 'asc' ? 1 : -1;
+      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
       return 0;
     });
   }, [filtered, sort]);

@@ -345,8 +345,7 @@ export default function RoleContactsTab({ roleType, productions = [] }: RoleCont
       ].some(v => v?.toLowerCase().includes(query));
       if (!match) return false;
     }
-    return true;
-  }).sort((a, b) => Number(b.is_favourite) - Number(a.is_favourite) || a.full_name.localeCompare(b.full_name));
+  }).sort((a, b) => Number(b.is_favourite) - Number(a.is_favourite) || new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime() || a.full_name.localeCompare(b.full_name));
 
   async function updateContact(contact: CrewRoleContact, changes: Partial<CrewRoleContactInput>) {
     setBusyId(contact.id);

@@ -7,9 +7,10 @@ import Link from 'next/link';
 import {
   ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Loader2,
   Mail, Paperclip, ShieldCheck, X, Plus, ExternalLink, UserX, Send, FileText,
-  ChevronDown, Download, Search, Trash2, FileUp, FileSpreadsheet,
+  ChevronDown, Download, Search, Trash2, FileUp, FileSpreadsheet, CheckSquare,
 } from 'lucide-react';
 import TimesheetImportModal from './TimesheetImportModal';
+import SendTimesheetsChecklistModal from './SendTimesheetsChecklistModal';
 import {
   timesheetsApi, productionsApi, crewApi,
   Timesheet, TimesheetStatus, Production, GatewayError, CrewMember, WeeklyTimesheetDocument,
@@ -828,10 +829,31 @@ export default function TimesheetsPage() {
   const [deleteTsModal, setDeleteTsModal] = useState<Timesheet | null>(null);
   const [showHardCopiesModal, setShowHardCopiesModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showSendChecklistModal, setShowSendChecklistModal] = useState(false);
   const [weeklyDocs, setWeeklyDocs] = useState<WeeklyTimesheetDocument[]>([]);
   const [weeklyDocsLoading, setWeeklyDocsLoading] = useState(false);
   const [sendingId, setSendingId]   = useState<string | null>(null);
-  
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [openActionsMenu, setOpenActionsMenu] = useState<{
+    id: string;
+    top?: number;
+    bottom?: number;
+    right: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!openActionsMenu) return;
+    const handleOutside = () => setOpenActionsMenu(null);
+    document.addEventListener('click', handleOutside);
+    window.addEventListener('scroll', handleOutside, true);
+    window.addEventListener('resize', handleOutside);
+    return () => {
+      document.removeEventListener('click', handleOutside);
+      window.removeEventListener('scroll', handleOutside, true);
+      window.removeEventListener('resize', handleOutside);
+    };
+  }, [openActionsMenu]);
+
   // Sorting state
   type SortKey = 'name' | 'week_ending' | 'production' | 'trade_rank' | 'days_worked' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun' | 'ot_hours' | 'ot_amount' | 'net_amount' | 'invoice' | 'status';
   const [sortConfig, setSortConfig] = useState<{ key: SortKey, direction: 'asc' | 'desc' } | null>(null);
@@ -1022,6 +1044,54 @@ export default function TimesheetsPage() {
     return 0;
   });
 
+  // Reset selection on week or production change
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [selectedProd, weekEndingISO]);
+
+  const draftCount = useMemo(() => {
+    return sheets.filter(s => s.status === 'draft' || s.status === 'submitted').length;
+  }, [sheets]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllVisible = () => {
+    const allVisibleSelected = sortedSheets.length > 0 && sortedSheets.every(s => selectedIds.has(s.id));
+    if (allVisibleSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        sortedSheets.forEach(s => next.delete(s.id));
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        sortedSheets.forEach(s => next.add(s.id));
+        return next;
+      });
+    }
+  };
+
+  const selectDrafts = () => {
+    const draftIds = sheets.filter(s => s.status === 'draft' || s.status === 'submitted').map(s => s.id);
+    setSelectedIds(new Set(draftIds));
+  };
+
+  const selectAllVisible = () => {
+    setSelectedIds(new Set(sortedSheets.map(s => s.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
   // Stats from full unfiltered week data
   const crewOnSheet      = sheets.length;
   const invoicesReceived = sheets.filter(s => hasInvoice(s)).length;
@@ -1066,26 +1136,30 @@ export default function TimesheetsPage() {
     }
   };
 
-  const handleBulkSend = async () => {
-    if (!selectedProd) return;
-    const draftCount = sheets.filter(s => s.status === 'draft').length;
-    if (draftCount === 0) { setBulkMsg('No draft timesheets to send this week.'); return; }
-    if (!confirm(`Send ${draftCount} timesheet${draftCount !== 1 ? 's' : ''} to crew members in one action?`)) return;
+  const handleSendSpecificIds = async (targetIds: string[]) => {
+    if (!selectedProd || targetIds.length === 0) return;
     setBulkSending(true); setBulkMsg('');
     try {
+      const payload: { week_ending_date: string; production_id: string; timesheet_ids: string[] } = {
+        week_ending_date: weekEndingISO,
+        production_id: selectedProd,
+        timesheet_ids: targetIds,
+      };
+
       const res = await fetch('/api/timesheets/bulk-distribute', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('cs_token')}`,
         },
-        body: JSON.stringify({ week_ending_date: weekEndingISO, production_id: selectedProd }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Bulk send failed');
       const sentCount   = data.results?.sent?.length   ?? 0;
       const failedNames = data.results?.failed          ?? [];
       const noEmail     = data.results?.no_email        ?? [];
+      setSelectedIds(new Set());
       setStatusFilter('all');
       await loadSheets();
       let msg = `${sentCount} timesheet(s) distributed.`;
@@ -1094,9 +1168,18 @@ export default function TimesheetsPage() {
       setBulkMsg(msg);
     } catch (err: unknown) {
       setBulkMsg(err instanceof Error ? err.message : 'Bulk send failed');
+      throw err;
     } finally {
       setBulkSending(false);
     }
+  };
+
+  const handleBulkSend = () => {
+    if (!selectedProd) return;
+    if (selectedIds.size === 0 && draftCount > 0) {
+      selectDrafts();
+    }
+    setShowSendChecklistModal(true);
   };
 
   const handleGeneratePack = async () => {
@@ -1270,29 +1353,33 @@ export default function TimesheetsPage() {
 
   const selectedProdName = productions.find(p => p.id === selectedProd)?.name ?? '';
 
-  const SortableHeader = ({ label, sortKey, align = 'left', title, screenReaderLabel }: { label: React.ReactNode; sortKey: SortKey; align?: 'left' | 'center' | 'right'; title?: string; screenReaderLabel?: string }) => (
-    <th 
-      className={`px-3 py-3 text-xs font-semibold text-slate-500 cursor-pointer select-none hover:text-slate-700 transition-colors text-${align} whitespace-nowrap`}
-      onClick={() => {
-        setSortConfig(current => {
-          if (!current || current.key !== sortKey) return { key: sortKey, direction: 'asc' };
-          if (current.direction === 'asc') return { key: sortKey, direction: 'desc' };
-          return null;
-        });
-      }}
-      title={title}
-    >
-      <div className={`flex items-center gap-1 ${align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : ''}`}>
-        <span>{label}</span>
-        {screenReaderLabel && <span className="sr-only"> ({screenReaderLabel})</span>}
-        {sortConfig?.key === sortKey && (
-          <span className="text-slate-400">
-            {sortConfig.direction === 'asc' ? '↑' : '↓'}
-          </span>
-        )}
-      </div>
-    </th>
-  );
+  const SortableHeader = ({ label, sortKey, align = 'left', title, screenReaderLabel, className = 'px-2.5 py-2.5' }: { label: React.ReactNode; sortKey: SortKey; align?: 'left' | 'center' | 'right'; title?: string; screenReaderLabel?: string; className?: string }) => {
+    const alignClass = align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left';
+    const flexAlignClass = align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : 'justify-start';
+    return (
+      <th
+        className={`${className} ${alignClass} text-xs font-normal text-slate-500 cursor-pointer select-none hover:text-slate-700 transition-colors whitespace-nowrap`}
+        onClick={() => {
+          setSortConfig(current => {
+            if (!current || current.key !== sortKey) return { key: sortKey, direction: 'asc' };
+            if (current.direction === 'asc') return { key: sortKey, direction: 'desc' };
+            return null;
+          });
+        }}
+        title={title}
+        aria-label={screenReaderLabel}
+      >
+        <div className={`flex items-center gap-1 ${flexAlignClass}`}>
+          <span>{label}</span>
+          {sortConfig?.key === sortKey && (
+            <span className="text-slate-400">
+              {sortConfig.direction === 'asc' ? '↑' : '↓'}
+            </span>
+          )}
+        </div>
+      </th>
+    );
+  };
 
   return (
     <>
@@ -1355,6 +1442,23 @@ export default function TimesheetsPage() {
           }}
         />
       )}
+      <SendTimesheetsChecklistModal
+        isOpen={showSendChecklistModal}
+        onClose={() => setShowSendChecklistModal(false)}
+        sheets={sheets}
+        weekEndingDate={fmtWeek(weekEnding)}
+        productionName={selectedProdName || 'Selected Production'}
+        selectedIds={selectedIds}
+        onToggleSelect={toggleSelect}
+        onSelectAll={() => setSelectedIds(new Set(sheets.map(s => s.id)))}
+        onDeselectAll={clearSelection}
+        onSelectDrafts={selectDrafts}
+        onSend={async (targetIds) => {
+          await handleSendSpecificIds(targetIds);
+          setShowSendChecklistModal(false);
+        }}
+        sending={bulkSending}
+      />
 
       <TopBar title="Timesheets & Pay Run" subtitle="Weekly timesheet review and pay run management" />
       <main className="flex-1 p-4 md:p-6 space-y-4 md:space-y-5">
@@ -1440,16 +1544,25 @@ export default function TimesheetsPage() {
               </button>
               <button
                 onClick={handleBulkSend}
-                disabled={bulkSending || !selectedProd}
-                className="flex items-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-3 py-2 hover:bg-blue-700 shadow-sm disabled:opacity-60 transition-colors font-medium"
+                disabled={bulkSending || !selectedProd || (selectedIds.size === 0 && draftCount === 0)}
+                className="flex items-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-3 py-2 hover:bg-blue-700 shadow-sm disabled:opacity-60 transition-colors font-normal"
+                title={
+                  selectedIds.size > 0
+                    ? `Open checklist to review & send ${selectedIds.size} selected timesheet(s)`
+                    : draftCount > 0
+                      ? `Open checklist to select & send draft timesheets (${draftCount} draft${draftCount === 1 ? '' : 's'})`
+                      : 'No draft timesheets to send'
+                }
               >
-                {bulkSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                Send All
+                {bulkSending ? <Loader2 size={14} className="animate-spin" /> : <CheckSquare size={14} />}
+                {selectedIds.size > 0
+                  ? `Send Selected (${selectedIds.size})`
+                  : `Send Timesheets${draftCount > 0 ? ` (${draftCount})` : ''}`}
               </button>
               <button
                 onClick={() => setShowNewTs(true)}
                 disabled={!selectedProd}
-                className="flex items-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-3 py-2 hover:bg-blue-700 shadow-sm disabled:opacity-60 transition-colors font-medium"
+                className="flex items-center gap-2 bg-blue-600 text-white text-sm rounded-lg px-3 py-2 hover:bg-blue-700 shadow-sm disabled:opacity-60 transition-colors font-normal"
               >
                 <Plus size={14} /> New Timesheet
               </button>
@@ -1557,6 +1670,61 @@ export default function TimesheetsPage() {
                 </button>
               )}
             </div>
+
+            {/* Quick select controls */}
+            {canAct && sortedSheets.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap text-xs text-slate-600 pt-2 border-t border-slate-100">
+                <span className="text-slate-400 font-normal">Select:</span>
+                {draftCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={selectDrafts}
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors font-normal"
+                  >
+                    All Drafts ({draftCount})
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={selectAllVisible}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors font-normal"
+                >
+                  All Visible ({sortedSheets.length})
+                </button>
+                {selectedIds.size > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={clearSelection}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors font-normal"
+                    >
+                      Deselect All
+                    </button>
+                    <span className="text-blue-700 font-normal ml-1 bg-blue-50 border border-blue-200 rounded-md px-2 py-0.5">
+                      {selectedIds.size} selected
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowSendChecklistModal(true)}
+                      className="flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors font-normal ml-auto"
+                    >
+                      <CheckSquare size={12} />
+                      Review & Send ({selectedIds.size})
+                    </button>
+                  </>
+                )}
+                {selectedIds.size === 0 && (
+                  <button
+                    type="button"
+                    onClick={handleBulkSend}
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-blue-700 hover:bg-blue-50 border border-transparent hover:border-blue-200 rounded-md transition-colors font-normal ml-auto"
+                  >
+                    <CheckSquare size={12} />
+                    Open Checklist Modal
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {error && (
@@ -1564,34 +1732,53 @@ export default function TimesheetsPage() {
           )}
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[560px]">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 text-left">
-                  <SortableHeader label="Crew Member" sortKey="name" />
-                  <SortableHeader label="Week Ending" sortKey="week_ending" />
-                  <SortableHeader label="Production" sortKey="production" />
-                  <SortableHeader label="Trade / Rank" sortKey="trade_rank" />
-                  <SortableHeader label="Total Days" sortKey="days_worked" align="center" />
-                  <SortableHeader label="Mon" screenReaderLabel="Monday" title="Monday" sortKey="mon" align="center" />
-                  <SortableHeader label="Tue" screenReaderLabel="Tuesday" title="Tuesday" sortKey="tue" align="center" />
-                  <SortableHeader label="Wed" screenReaderLabel="Wednesday" title="Wednesday" sortKey="wed" align="center" />
-                  <SortableHeader label="Thu" screenReaderLabel="Thursday" title="Thursday" sortKey="thu" align="center" />
-                  <SortableHeader label="Fri" screenReaderLabel="Friday" title="Friday" sortKey="fri" align="center" />
-                  <SortableHeader label="Sat" screenReaderLabel="Saturday" title="Saturday" sortKey="sat" align="center" />
-                  <SortableHeader label="Sun" screenReaderLabel="Sunday" title="Sunday" sortKey="sun" align="center" />
-                  <SortableHeader label="OT Hrs" sortKey="ot_hours" align="right" />
-                  <SortableHeader label="OT Amt" sortKey="ot_amount" align="right" />
-                  <SortableHeader label="Net Amt" sortKey="net_amount" align="right" />
-                  <SortableHeader label="Invoice" sortKey="invoice" align="center" />
-                  <SortableHeader label="Status" sortKey="status" />
-                  {canAct && <th className="px-3 py-3 text-xs font-semibold text-slate-500">Actions</th>}
+                  {canAct && (
+                    <th className="w-8 px-2 py-2.5 text-center">
+                      <input
+                        type="checkbox"
+                        checked={sortedSheets.length > 0 && sortedSheets.every(s => selectedIds.has(s.id))}
+                        ref={el => {
+                          if (el) {
+                            const some = sortedSheets.some(s => selectedIds.has(s.id));
+                            const all = sortedSheets.length > 0 && sortedSheets.every(s => selectedIds.has(s.id));
+                            el.indeterminate = some && !all;
+                          }
+                        }}
+                        onChange={toggleSelectAllVisible}
+                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer align-middle"
+                        title="Select all visible timesheets"
+                        aria-label="Select all visible timesheets"
+                      />
+                    </th>
+                  )}
+                  <SortableHeader label="Crew Member" sortKey="name" align="left" className="px-2.5 py-2.5" />
+                  <SortableHeader label="Week Ending" sortKey="week_ending" align="left" className="px-2 py-2.5" />
+                  <SortableHeader label="Production" sortKey="production" align="left" className="px-2 py-2.5 max-w-[140px]" />
+                  <SortableHeader label="Trade / Rank" sortKey="trade_rank" align="left" className="px-2 py-2.5 max-w-[135px]" />
+                  <SortableHeader label="Days" title="Total Days" sortKey="days_worked" align="center" className="w-12 px-1.5 py-2.5" />
+                  <SortableHeader label="Mon" screenReaderLabel="Monday" title="Monday" sortKey="mon" align="center" className="w-9 px-1 py-2.5 border-l border-slate-100" />
+                  <SortableHeader label="Tue" screenReaderLabel="Tuesday" title="Tuesday" sortKey="tue" align="center" className="w-9 px-1 py-2.5 border-l border-slate-100" />
+                  <SortableHeader label="Wed" screenReaderLabel="Wednesday" title="Wednesday" sortKey="wed" align="center" className="w-9 px-1 py-2.5 border-l border-slate-100" />
+                  <SortableHeader label="Thu" screenReaderLabel="Thursday" title="Thursday" sortKey="thu" align="center" className="w-9 px-1 py-2.5 border-l border-slate-100" />
+                  <SortableHeader label="Fri" screenReaderLabel="Friday" title="Friday" sortKey="fri" align="center" className="w-9 px-1 py-2.5 border-l border-slate-100" />
+                  <SortableHeader label="Sat" screenReaderLabel="Saturday" title="Saturday" sortKey="sat" align="center" className="w-9 px-1 py-2.5 border-l border-slate-100" />
+                  <SortableHeader label="Sun" screenReaderLabel="Sunday" title="Sunday" sortKey="sun" align="center" className="w-9 px-1 py-2.5 border-l border-slate-100" />
+                  <SortableHeader label="OT Hrs" sortKey="ot_hours" align="center" className="w-14 px-1.5 py-2.5 border-l border-slate-100" />
+                  <SortableHeader label="OT Amt" sortKey="ot_amount" align="center" className="w-16 px-1.5 py-2.5" />
+                  <SortableHeader label="Net Amt" sortKey="net_amount" align="right" className="w-24 px-2 py-2.5" />
+                  <SortableHeader label="Invoice" sortKey="invoice" align="center" className="w-14 px-1.5 py-2.5" />
+                  <SortableHeader label="Status" sortKey="status" align="center" className="w-24 px-2 py-2.5" />
+                  {canAct && <th className="w-24 px-2.5 py-2.5 text-xs font-normal text-slate-500 text-center whitespace-nowrap">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: canAct ? 18 : 17 }).map((_, j) => (
+                      {Array.from({ length: canAct ? 19 : 17 }).map((_, j) => (
                         <td key={j} className="px-3 py-4">
                           <div className="h-4 bg-slate-100 rounded animate-pulse w-full" />
                         </td>
@@ -1601,7 +1788,7 @@ export default function TimesheetsPage() {
                 ) : sortedSheets.length === 0 ? (
                   sheets.length === 0 ? (
                     <EmptyStateRow
-                      colSpan={canAct ? 18 : 17}
+                      colSpan={canAct ? 19 : 17}
                       icon={FileText}
                       title="No timesheets yet"
                       description={
@@ -1622,7 +1809,7 @@ export default function TimesheetsPage() {
                     />
                   ) : (
                     <EmptyStateRow
-                      colSpan={canAct ? 18 : 17}
+                      colSpan={canAct ? 19 : 17}
                       icon={AlertCircle}
                       title="No matching timesheets found"
                       description="No timesheets match your currently applied search criteria or filters."
@@ -1656,7 +1843,7 @@ export default function TimesheetsPage() {
                     const adHocAmt    = parseFloat(ts.ad_hoc_amount ?? '0') || 0;
                     const foodAmt     = parseFloat(ts.food_amount ?? '0') || 0;
                     const extrasTotal = otAmt + travelAmt + mileageAmt + perDiemAmt + adHocAmt + foodAmt;
-                    const colSpan     = canAct ? 18 : 17;
+                    const colSpan     = canAct ? 19 : 17;
 
                     const fmtAmt = (n: number) =>
                       `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -1668,46 +1855,59 @@ export default function TimesheetsPage() {
                     };
                     
                     const DayCell = ({ day }: { day: string }) => (
-                      <td className="px-3 py-3.5 text-center border-l border-slate-100">
-                        {getDayWorked(day) ? <span className="text-green-500 font-bold">✓</span> : <span className="text-slate-300">-</span>}
+                      <td className="w-9 px-1 py-2.5 text-center border-l border-slate-100">
+                        {getDayWorked(day) ? <span className="text-green-500 font-normal">✓</span> : <span className="text-slate-300">-</span>}
                       </td>
                     );
 
                     return (
                       <Fragment key={ts.id}>
-                        <tr className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-5 py-3.5 sticky left-0 bg-white z-10">
-                            <div className="flex items-center gap-3">
+                        <tr className={`hover:bg-slate-50/50 transition-colors ${selectedIds.has(ts.id) ? 'bg-blue-50/30' : ''}`}>
+                          {canAct && (
+                            <td className="w-8 px-2 py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(ts.id)}
+                                onChange={() => toggleSelect(ts.id)}
+                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer align-middle"
+                                aria-label={`Select timesheet for ${fullName}`}
+                              />
+                            </td>
+                          )}
+                          <td className="px-2.5 py-2.5 text-left">
+                            <div className="flex items-center gap-2">
                               {/* Expand toggle */}
                               <button
                                 onClick={() => toggleRow(ts.id)}
                                 className="p-0.5 text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
                                 title={isExpanded ? 'Collapse details' : 'Show sub-amounts'}
                               >
-                                <ChevronDown size={14} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                <ChevronDown size={13} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                               </button>
-                              <div className={`w-8 h-8 rounded-full ${colorClass} flex items-center justify-center flex-shrink-0`}>
-                                <span className="text-white text-xs font-bold">
+                              <div className={`w-7 h-7 rounded-full ${colorClass} flex items-center justify-center flex-shrink-0`}>
+                                <span className="text-white text-xs font-normal">
                                   {getInitials(firstName, lastName)}
                                 </span>
                               </div>
-                              <div>
-                                <p className="text-slate-900 font-medium text-sm">{fullName}</p>
-                                <p className="text-slate-400 text-xs">
-                                  {ts.crew_trade ?? ''}
-                                  {ts.crew_rank ? ` · ${ts.crew_rank}` : ''}
-                                  {ts.crew_number ? ` · ${ts.crew_number}` : ''}
-                                </p>
+                              <div className="min-w-0">
+                                <p className="text-slate-900 font-normal text-sm whitespace-nowrap">{fullName}</p>
+                                {ts.crew_number && (
+                                  <p className="text-slate-400 text-xs whitespace-nowrap">{ts.crew_number}</p>
+                                )}
                               </div>
                             </div>
                           </td>
-                          <td className="px-3 py-3.5 text-slate-600 text-xs whitespace-nowrap">{ts.week_ending_date}</td>
-                          <td className="px-3 py-3.5 text-slate-600 text-xs">{ts.prod_name ?? selectedProdName ?? '—'}</td>
-                          <td className="px-3 py-3.5">
-                            <p className="text-slate-600 text-xs">{ts.crew_trade ?? '—'}</p>
-                            {ts.crew_rank && <p className="text-slate-400 text-xs">{ts.crew_rank}</p>}
+                          <td className="px-2 py-2.5 text-left text-slate-600 text-xs whitespace-nowrap">{ts.week_ending_date}</td>
+                          <td className="px-2 py-2.5 text-left text-slate-600 text-xs max-w-[140px]">
+                            <p className="truncate" title={ts.prod_name ?? selectedProdName ?? ''}>
+                              {ts.prod_name ?? selectedProdName ?? '—'}
+                            </p>
                           </td>
-                          <td className="px-3 py-3.5 text-center text-slate-900 font-medium text-xs">{ts.days_worked ?? 0}</td>
+                          <td className="px-2 py-2.5 text-left max-w-[135px]">
+                            <p className="text-slate-600 text-xs truncate" title={ts.crew_trade ?? ''}>{ts.crew_trade ?? '—'}</p>
+                            {ts.crew_rank && <p className="text-slate-400 text-xs truncate" title={ts.crew_rank}>{ts.crew_rank}</p>}
+                          </td>
+                          <td className="w-12 px-1.5 py-2.5 text-center text-slate-900 font-normal text-xs">{ts.days_worked ?? 0}</td>
                           <DayCell day="Monday" />
                           <DayCell day="Tuesday" />
                           <DayCell day="Wednesday" />
@@ -1715,21 +1915,21 @@ export default function TimesheetsPage() {
                           <DayCell day="Friday" />
                           <DayCell day="Saturday" />
                           <DayCell day="Sunday" />
-                          <td className="px-3 py-3.5 text-right text-slate-900 text-xs">{otHrs > 0 ? otHrs : '—'}</td>
-                          <td className="px-3 py-3.5 text-right text-slate-900 text-xs">{otAmt > 0 ? fmtAmt(otAmt) : '—'}</td>
-                          <td className="px-3 py-3.5 text-right">
-                            <p className="text-slate-900 font-semibold text-sm">
+                          <td className="w-14 px-1.5 py-2.5 text-center border-l border-slate-100 text-slate-900 text-xs whitespace-nowrap">{otHrs > 0 ? otHrs : '—'}</td>
+                          <td className="w-16 px-1.5 py-2.5 text-center text-slate-900 text-xs whitespace-nowrap">{otAmt > 0 ? fmtAmt(otAmt) : '—'}</td>
+                          <td className="w-24 px-2 py-2.5 text-right whitespace-nowrap">
+                            <p className="text-slate-900 font-normal text-sm">
                               {fmtAmt(netAmt)}
                             </p>
                           </td>
-                          <td className="px-3 py-3.5 text-center">
+                          <td className="w-14 px-1.5 py-2.5 text-center">
                             {invoiced
-                              ? <CheckCircle2 size={16} className="text-green-500 mx-auto" />
-                              : <AlertCircle size={16} className="text-orange-400 mx-auto" />}
+                              ? <CheckCircle2 size={15} className="text-green-500 mx-auto" />
+                              : <AlertCircle size={15} className="text-orange-400 mx-auto" />}
                           </td>
-                          <td className="px-3 py-3.5">
-                            <div className="flex flex-col items-start gap-1">
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${badge.className}`}>
+                          <td className="w-24 px-2 py-2.5 text-center">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-normal whitespace-nowrap ${badge.className}`}>
                                 {badge.label}
                               </span>
                               {ts.amended_at && (
@@ -1740,93 +1940,146 @@ export default function TimesheetsPage() {
                             </div>
                           </td>
                           {canAct && (
-                            <td className="px-4 py-3.5">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {/* Verify — distributed or amendment_requested */}
-                                {(ts.status === 'distributed' || ts.status === 'amendment_requested') && (
-                                  <button
-                                    onClick={() => handleVerify(ts.id)}
-                                    disabled={verifying === ts.id}
-                                    className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-60 transition-colors font-medium"
-                                  >
-                                    {verifying === ts.id
-                                      ? <Loader2 size={12} className="animate-spin" />
-                                      : <ShieldCheck size={12} />}
-                                    Verify
-                                  </button>
-                                )}
-                                {/* Edit entries link — not for finalised */}
-                                {ts.status !== 'finalised' && (
-                                  <Link
-                                    href={{
-                                      pathname: `/timesheets/${ts.id}`,
-                                      query: { production_id: selectedProd, week_ending_date: weekEndingISO },
+                            <td className="w-24 px-2.5 py-2 text-center whitespace-nowrap">
+                              <div className="relative inline-block text-left">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (openActionsMenu?.id === ts.id) {
+                                      setOpenActionsMenu(null);
+                                      return;
+                                    }
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    const spaceBelow = window.innerHeight - rect.bottom;
+                                    const openUpward = spaceBelow < 240 && rect.top > 240;
+                                    setOpenActionsMenu({
+                                      id: ts.id,
+                                      top: openUpward ? undefined : rect.bottom + 4,
+                                      bottom: openUpward ? window.innerHeight - rect.top + 4 : undefined,
+                                      right: Math.max(8, window.innerWidth - rect.right),
+                                    });
+                                  }}
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-normal rounded-lg border transition-colors shadow-2xs ${
+                                    openActionsMenu?.id === ts.id
+                                      ? 'bg-blue-50 text-blue-700 border-blue-200 ring-2 ring-blue-100'
+                                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+                                  }`}
+                                  aria-haspopup="true"
+                                  aria-expanded={openActionsMenu?.id === ts.id}
+                                  title="Actions menu"
+                                >
+                                  <span>Actions</span>
+                                  <ChevronDown size={12} className={`text-slate-400 transition-transform ${openActionsMenu?.id === ts.id ? 'rotate-180 text-blue-600' : ''}`} />
+                                </button>
+
+                                {openActionsMenu?.id === ts.id && (
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{
+                                      top: openActionsMenu.top,
+                                      bottom: openActionsMenu.bottom,
+                                      right: openActionsMenu.right,
                                     }}
-                                    className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors font-medium"
+                                    className="fixed w-48 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-50 text-xs divide-y divide-slate-100"
                                   >
-                                    <ExternalLink size={12} />
-                                    Edit Entries
-                                  </Link>
+                                    <div className="py-0.5">
+                                      {/* Verify — distributed or amendment_requested */}
+                                      {(ts.status === 'distributed' || ts.status === 'amendment_requested') && (
+                                        <button
+                                          type="button"
+                                          onClick={() => { setOpenActionsMenu(null); handleVerify(ts.id); }}
+                                          disabled={verifying === ts.id}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-green-700 hover:bg-green-50 font-normal transition-colors disabled:opacity-60"
+                                        >
+                                          {verifying === ts.id
+                                            ? <Loader2 size={13} className="animate-spin text-green-600" />
+                                            : <ShieldCheck size={13} className="text-green-600" />}
+                                          <span>Verify Timesheet</span>
+                                        </button>
+                                      )}
+
+                                      {/* Edit entries link — not for finalised */}
+                                      {ts.status !== 'finalised' && (
+                                        <Link
+                                          href={{
+                                            pathname: `/timesheets/${ts.id}`,
+                                            query: { production_id: selectedProd, week_ending_date: weekEndingISO },
+                                          }}
+                                          onClick={() => setOpenActionsMenu(null)}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-700 hover:bg-slate-50 font-normal transition-colors"
+                                        >
+                                          <ExternalLink size={13} className="text-slate-400" />
+                                          <span>Edit Entries</span>
+                                        </Link>
+                                      )}
+
+                                      {/* Send Individual Button */}
+                                      <button
+                                        type="button"
+                                        onClick={() => { setOpenActionsMenu(null); handleSendSingle(ts); }}
+                                        disabled={sendingId === ts.id}
+                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-blue-700 hover:bg-blue-50 font-normal transition-colors disabled:opacity-60"
+                                      >
+                                        {sendingId === ts.id
+                                          ? <Loader2 size={13} className="animate-spin text-blue-600" />
+                                          : <Send size={13} className="text-blue-600" />}
+                                        <span>Send Timesheet</span>
+                                      </button>
+
+                                      {/* Attach Invoice — distributed or amendment_requested */}
+                                      {(ts.status === 'distributed' || ts.status === 'amendment_requested') && (
+                                        <button
+                                          type="button"
+                                          onClick={() => { setOpenActionsMenu(null); setAttachModal({ id: ts.id, name: fullName }); }}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-700 hover:bg-slate-50 font-normal transition-colors"
+                                        >
+                                          <Paperclip size={13} className="text-slate-400" />
+                                          <span>{ts.invoice_attachment_url ? 'Replace Invoice' : 'Attach Invoice'}</span>
+                                        </button>
+                                      )}
+
+                                      {/* Per-row PDF verification pack download */}
+                                      {ts.status !== 'draft' ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => { setOpenActionsMenu(null); handleGenerateRowPack(ts); }}
+                                          disabled={packDownloadingId === ts.id}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-700 hover:bg-slate-50 font-normal transition-colors disabled:opacity-60"
+                                        >
+                                          {packDownloadingId === ts.id
+                                            ? <Loader2 size={13} className="animate-spin text-slate-400" />
+                                            : <Download size={13} className="text-slate-400" />}
+                                          <span>Download PDF Pack</span>
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => { setOpenActionsMenu(null); handleDownloadDraft(ts); }}
+                                          disabled={packDownloadingId === ts.id}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-700 hover:bg-slate-50 font-normal transition-colors disabled:opacity-60"
+                                        >
+                                          {packDownloadingId === ts.id
+                                            ? <Loader2 size={13} className="animate-spin text-slate-400" />
+                                            : <Download size={13} className="text-slate-400" />}
+                                          <span>Download Draft PDF</span>
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    <div className="py-0.5">
+                                      {/* Delete Timesheet Completely */}
+                                      <button
+                                        type="button"
+                                        onClick={() => { setOpenActionsMenu(null); setDeleteTsModal(ts); }}
+                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-red-600 hover:bg-red-50 font-normal transition-colors"
+                                      >
+                                        <Trash2 size={13} className="text-red-500" />
+                                        <span>Delete Timesheet</span>
+                                      </button>
+                                    </div>
+                                  </div>
                                 )}
-                                {/* Per-row PDF verification pack download */}
-                                {ts.status !== 'draft' && (
-                                  <button
-                                    onClick={() => handleGenerateRowPack(ts)}
-                                    disabled={packDownloadingId === ts.id}
-                                    title={`Download PDF verification pack for ${fullName}`}
-                                    className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-slate-200 bg-slate-100 text-slate-800 rounded-lg hover:bg-indigo-100 transition-colors font-medium disabled:opacity-60"
-                                  >
-                                    {packDownloadingId === ts.id
-                                      ? <Loader2 size={12} className="animate-spin" />
-                                      : <Download size={12} />}
-                                    PDF Pack
-                                  </button>
-                                )}
-                                {/* Draft PDF Button */}
-                                {ts.status === 'draft' && (
-                                  <button
-                                    onClick={() => handleDownloadDraft(ts)}
-                                    disabled={packDownloadingId === ts.id}
-                                    title={`Download Draft PDF for ${fullName}`}
-                                    className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors font-medium disabled:opacity-60"
-                                  >
-                                    {packDownloadingId === ts.id
-                                      ? <Loader2 size={12} className="animate-spin" />
-                                      : <Download size={12} />}
-                                    Draft PDF
-                                  </button>
-                                )}
-                                {/* Send Individual Button (Available for all statuses) */}
-                                <button
-                                  onClick={() => handleSendSingle(ts)}
-                                  disabled={sendingId === ts.id}
-                                  title={`Send Timesheet to ${fullName}`}
-                                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 transition-colors font-medium"
-                                >
-                                  {sendingId === ts.id
-                                    ? <Loader2 size={12} className="animate-spin" />
-                                    : <Send size={12} />}
-                                  Send
-                                </button>
-                                {/* Attach Invoice — distributed or amendment_requested */}
-                                {(ts.status === 'distributed' || ts.status === 'amendment_requested') && (
-                                  <button
-                                    onClick={() => setAttachModal({ id: ts.id, name: fullName })}
-                                    className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors font-medium"
-                                  >
-                                    <Paperclip size={12} />
-                                    {ts.invoice_attachment_url ? 'Replace Invoice' : 'Attach Invoice'}
-                                  </button>
-                                )}
-                                {/* Delete Timesheet Completely */}
-                                <button
-                                  onClick={() => setDeleteTsModal(ts)}
-                                  title={`Delete timesheet completely for ${fullName}`}
-                                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors font-medium"
-                                >
-                                  <Trash2 size={12} />
-                                  Delete
-                                </button>
                               </div>
                             </td>
                           )}

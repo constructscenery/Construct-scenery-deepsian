@@ -3,7 +3,7 @@ const db = require('../config/db');
 // GET /api/assets-plant
 const getAssets = async (req, res) => {
   try {
-    const { rows } = await db.query('SELECT * FROM assets ORDER BY name ASC');
+    const { rows } = await db.query('SELECT * FROM assets ORDER BY purchase_date DESC NULLS LAST, created_at DESC, name ASC');
     res.json({ assets: rows });
   } catch (err) {
     console.error('getAssets error:', err);

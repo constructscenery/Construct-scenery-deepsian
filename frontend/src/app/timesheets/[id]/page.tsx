@@ -304,9 +304,9 @@ export default function TimesheetDetailPage() {
   const otRate    = parseFloat(String(ts?.overtime_rate ?? '0')) || 0;
 
   // ── Real-time totals calculated from current form state ────────────────────
-  const stdDays      = entries.filter(e => e.full_day_worked && !['Saturday','Sunday'].includes(e.day_of_week)).length;
-  const satWorked    = entries.some(e => e.day_of_week === 'Saturday' && e.full_day_worked);
-  const sunWorked    = entries.some(e => e.day_of_week === 'Sunday'   && e.full_day_worked);
+  // Saturday has no weekend premium; paid at normal day rate. Only Sunday has premium (double time).
+  const stdDays      = entries.filter(e => e.full_day_worked && e.day_of_week !== 'Sunday').length;
+  const sunWorked    = entries.some(e => e.day_of_week === 'Sunday' && e.full_day_worked);
   const totalOTHours = entries.reduce((s, e) => s + (parseFloat(e.overtime_hours || '0') || 0), 0);
   const mealTotal    = entries.reduce((s, e) =>
     s + (parseFloat(e.meal_allowance_breakfast || '0') || 0)
@@ -319,10 +319,9 @@ export default function TimesheetDetailPage() {
   const foodTotal    = mealTotal;
 
   const weeklyRate     = dailyRate * stdDays;
-  const saturdayPay   = satWorked ? dailyRate * 1.5 : 0;
   const sundayPay     = sunWorked ? dailyRate * 2.0  : 0;
   const overtimeAmount = totalOTHours * otRate;
-  const netTotalAmount = weeklyRate + saturdayPay + sundayPay + overtimeAmount + mealTotal + travelTotal + mileageTotal + perDiemTotal + adHocTotal;
+  const netTotalAmount = weeklyRate + sundayPay + overtimeAmount + mealTotal + travelTotal + mileageTotal + perDiemTotal + adHocTotal;
   const grossTotal    = netTotalAmount;
   const vat           = vatRegistered ? grossTotal * 0.20 : 0;
   const grandTotal    = grossTotal + vat;
@@ -575,11 +574,11 @@ export default function TimesheetDetailPage() {
                 <p className="text-slate-900 font-semibold">{fmtGBP(weeklyRate)}</p>
                 <p className="text-slate-400 text-xs">{stdDays} day{stdDays !== 1 ? 's' : ''} × {fmtGBP(dailyRate)}</p>
               </div>
-              {(saturdayPay > 0 || sundayPay > 0) && (
+              {sundayPay > 0 && (
                 <div>
-                  <p className="text-slate-400 text-xs mb-0.5">Weekend Premium</p>
-                  <p className="text-slate-900 font-semibold">{fmtGBP(saturdayPay + sundayPay)}</p>
-                  <p className="text-slate-400 text-xs">{satWorked ? 'Sat ×1.5' : ''}{satWorked && sunWorked ? ' · ' : ''}{sunWorked ? 'Sun ×2' : ''}</p>
+                  <p className="text-slate-400 text-xs mb-0.5">Sunday Premium</p>
+                  <p className="text-slate-900 font-semibold">{fmtGBP(sundayPay)}</p>
+                  <p className="text-slate-400 text-xs">Sun ×2.0</p>
                 </div>
               )}
               <div>
