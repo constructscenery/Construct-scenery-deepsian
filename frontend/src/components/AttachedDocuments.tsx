@@ -4,7 +4,18 @@ import { useEffect, useRef, useState } from 'react';
 import { Download, Eye, FileText, Loader2, Trash2, Upload, X } from 'lucide-react';
 import { attachedDocumentsApi, type AttachedDocument, type DocumentOwner } from '@/lib/api';
 
-export default function AttachedDocuments({ owner, ownerId, name, onClose }: { owner: DocumentOwner; ownerId: string; name: string; onClose: () => void }) {
+export type ExtraAttachedFile = { key: string; label: string; fileName: string; load: () => Promise<Blob> };
+
+const mimeFromName = (fileName: string) => {
+  const ext = fileName.toLowerCase().split('.').pop();
+  if (ext === 'pdf') return 'application/pdf';
+  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+  if (ext === 'png') return 'image/png';
+  if (ext === 'gif') return 'image/gif';
+  return '';
+};
+
+export default function AttachedDocuments({ owner, ownerId, name, onClose, extras }: { owner: DocumentOwner; ownerId: string; name: string; onClose: () => void; extras?: ExtraAttachedFile[] }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [documents, setDocuments] = useState<AttachedDocument[]>([]);
@@ -13,7 +24,7 @@ export default function AttachedDocuments({ owner, ownerId, name, onClose }: { o
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
-  const [preview, setPreview] = useState<{ document: AttachedDocument; url: string } | null>(null);
+  const [preview, setPreview] = useState<{ id: string; name: string; url: string; type: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AttachedDocument | null>(null);
 
   useEffect(() => {
@@ -50,7 +61,18 @@ export default function AttachedDocuments({ owner, ownerId, name, onClose }: { o
     setBusy(true); setError('');
     try {
       const blob = await attachedDocumentsApi.view(owner, ownerId, document.id);
-      setPreview({ document, url: URL.createObjectURL(blob) });
+      setPreview({ id: document.id, name: document.file_name, url: URL.createObjectURL(blob), type: document.file_mime_type });
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to open document'); }
+    finally { setBusy(false); }
+  }
+
+  async function viewExtra(extra: ExtraAttachedFile) {
+    setBusy(true); setError('');
+    try {
+      const blob = await extra.load();
+      // Stored content type can be generic (octet-stream); derive it from the name so PDFs/images render inline
+      const type = mimeFromName(extra.fileName) || blob.type;
+      setPreview({ id: extra.key, name: extra.fileName, url: URL.createObjectURL(new Blob([blob], { type })), type });
     } catch (err) { setError(err instanceof Error ? err.message : 'Unable to open document'); }
     finally { setBusy(false); }
   }
@@ -61,7 +83,7 @@ export default function AttachedDocuments({ owner, ownerId, name, onClose }: { o
     try {
       await attachedDocumentsApi.delete(owner, ownerId, deleteTarget.id);
       setDocuments(current => current.filter(document => document.id !== deleteTarget.id));
-      if (preview?.document.id === deleteTarget.id) setPreview(null);
+      if (preview?.id === deleteTarget.id) setPreview(null);
       setDeleteTarget(null);
     } catch (err) { setError(err instanceof Error ? err.message : 'Unable to delete document'); }
     finally { setBusy(false); }
@@ -78,6 +100,12 @@ export default function AttachedDocuments({ owner, ownerId, name, onClose }: { o
     </div>
     {error && <div role="alert" className="flex flex-wrap gap-3 rounded-lg bg-red-50 p-3 text-sm text-red-700 mb-3"><span>{error}</span><button disabled={busy} onClick={() => { setError(''); setLoading(true); setReload(current => current + 1); }} className="underline">Reload documents</button></div>}
     {busy && <p role="status" className="flex items-center gap-2 text-sm text-slate-500 mb-3"><Loader2 size={14} className="animate-spin" /> Working...</p>}
+    {!!extras?.length && <ul className="divide-y divide-slate-100 border-y border-slate-100 mb-4">
+      {extras.map(extra => <li key={extra.key} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
+        <div className="flex items-start gap-2 min-w-0"><FileText size={18} className="text-emerald-600 mt-0.5 shrink-0" /><div className="min-w-0"><p className="text-sm font-medium text-slate-800 break-all">{extra.fileName}</p><p className="text-xs text-slate-500 mt-1">{extra.label}</p></div></div>
+        <div className="flex gap-2 shrink-0"><button disabled={busy} onClick={() => viewExtra(extra)} className="inline-flex items-center gap-1 rounded px-2 py-1 text-sm text-blue-600 disabled:opacity-50"><Eye size={15} /> View</button></div>
+      </li>)}
+    </ul>}
     {loading ? <p role="status" className="py-6 text-sm text-slate-500">Loading documents...</p> : documents.length === 0 ? <p className="py-6 text-sm text-slate-500">No documents attached.</p> : <ul className="divide-y divide-slate-100 border-y border-slate-100">
       {documents.map(document => <li key={document.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
         <div className="flex items-start gap-2 min-w-0"><FileText size={18} className="text-blue-600 mt-0.5 shrink-0" /><div className="min-w-0"><p className="text-sm font-medium text-slate-800 break-all">{document.file_name}</p><p className="text-xs text-slate-500 mt-1">{Math.max(1, Math.ceil(Number(document.file_size) / 1024))} KB · {new Date(document.uploaded_at).toLocaleDateString('en-GB')}</p></div></div>
@@ -89,8 +117,8 @@ export default function AttachedDocuments({ owner, ownerId, name, onClose }: { o
       <div className="flex gap-2 mt-3"><button disabled={busy} onClick={() => setDeleteTarget(null)} className="px-3 py-2 text-sm text-slate-600">Cancel</button><button disabled={busy} onClick={remove} className="inline-flex items-center gap-2 rounded bg-red-600 px-3 py-2 text-sm text-white disabled:opacity-50"><Trash2 size={14} /> Delete document</button></div>
     </div>}
     {preview && <section aria-label="Document preview" className="mt-5 min-w-0">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3"><h3 className="text-sm font-medium text-slate-800 break-all">{preview.document.file_name}</h3><div className="flex gap-3"><a href={preview.url} download={preview.document.file_name} className="inline-flex items-center gap-1 text-sm text-blue-600"><Download size={15} /> Download</a><button onClick={() => setPreview(null)} title="Close preview" aria-label="Close preview" className="text-slate-500"><X size={16} /></button></div></div>
-      {preview.document.file_mime_type === 'application/pdf' ? <iframe title={`Preview of ${preview.document.file_name}`} src={preview.url} className="w-full h-[55dvh] min-h-64 border border-slate-200 rounded" /> : <img src={preview.url} alt={preview.document.file_name} className="w-full h-[55dvh] min-h-64 object-contain bg-slate-50" />}
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3"><h3 className="text-sm font-medium text-slate-800 break-all">{preview.name}</h3><div className="flex gap-3"><a href={preview.url} download={preview.name} className="inline-flex items-center gap-1 text-sm text-blue-600"><Download size={15} /> Download</a><button onClick={() => setPreview(null)} title="Close preview" aria-label="Close preview" className="text-slate-500"><X size={16} /></button></div></div>
+      {preview.type === 'application/pdf' ? <iframe title={`Preview of ${preview.name}`} src={preview.url} className="w-full h-[55dvh] min-h-64 border border-slate-200 rounded" /> : preview.type.startsWith('image/') ? <img src={preview.url} alt={preview.name} className="w-full h-[55dvh] min-h-64 object-contain bg-slate-50" /> : <p className="py-6 text-sm text-slate-500">Preview isn&apos;t available for this file type — use Download.</p>}
     </section>}
   </dialog>;
 }

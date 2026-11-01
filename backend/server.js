@@ -346,6 +346,30 @@ async function start() {
     console.error('⚠️  Schema guard failed (audit_log table):', err.message);
   }
 
+  // Mirrors migrations 1793549637405 / 1793549960490 for databases where migrations haven't been run
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS purchase_order_documents (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        purchase_order_id UUID NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+        file_key TEXT NOT NULL,
+        file_name TEXT NOT NULL,
+        file_size BIGINT NOT NULL,
+        file_mime_type TEXT NOT NULL,
+        uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_purchase_order_documents_parent ON purchase_order_documents(purchase_order_id);
+      ALTER TABLE materials_inventory
+        ADD COLUMN IF NOT EXISTS photo_key TEXT,
+        ADD COLUMN IF NOT EXISTS photo_name TEXT,
+        ADD COLUMN IF NOT EXISTS photo_mime_type TEXT;
+    `);
+    console.log('✅ Schema guard: purchase_order_documents table and materials_inventory photo columns ensured');
+  } catch (err) {
+    console.error('⚠️  Schema guard failed (PO documents / stock photo):', err.message);
+  }
+
   // ── Forecasting Addendum 4 Schema Guard ──────────────────────────────────────
   const { ensureForecastingTables } = require('./services/forecastingSchemaGuard');
   await ensureForecastingTables();

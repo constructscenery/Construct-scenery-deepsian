@@ -565,6 +565,7 @@ export type PurchaseOrder = {
   supplier_phone?: string | null;
   supplier_contact_name?: string | null;
   created_by_name?: string | null;
+  document_count?: number;
 };
 
 export const purchaseOrdersApi = {
@@ -618,6 +619,8 @@ export const purchaseOrdersApi = {
     }),
   downloadInvoice: (id: string) =>
     request<{ url: string; filename: string }>(`/api/purchase-orders/${id}/invoice/download`),
+  viewInvoice: async (id: string) => (await documentFetch(`/api/purchase-orders/${id}/invoice/view`)).blob(),
+  viewConfirmation: async (id: string) => (await documentFetch(`/api/purchase-orders/${id}/confirmation/download`)).blob(),
   deleteInvoice: (id: string) =>
     request<{ message: string }>(`/api/purchase-orders/${id}/invoice`, { method: 'DELETE' }),
   attachConfirmation: (id: string, formData: FormData) =>
@@ -655,6 +658,27 @@ export const purchaseOrdersApi = {
     ),
   restore: (id: string) =>
     request<{ message: string; purchase_order: PurchaseOrder }>(`/api/purchase-orders/${id}/restore`, { method: 'PATCH' }),
+  bulkDownload: async (kind: 'invoices-zip' | 'final-backup', ids: string[], filename: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cs_token') : null;
+    const res = await fetch(`/api/purchase-orders/bulk/${kind}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ ids }),
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error((e as { error?: string }).error ?? 'Download failed');
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
   import: (formData: FormData) =>
     fetch('/api/purchase-orders/import', {
       method: 'POST',
@@ -1558,6 +1582,7 @@ export type MaterialsInventoryItem = {
   production_name: string | null;
   location: string | null;
   notes: string | null;
+  has_photo?: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -1583,6 +1608,14 @@ export const materialsInventoryApi = {
     request<MaterialsInventoryItem>(`/api/materials-inventory/${id}/restock`, { method: 'POST', body: { quantity } }),
   delete: (id: string) =>
     request<{ message: string }>(`/api/materials-inventory/${id}`, { method: 'DELETE' }),
+  photo: async (id: string) => (await documentFetch(`/api/materials-inventory/${id}/photo`)).blob(),
+  uploadPhoto: async (id: string, file: File): Promise<MaterialsInventoryItem> => {
+    const body = new FormData();
+    body.append('photo', file);
+    return (await documentFetch(`/api/materials-inventory/${id}/photo`, { method: 'POST', body })).json();
+  },
+  deletePhoto: (id: string) =>
+    request<MaterialsInventoryItem>(`/api/materials-inventory/${id}/photo`, { method: 'DELETE' }),
 };
 
 // ─── Suppliers Database API ────────────────────────────────────────────────────
@@ -2204,12 +2237,13 @@ export type AttachedDocument = {
   uploaded_at: string;
 };
 
-export type DocumentOwner = 'buildings' | 'freelancers' | 'role_contacts' | 'containers';
+export type DocumentOwner = 'buildings' | 'freelancers' | 'role_contacts' | 'containers' | 'purchase_orders';
 const documentPath = (owner: DocumentOwner, id: string) => {
   if (owner === 'buildings') return `/api/buildings/${id}/documents`;
   if (owner === 'freelancers') return `/api/crew/freelancers/${id}/documents`;
   if (owner === 'role_contacts') return `/api/crew/role-contacts/${id}/documents`;
   if (owner === 'containers') return `/api/containers/${id}/documents`;
+  if (owner === 'purchase_orders') return `/api/purchase-orders/${id}/documents`;
   return `/api/crew/role-contacts/${id}/documents`;
 };
 

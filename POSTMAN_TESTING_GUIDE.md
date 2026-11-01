@@ -1018,6 +1018,38 @@ First create a throwaway PO (POST /api/purchase-orders), then:
 
 ---
 
+### 4.9 — Bulk Download Actual Invoices / Receipts (ZIP)
+
+**POST** `{{baseUrl}}/api/purchase-orders/bulk/invoices-zip`  
+**Body:** `{ "ids": ["<po-uuid>", "<po-uuid>"] }` *(1–500 PO ids)*
+
+**Expected — 200:** `application/zip` file (`PO_Invoices_<date>.zip`), one file per PO named `<PO number> - <original filename>`. If some files can't be read, a `MISSING_INVOICES.txt` lists them.  
+**400** invalid/empty `ids` · **404** none of the selected POs have an invoice attached.
+
+---
+
+### 4.10 — Final Back Up PDF
+
+**POST** `{{baseUrl}}/api/purchase-orders/bulk/final-backup`  
+**Body:** `{ "ids": ["<po-uuid>", "<po-uuid>"] }` *(1–500 PO ids)*
+
+**Expected — 200:** single `application/pdf` (`PO_Final_Backup_<date>.pdf`) ordered by PO number: PO PDF → Actual Invoice / Receipt, repeated per PO. Missing/unreadable invoices get a placeholder page.  
+**400** invalid/empty `ids` · **404** POs not found.
+
+---
+
+### 4.11 — Additional PO Documents (any number) & Invoice Preview
+
+- **GET** `{{baseUrl}}/api/purchase-orders/{{poId}}/documents` → `[{ id, file_name, file_size, file_mime_type, uploaded_by, uploaded_at }]` (newest first)
+- **POST** `{{baseUrl}}/api/purchase-orders/{{poId}}/documents` — form-data `file` (PDF/JPEG/PNG, max 25 MB) → **201** document row
+- **GET** `{{baseUrl}}/api/purchase-orders/{{poId}}/documents/<docId>/view` → file stream (inline)
+- **DELETE** `{{baseUrl}}/api/purchase-orders/{{poId}}/documents/<docId>` → **204**
+- **GET** `{{baseUrl}}/api/purchase-orders/{{poId}}/invoice/view` → actual invoice file stream (inline)
+
+`GET /api/purchase-orders` rows now include `document_count` (number of additional documents).
+
+---
+
 ## ═══════════════════════════════════════════════
 ## PHASE 5: TIMESHEETS (Module 3 — Part A)
 ### Accountant manages timesheets | Coordinator read-only
@@ -1961,6 +1993,18 @@ if (r.id) pm.environment.set("forecastId", r.id);
 | **M5 Percentometer Ratios** — Update | ✅ | ❌ | ❌ |
 | **M5 BECTU Rates** — Read | ✅ | ✅ | ✅ |
 | **M6 Dashboard** — Full access | ✅ | ❌ | ❌ |
+
+---
+
+## MATERIALS STOCK — ITEM PHOTO
+
+One photo per stock item (shown in the Photo column of Materials → Current Held Stock).
+
+- **POST** `{{baseUrl}}/api/materials-inventory/<id>/photo` — form-data `photo` (JPEG/PNG, max 25 MB) → **200** stock row with `has_photo: true` (replaces any existing photo)
+- **GET** `{{baseUrl}}/api/materials-inventory/<id>/photo` → image stream · **404** if no photo
+- **DELETE** `{{baseUrl}}/api/materials-inventory/<id>/photo` → **200** stock row with `has_photo: false`
+
+`GET /api/materials-inventory` rows now include `has_photo` (boolean).
 
 ---
 

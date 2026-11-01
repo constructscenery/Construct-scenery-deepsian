@@ -20,6 +20,8 @@ import {
   Boxes,
   ChevronLeft,
   ChevronRight,
+  Camera,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { EmptyStateRow } from '@/components/EmptyState';
 import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
@@ -102,6 +104,106 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
   );
 }
 
+// ─── Stock photo popup ──────────────────────────────────────────────────────────
+function InventoryPhotoModal({ item, canWrite, onClose, onChanged }: {
+  item: MaterialsInventoryItem;
+  canWrite: boolean;
+  onClose: () => void;
+  onChanged: (hasPhoto: boolean) => void;
+}) {
+  const [hasPhoto, setHasPhoto] = useState(Boolean(item.has_photo));
+  const [version, setVersion] = useState(0);
+  const [url, setUrl] = useState<string | null>(null);
+  // Starts busy when a photo needs loading; the fetch effect clears it
+  const [busy, setBusy] = useState(Boolean(item.has_photo));
+  const [error, setError] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!hasPhoto) return;
+    let active = true;
+    let objectUrl: string | null = null;
+    materialsInventoryApi.photo(item.id)
+      .then(blob => { if (active) { objectUrl = URL.createObjectURL(blob); setUrl(objectUrl); } })
+      .catch(err => { if (active) setError(err instanceof Error ? err.message : 'Unable to load photo'); })
+      .finally(() => { if (active) setBusy(false); });
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [item.id, hasPhoto, version]);
+
+  async function handleUpload(file: File | undefined) {
+    if (inputRef.current) inputRef.current.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png'].includes(file.type)) { setError('Choose a JPEG or PNG photo.'); return; }
+    if (file.size > 25 * 1024 * 1024) { setError('Maximum photo size is 25 MB.'); return; }
+    setBusy(true); setError('');
+    try {
+      await materialsInventoryApi.uploadPhoto(item.id, file);
+      setUrl(null);
+      setHasPhoto(true);
+      setVersion(v => v + 1);
+      onChanged(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+      setBusy(false);
+    }
+  }
+
+  async function handleRemove() {
+    if (!confirm('Remove this photo?')) return;
+    setBusy(true); setError('');
+    try {
+      await materialsInventoryApi.deletePhoto(item.id);
+      setUrl(null);
+      setHasPhoto(false);
+      onChanged(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to remove photo');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0" onClick={() => { if (!busy) onClose(); }} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-3 px-6 py-4 border-b border-slate-100">
+          <div className="min-w-0">
+            <h2 className="text-slate-900 font-semibold text-lg break-words">{item.material_name}</h2>
+            <p className="text-slate-500 text-xs mt-0.5">Location: {item.location || '—'}</p>
+          </div>
+          <button disabled={busy} onClick={onClose} aria-label="Close photo" className="p-1.5 text-slate-400 hover:text-slate-600 disabled:opacity-50"><X size={18} /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          {url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={url} alt={`Photo of ${item.material_name}`} className="w-full max-h-[60vh] object-contain rounded-lg bg-slate-50" />
+          ) : busy ? (
+            <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-500"><Loader2 size={16} className="animate-spin" /> Loading…</div>
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-2 py-16 text-sm text-slate-400 border-2 border-dashed border-slate-200 rounded-lg">
+              <Camera size={28} />
+              No photo yet
+            </div>
+          )}
+          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+          {canWrite && (
+            <div className="flex flex-wrap gap-2 justify-end">
+              <input ref={inputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={e => handleUpload(e.target.files?.[0])} />
+              {hasPhoto && (
+                <button disabled={busy} onClick={handleRemove} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"><Trash2 size={14} /> Remove</button>
+              )}
+              <button disabled={busy} onClick={() => inputRef.current?.click()} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                <Camera size={14} /> {hasPhoto ? 'Replace Photo' : 'Add Photo'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ──────────────────────────────────────────────────────────────────────
 export default function MaterialsCataloguePage() {
   const { user } = useAuth();
@@ -128,6 +230,7 @@ export default function MaterialsCataloguePage() {
   const [supplierSearch, setSupplierSearch] = useState('');
   const [showSupplierOptions, setShowSupplierOptions] = useState(false);
   const [activeTab, setActiveTab] = useState<'catalogue' | 'inventory'>('catalogue');
+  const [photoItem, setPhotoItem] = useState<MaterialsInventoryItem | null>(null);
 
   // ── Add/Edit modal ──
   const [showModal, setShowModal] = useState(false);
@@ -140,6 +243,7 @@ export default function MaterialsCataloguePage() {
   const [inventoryForm, setInventoryForm] = useState<InventoryFormData>(EMPTY_INVENTORY_FORM);
   const [inventoryError, setInventoryError] = useState('');
   const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventoryPhoto, setInventoryPhoto] = useState<File | null>(null);
 
   // ── Delete state ──
   const [deleteTarget, setDeleteTarget] = useState<MaterialsCatalogueItem | null>(null);
@@ -306,6 +410,7 @@ export default function MaterialsCataloguePage() {
   function openInventoryAdd() {
     setEditInventory(null);
     setInventoryForm(EMPTY_INVENTORY_FORM);
+    setInventoryPhoto(null);
     setInventoryError('');
     setShowInventoryModal(true);
   }
@@ -319,6 +424,7 @@ export default function MaterialsCataloguePage() {
       location: item.location || '',
       notes: item.notes || '',
     });
+    setInventoryPhoto(null);
     setInventoryError('');
     setShowInventoryModal(true);
   }
@@ -327,6 +433,8 @@ export default function MaterialsCataloguePage() {
     setInventoryError('');
     if (!inventoryForm.material_id) { setInventoryError('Select a catalogue material.'); return; }
     if (!inventoryForm.quantity || Number(inventoryForm.quantity) < 0) { setInventoryError('Enter a non-negative quantity.'); return; }
+    if (inventoryPhoto && !['image/jpeg', 'image/png'].includes(inventoryPhoto.type)) { setInventoryError('Photo must be a JPEG or PNG image.'); return; }
+    if (inventoryPhoto && inventoryPhoto.size > 25 * 1024 * 1024) { setInventoryError('Maximum photo size is 25 MB.'); return; }
     setInventoryLoading(true);
     try {
       const payload = {
@@ -336,10 +444,18 @@ export default function MaterialsCataloguePage() {
         location: inventoryForm.location.trim() || null,
         notes: inventoryForm.notes.trim() || null,
       };
-      if (editInventory) await materialsInventoryApi.update(editInventory.id, payload);
-      else await materialsInventoryApi.create(payload);
+      const saved = editInventory
+        ? await materialsInventoryApi.update(editInventory.id, payload)
+        : await materialsInventoryApi.create(payload);
+      let photoFailed = false;
+      if (inventoryPhoto) {
+        try { await materialsInventoryApi.uploadPhoto(saved.id, inventoryPhoto); }
+        catch { photoFailed = true; }
+      }
       setShowInventoryModal(false);
-      setToast(editInventory ? 'Inventory record updated.' : 'Inventory record added.');
+      setToast(photoFailed
+        ? 'Stock saved, but the photo failed to upload — add it from the Photo column.'
+        : editInventory ? 'Inventory record updated.' : 'Inventory record added.');
       await loadData();
     } catch (err: unknown) {
       setInventoryError(err instanceof Error ? err.message : 'Save failed.');
@@ -646,7 +762,7 @@ export default function MaterialsCataloguePage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[900px]">
                 <thead><tr className="bg-slate-50 text-left border-b border-slate-100">
-                  {['Material', 'Description', 'Category', 'Total Bought', 'Remaining', 'Unit', 'Production', 'Location', 'Notes', 'Actions'].map(header => <th key={header} className="px-4 py-3 text-xs font-semibold text-slate-500">{header}</th>)}
+                  {['Material', 'Description', 'Category', 'Total Bought', 'Remaining', 'Unit', 'Photo', 'Location', 'Notes', 'Actions'].map(header => <th key={header} className="px-4 py-3 text-xs font-semibold text-slate-500">{header}</th>)}
                 </tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {inventory.length === 0 ? (
@@ -658,7 +774,7 @@ export default function MaterialsCataloguePage() {
                       recommendation="Log stored timber, steel, hardware, or paints returned from builds to track asset valuation."
                       action={canWrite ? {
                         label: 'Add Stock Item',
-                        onClick: () => setShowInventoryModal(true),
+                        onClick: openInventoryAdd,
                         icon: Plus,
                       } : undefined}
                     />
@@ -670,7 +786,13 @@ export default function MaterialsCataloguePage() {
                       <td className="px-4 py-3 text-slate-800">{item.quantity_purchased}</td>
                       <td className="px-4 py-3 text-slate-800">{item.quantity}</td>
                       <td className="px-4 py-3 text-slate-600">{item.unit_of_measure}</td>
-                      <td className="px-4 py-3 text-slate-600">{item.production_name || '—'}</td>
+                      <td className="px-4 py-3">
+                        {item.has_photo ? (
+                          <button onClick={() => setPhotoItem(item)} className="p-1.5 rounded text-blue-600 hover:bg-blue-50" title="View photo" aria-label={`View photo of ${item.material_name}`}><ImageIcon size={16} /></button>
+                        ) : canWrite ? (
+                          <button onClick={() => setPhotoItem(item)} className="p-1.5 rounded text-slate-300 hover:text-slate-500 hover:bg-slate-50" title="Add photo" aria-label={`Add photo of ${item.material_name}`}><Camera size={16} /></button>
+                        ) : <span className="text-slate-300">—</span>}
+                      </td>
                       <td className="px-4 py-3 text-slate-600">{item.location || '—'}</td>
                       <td className="px-4 py-3 text-slate-500 max-w-[180px] truncate">{item.notes || '—'}</td>
                       <td className="px-4 py-3"><div className="flex gap-1"><button onClick={() => handleRestock(item)} className="p-1.5 text-slate-500 hover:text-emerald-600" title="Restock"><Plus size={14} /></button><button onClick={() => openInventoryEdit(item)} className="p-1.5 text-slate-500 hover:text-blue-600" title="Edit"><Pencil size={14} /></button><button onClick={() => handleInventoryDelete(item)} className="p-1.5 text-slate-500 hover:text-red-600" title="Delete"><Trash2 size={14} /></button></div></td>
@@ -682,6 +804,15 @@ export default function MaterialsCataloguePage() {
           </div>
         )}
       </main>
+
+      {photoItem && (
+        <InventoryPhotoModal
+          item={photoItem}
+          canWrite={canWrite}
+          onClose={() => setPhotoItem(null)}
+          onChanged={(hasPhoto) => setInventory(list => list.map(i => i.id === photoItem.id ? { ...i, has_photo: hasPhoto } : i))}
+        />
+      )}
 
       {/* ── Add / Edit Modal ─────────────────────────────────────────────────── */}
       {showModal && (
@@ -890,6 +1021,16 @@ export default function MaterialsCataloguePage() {
               </div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Location held</label><input type="text" value={inventoryForm.location} onChange={(e) => setInventoryForm((f) => ({ ...f, location: e.target.value }))} placeholder="e.g. Main workshop, Bay 2" className={inputCls} /></div>
               <div><label className="block text-xs font-medium text-slate-600 mb-1">Notes</label><textarea rows={2} value={inventoryForm.notes} onChange={(e) => setInventoryForm((f) => ({ ...f, notes: e.target.value }))} className={inputCls + ' resize-none'} /></div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Photo (JPEG or PNG, max 25 MB)</label>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png"
+                  onChange={(e) => { setInventoryPhoto(e.target.files?.[0] || null); setInventoryError(''); }}
+                  className="block w-full text-sm text-slate-600 file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-slate-700"
+                />
+                {editInventory?.has_photo && <p className="text-xs text-slate-500 mt-1">A photo is already attached — choosing a new one will replace it.</p>}
+              </div>
               {inventoryError && <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-100 rounded-lg px-3 py-2"><AlertCircle size={13} />{inventoryError}</div>}
             </div>
             <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl"><button onClick={() => { if (!inventoryLoading) setShowInventoryModal(false); }} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg">Cancel</button><button disabled={inventoryLoading} onClick={handleInventorySave} className="flex items-center gap-2 px-5 py-2 text-sm bg-blue-600 text-white rounded-lg font-medium disabled:opacity-60">{inventoryLoading && <Loader2 size={14} className="animate-spin" />}{editInventory ? 'Save Changes' : 'Add Stock'}</button></div>

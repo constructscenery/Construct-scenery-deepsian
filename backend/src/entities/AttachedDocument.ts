@@ -1,6 +1,7 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { Building } from './Building';
 import { FreelancerContact } from './FreelancerContact';
+import { PurchaseOrder } from './PurchaseOrder';
 
 abstract class AttachedDocument {
   @PrimaryGeneratedColumn('uuid')
@@ -43,4 +44,14 @@ export class FreelancerDocument extends AttachedDocument {
   @ManyToOne(() => FreelancerContact, { onDelete: 'RESTRICT', nullable: false })
   @JoinColumn({ name: 'freelancer_id' })
   freelancer: FreelancerContact;
+}
+
+@Entity('purchase_order_documents')
+export class PurchaseOrderDocument extends AttachedDocument {
+  @Column({ name: 'purchase_order_id', type: 'uuid' })
+  purchaseOrderId: string;
+
+  @ManyToOne(() => PurchaseOrder, { onDelete: 'CASCADE', nullable: false })
+  @JoinColumn({ name: 'purchase_order_id' })
+  purchaseOrder: PurchaseOrder;
 }

@@ -379,4 +379,71 @@ const generatePoListPdf = (pos, filterSummary) => {
   });
 };
 
-module.exports = { generatePoPdf, generatePoListPdf };
+/**
+ * Final Back Up: one merged PDF of [PO PDF] → [Actual Invoice / Receipt], repeated per PO.
+ * PDF invoices are copied page-for-page; JPEG/PNG are scaled onto an A4 page;
+ * anything missing or unreadable gets a placeholder page.
+ */
+const generatePoBackupPdf = async (pos) => {
+  const { PDFDocument: PdfLibDocument, StandardFonts, rgb } = require('pdf-lib');
+  const fileStorage = require('./fileStorage');
+  const A4 = [595.28, 841.89];
+
+  const merged = await PdfLibDocument.create();
+  const font   = await merged.embedFont(StandardFonts.Helvetica);
+  const bold   = await merged.embedFont(StandardFonts.HelveticaBold);
+
+  const addPlaceholder = (po, message) => {
+    const page = merged.addPage(A4);
+    const boxX = 50, boxY = A4[1] / 2 - 70, boxW = A4[0] - 100, boxH = 140;
+    page.drawRectangle({
+      x: boxX, y: boxY, width: boxW, height: boxH,
+      color: rgb(0.97, 0.98, 0.99), borderColor: rgb(0.88, 0.90, 0.93), borderWidth: 1,
+    });
+    page.drawText(message, {
+      x: boxX + 25, y: boxY + boxH - 35, size: 13, font: bold,
+      color: rgb(0.06, 0.09, 0.16), maxWidth: boxW - 50,
+    });
+    // Standard fonts are WinAnsi-only; replace anything outside Latin-1 so drawText can't throw
+    page.drawText(`${po.po_number}  ·  ${(po.supplier_name || '').replace(/[^\x20-\x7E\xA0-\xFF]/g, '?')}`, {
+      x: boxX + 25, y: boxY + boxH - 60, size: 10, font,
+      color: rgb(0.28, 0.33, 0.40), maxWidth: boxW - 50,
+    });
+  };
+
+  for (const po of pos) {
+    const poPdf  = await PdfLibDocument.load(await generatePoPdf(po, po.prod_name));
+    const poPages = await merged.copyPages(poPdf, poPdf.getPageIndices());
+    poPages.forEach(p => merged.addPage(p));
+
+    if (!po.invoice_attachment_url) {
+      addPlaceholder(po, 'No actual invoice / receipt attached.');
+      continue;
+    }
+
+    try {
+      const bytes = await fileStorage.getFileBuffer(po.invoice_attachment_url);
+      const ext   = (path.extname(po.invoice_attachment_name || '') || path.extname(po.invoice_attachment_url.split('?')[0])).toLowerCase();
+
+      if (ext === '.pdf') {
+        const invPdf   = await PdfLibDocument.load(bytes);
+        const invPages = await merged.copyPages(invPdf, invPdf.getPageIndices());
+        invPages.forEach(p => merged.addPage(p));
+      } else if (ext === '.jpg' || ext === '.jpeg' || ext === '.png') {
+        const img   = ext === '.png' ? await merged.embedPng(bytes) : await merged.embedJpg(bytes);
+        const scale = Math.min(A4[0] / img.width, A4[1] / img.height, 1);
+        const w = img.width * scale, h = img.height * scale;
+        merged.addPage(A4).drawImage(img, { x: (A4[0] - w) / 2, y: (A4[1] - h) / 2, width: w, height: h });
+      } else {
+        addPlaceholder(po, `Invoice file type ${ext || '(unknown)'} cannot be embedded — please check manually.`);
+      }
+    } catch (fileErr) {
+      console.error(`PO final backup: could not read invoice for ${po.po_number}:`, fileErr.message);
+      addPlaceholder(po, 'Invoice file could not be read — please check manually.');
+    }
+  }
+
+  return merged.save();
+};
+
+module.exports = { generatePoPdf, generatePoListPdf, generatePoBackupPdf };

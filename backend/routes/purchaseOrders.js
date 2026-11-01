@@ -2,6 +2,7 @@ const express      = require('express');
 const router       = express.Router();
 const ctrl         = require('../Controllers/purchaseOrdersController');
 const importCtrl   = require('../Controllers/purchaseOrdersImportController');
+const docsCtrl     = require('../Controllers/attachedDocumentsController').purchase_orders;
 const { upload }   = require('../Middleware/upload');
 const { requireRole } = require('../Middleware/requireRole');
 const multer       = require('multer');
@@ -17,6 +18,8 @@ router.get('/:id/pdf',                   ctrl.downloadPdf);
 router.get('/account-codes',             ctrl.getAccountCodes);
 router.get('/import/template',           importCtrl.getImportTemplate);
 router.post('/import',                   csvUpload.single('csv'), requireRole(...ALL_ROLES), importCtrl.importCSV);
+router.post('/bulk/invoices-zip',        requireRole(...ALL_ROLES), ctrl.bulkDownloadInvoices);
+router.post('/bulk/final-backup',        requireRole(...ALL_ROLES), ctrl.bulkFinalBackupPdf);
 router.post('/',                         requireRole(...ALL_ROLES), ctrl.createPO);
 router.get('/:id',                       ctrl.getPOById);
 router.put('/:id',                       requireRole(...ALL_ROLES), ctrl.updatePO);
@@ -29,7 +32,14 @@ router.post('/:id/attach-invoice',       upload.single('invoice'), requireRole(.
 router.post('/:id/attach-confirmation',  upload.single('confirmation'), requireRole(...ALL_ROLES), ctrl.attachConfirmation);
 router.get('/:id/confirmation/download',   ctrl.downloadConfirmation);
 router.get('/:id/invoice/download',      ctrl.downloadInvoice);
+router.get('/:id/invoice/view',          ctrl.viewInvoice);
 router.delete('/:id/invoice',            requireRole(...ALL_ROLES), ctrl.deleteInvoice);
 router.post('/:id/approve',              requireRole(...ALL_ROLES), ctrl.approvePO);
+
+// Additional documents (any number per PO, alongside Pro Forma / Actual Invoice)
+router.get('/:id/documents',                requireRole(...ALL_ROLES), docsCtrl.list);
+router.post('/:id/documents',               requireRole(...ALL_ROLES), upload.single('file'), docsCtrl.upload);
+router.get('/:id/documents/:docId/view',    requireRole(...ALL_ROLES), docsCtrl.view);
+router.delete('/:id/documents/:docId',      requireRole(...ALL_ROLES), docsCtrl.delete);
 
 module.exports = router;

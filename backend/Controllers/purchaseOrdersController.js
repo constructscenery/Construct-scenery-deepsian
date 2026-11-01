@@ -1,7 +1,9 @@
+const path                            = require('path');
+const JSZip                           = require('jszip');
 const db                              = require('../config/db');
 const { sendEmail, templates }        = require('../config/email');
 const fileStorage                     = require('../services/fileStorage');
-const { generatePoPdf }               = require('../services/poPdfService');
+const { generatePoPdf, generatePoBackupPdf } = require('../services/poPdfService');
 const { recordSupplierCost, softDeleteEntry } = require('../services/costReportService');
 const { generatePoListPdf }                   = require('../services/poPdfService');
 const { logAudit }                            = require('../services/auditService');
@@ -110,7 +112,8 @@ const getAllPOs = async (req, res) => {
     const { conditions, params } = buildPoFilterConditions(req.query);
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const { rows } = await db.query(
-      `SELECT po.*, p.id AS prod_id, p.name AS prod_name, p.status AS prod_status
+      `SELECT po.*, p.id AS prod_id, p.name AS prod_name, p.status AS prod_status,
+              (SELECT COUNT(*)::int FROM purchase_order_documents d WHERE d.purchase_order_id = po.id) AS document_count
        FROM   purchase_orders po
        JOIN   productions p ON po.production_id = p.id
        ${where}
@@ -533,6 +536,22 @@ const downloadInvoice = async (req, res) => {
   }
 };
 
+// ─── GET /api/purchase-orders/:id/invoice/view ────────────────────────────────
+const viewInvoice = async (req, res) => {
+  try {
+    const { rows: [po] } = await db.query(
+      'SELECT invoice_attachment_url, invoice_attachment_name FROM purchase_orders WHERE id = $1',
+      [req.params.id]
+    );
+    if (!po) return res.status(404).json({ error: 'Purchase order not found' });
+    if (!po.invoice_attachment_url) return res.status(404).json({ error: 'No invoice attached to this purchase order' });
+    await fileStorage.streamToResponse(po.invoice_attachment_url, res, po.invoice_attachment_name || 'invoice');
+  } catch (err) {
+    console.error('viewInvoice:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Unable to open invoice' });
+  }
+};
+
 // ─── DELETE /api/purchase-orders/:id/invoice ─────────────────────────────────
 const deleteInvoice = async (req, res) => {
   try {
@@ -763,13 +782,94 @@ const downloadPdf = async (req, res) => {
   }
 };
 
+// ─── Helpers: bulk exports ────────────────────────────────────────────────────
+const UUID_RE       = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_BULK_POS  = 500;
+
+const parseBulkIds = (ids) => {
+  if (!Array.isArray(ids)) return null;
+  const valid = [...new Set(ids.filter(id => typeof id === 'string' && UUID_RE.test(id)))];
+  return valid.length && valid.length <= MAX_BULK_POS ? valid : null;
+};
+
+const loadPOsForBulk = async (ids) => {
+  const { rows } = await db.query(
+    `${ENRICHED_PO_SELECT} WHERE po.id = ANY($1::uuid[]) ORDER BY po.po_number`,
+    [ids]
+  );
+  return rows;
+};
+
+// ─── POST /api/purchase-orders/bulk/invoices-zip ─────────────────────────────
+// Body: { ids: string[] } — zips the actual invoice / receipt of each selected PO.
+const bulkDownloadInvoices = async (req, res) => {
+  const ids = parseBulkIds(req.body?.ids);
+  if (!ids) return res.status(400).json({ error: `Select between 1 and ${MAX_BULK_POS} purchase orders` });
+
+  try {
+    const pos = (await loadPOsForBulk(ids)).filter(po => po.invoice_attachment_url);
+    if (!pos.length)
+      return res.status(404).json({ error: 'None of the selected purchase orders have an actual invoice / receipt attached' });
+
+    const zip     = new JSZip();
+    const missing = [];
+    for (const po of pos) {
+      try {
+        const buf  = await fileStorage.getFileBuffer(po.invoice_attachment_url);
+        const ext  = path.extname(po.invoice_attachment_url.split('?')[0]).toLowerCase();
+        const name = po.invoice_attachment_name || `invoice${ext}`;
+        zip.file(`${po.po_number} - ${name}`.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_'), buf);
+      } catch (fileErr) {
+        console.error(`bulkDownloadInvoices: could not read invoice for ${po.po_number}:`, fileErr.message);
+        missing.push(po.po_number);
+      }
+    }
+
+    if (missing.length === pos.length)
+      return res.status(500).json({ error: 'Invoice files could not be read — please try again.' });
+    if (missing.length)
+      zip.file('MISSING_INVOICES.txt', `Invoice files could not be read for:\n${missing.join('\n')}\n`);
+
+    const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+    const date      = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="PO_Invoices_${date}.zip"`);
+    res.send(zipBuffer);
+  } catch (err) {
+    console.error('bulkDownloadInvoices:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─── POST /api/purchase-orders/bulk/final-backup ─────────────────────────────
+// Body: { ids: string[] } — one PDF: PO PDF → Actual Invoice, repeated per PO.
+const bulkFinalBackupPdf = async (req, res) => {
+  const ids = parseBulkIds(req.body?.ids);
+  if (!ids) return res.status(400).json({ error: `Select between 1 and ${MAX_BULK_POS} purchase orders` });
+
+  try {
+    const pos = await loadPOsForBulk(ids);
+    if (!pos.length) return res.status(404).json({ error: 'Purchase orders not found' });
+
+    const pdfBytes = await generatePoBackupPdf(pos);
+    const date     = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="PO_Final_Backup_${date}.pdf"`);
+    res.send(Buffer.from(pdfBytes));
+  } catch (err) {
+    console.error('bulkFinalBackupPdf:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 module.exports = {
   getAccountCodes,
   getAllPOs, getPOById, updatePO,
   createPO,
   issuePO, submitPO,
-  attachInvoice, downloadInvoice, deleteInvoice,
+  attachInvoice, downloadInvoice, viewInvoice, deleteInvoice,
   attachConfirmation, downloadConfirmation,
   approvePO, deletePO, restorePO,
   exportCSV, exportPDFList, downloadPdf,
+  bulkDownloadInvoices, bulkFinalBackupPdf,
 };

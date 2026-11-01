@@ -41,6 +41,7 @@ import {
   Paperclip,
 } from 'lucide-react';
 import { EmptyStateRow } from '@/components/EmptyState';
+import AttachedDocuments from '@/components/AttachedDocuments';
 import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
 
 const PAGE_SIZE = 10;
@@ -365,12 +366,23 @@ export default function PurchaseOrdersPage() {
   const [sort, setSort] = useState<SortState>({ key: '', dir: null });
   const pageSize = PAGE_SIZE;
   const [openActionDropdownId, setOpenActionDropdownId] = useState<string | null>(null);
+  const [actionMenuPos, setActionMenuPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
+  const [selectedPoIds, setSelectedPoIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState<'invoices-zip' | 'final-backup' | null>(null);
+  const [documentsPO, setDocumentsPO] = useState<PurchaseOrder | null>(null);
 
   useEffect(() => {
     const handleOutsideClick = () => setOpenActionDropdownId(null);
     if (openActionDropdownId) {
       document.addEventListener('click', handleOutsideClick);
-      return () => document.removeEventListener('click', handleOutsideClick);
+      // Menu is fixed-positioned, so close it rather than let it drift on scroll/resize
+      window.addEventListener('scroll', handleOutsideClick, true);
+      window.addEventListener('resize', handleOutsideClick);
+      return () => {
+        document.removeEventListener('click', handleOutsideClick);
+        window.removeEventListener('scroll', handleOutsideClick, true);
+        window.removeEventListener('resize', handleOutsideClick);
+      };
     }
   }, [openActionDropdownId]);
 
@@ -781,7 +793,7 @@ export default function PurchaseOrdersPage() {
         po.vat,
         po.date_of_po,
       ].some(v => v != null && String(v).toLowerCase().includes(q));
-    const hasAttachment = Boolean(po.confirmation_attachment_url || po.invoice_attachment_url);
+    const hasAttachment = Boolean(po.confirmation_attachment_url || po.invoice_attachment_url || po.document_count);
     const matchAttachment =
       !poFilters.attachment_status ? true :
       poFilters.attachment_status === 'has_attachment' ? hasAttachment :
@@ -812,6 +824,33 @@ export default function PurchaseOrdersPage() {
       return 0;
     });
   }, [filteredPos, sort]);
+
+  const selectedPos = useMemo(() => sortedPos.filter(p => selectedPoIds.has(p.id)), [sortedPos, selectedPoIds]);
+  const selectedInvoiceCount = selectedPos.filter(p => p.invoice_attachment_url).length;
+  const allPosSelected = sortedPos.length > 0 && selectedPos.length === sortedPos.length;
+
+  function togglePoSelection(id: string) {
+    setSelectedPoIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleBulkDownload(kind: 'invoices-zip' | 'final-backup') {
+    if (!selectedPos.length) return;
+    setBulkLoading(kind);
+    setActionError(null);
+    try {
+      const date = new Date().toISOString().slice(0, 10);
+      const filename = kind === 'invoices-zip' ? `PO_Invoices_${date}.zip` : `PO_Final_Backup_${date}.pdf`;
+      await purchaseOrdersApi.bulkDownload(kind, selectedPos.map(p => p.id), filename);
+    } catch (err: unknown) {
+      setActionError({ id: '', msg: err instanceof Error ? err.message : 'Download failed' });
+    } finally {
+      setBulkLoading(null);
+    }
+  }
 
   const totalPages = Math.max(1, Math.ceil(sortedPos.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -1595,12 +1634,57 @@ export default function PurchaseOrdersPage() {
             </div>
           )}
 
+          {/* Bulk actions for ticked POs */}
+          {!isGuest && selectedPos.length > 0 && (
+            <div className="mx-5 mt-3 flex flex-wrap items-center gap-2 text-xs bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              <span className="text-blue-800 font-medium mr-1">{selectedPos.length} selected</span>
+              <button
+                type="button"
+                disabled={!!bulkLoading || selectedInvoiceCount === 0}
+                onClick={() => handleBulkDownload('invoices-zip')}
+                title={selectedInvoiceCount === 0 ? 'None of the selected POs have an actual invoice / receipt attached' : undefined}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-medium transition-colors disabled:opacity-50"
+              >
+                {bulkLoading === 'invoices-zip' ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                Download Actual Invoices / Receipts ({selectedInvoiceCount})
+              </button>
+              <button
+                type="button"
+                disabled={!!bulkLoading}
+                onClick={() => handleBulkDownload('final-backup')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 font-medium transition-colors disabled:opacity-50"
+              >
+                {bulkLoading === 'final-backup' ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
+                Final Back Up (PDF)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedPoIds(new Set())}
+                className="ml-auto text-slate-500 hover:text-slate-700 font-medium"
+              >
+                Clear selection
+              </button>
+            </div>
+          )}
+
           {/* Table */}
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[900px]">
               <thead>
                 <tr className="bg-slate-50 text-left">
-                  <ColumnHeader label="PO Number" sortKey="po_number" sort={sort} onSort={setSort} className="sticky left-0 bg-slate-50 z-10" />
+                  {!isGuest && (
+                    <th className="w-10 px-3 py-2.5 sticky left-0 bg-slate-50 z-10">
+                      <input
+                        type="checkbox"
+                        checked={allPosSelected}
+                        onChange={() => setSelectedPoIds(allPosSelected ? new Set() : new Set(sortedPos.map(p => p.id)))}
+                        aria-label="Select all purchase orders"
+                        title="Select all (matching current tab, search and filters)"
+                        className="rounded border-slate-300 cursor-pointer"
+                      />
+                    </th>
+                  )}
+                  <ColumnHeader label="PO Number" sortKey="po_number" sort={sort} onSort={setSort} className={`sticky ${isGuest ? 'left-0' : 'left-10'} bg-slate-50 z-10`} />
                   <ColumnHeader label="Date" sortKey="date_of_po" sort={sort} onSort={setSort} filterType="date" filterValue={poFilters.date_from} onFilterChange={(val) => { setPoFilters(f => ({ ...f, date_from: val, date_to: val })); setPage(1); }} />
                   {viewMode === 'purchasing' ? (
                     <>
@@ -1665,12 +1749,22 @@ export default function PurchaseOrdersPage() {
                         />
                       )
                     )
-                    : pagePos.map((po, index) => {
+                    : pagePos.map((po) => {
                       const busy = actionLoading?.startsWith(po.id + ':');
-                      const isNearBottom = index >= Math.max(0, pagePos.length - 2);
                       return (
                         <tr key={po.id} className="hover:bg-slate-50/50 transition-colors even:bg-slate-50/50 border-b border-slate-100 last:border-0">
-                          <td className="px-5 py-2 sticky left-0 bg-white group-hover:bg-slate-50/50 z-10">
+                          {!isGuest && (
+                            <td className="w-10 px-3 py-2 sticky left-0 bg-white z-10">
+                              <input
+                                type="checkbox"
+                                checked={selectedPoIds.has(po.id)}
+                                onChange={() => togglePoSelection(po.id)}
+                                aria-label={`Select ${po.po_number}`}
+                                className="rounded border-slate-300 cursor-pointer"
+                              />
+                            </td>
+                          )}
+                          <td className={`px-5 py-2 sticky ${isGuest ? 'left-0' : 'left-10'} bg-white group-hover:bg-slate-50/50 z-10`}>
                             <div className="flex items-center gap-1.5">
                               <span className="text-slate-600 text-xs font-normal whitespace-nowrap">{po.po_number}</span>
                               {Boolean(po.confirmation_attachment_url || po.invoice_attachment_url) && (
@@ -1830,10 +1924,21 @@ export default function PurchaseOrdersPage() {
                                 );
                               }
 
-                              return (
+                              return po.document_count ? null : (
                                 <span className="text-slate-300 text-xs font-normal" title="No attachments uploaded yet">—</span>
                               );
                             })()}
+                            {!!po.document_count && !isGuest && (
+                              <button
+                                type="button"
+                                onClick={() => setDocumentsPO(po)}
+                                title={`${po.document_count} more document${po.document_count === 1 ? '' : 's'} attached`}
+                                className="ml-1.5 inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium border border-slate-200 transition-colors"
+                              >
+                                <Paperclip size={11} className="-rotate-45" />
+                                +{po.document_count}
+                              </button>
+                            )}
                           </td>
                           <td className="px-4 py-2 text-right whitespace-nowrap">
                             <div className="relative inline-block text-left">
@@ -1841,7 +1946,14 @@ export default function PurchaseOrdersPage() {
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setOpenActionDropdownId(openActionDropdownId === po.id ? null : po.id);
+                                  if (openActionDropdownId === po.id) { setOpenActionDropdownId(null); return; }
+                                  // Fixed positioning so the table's overflow container can't clip the menu (few-row tabs like Pending Approvals)
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  const right = window.innerWidth - rect.right;
+                                  setActionMenuPos(window.innerHeight - rect.bottom < 300
+                                    ? { bottom: window.innerHeight - rect.top + 4, right }
+                                    : { top: rect.bottom + 4, right });
+                                  setOpenActionDropdownId(po.id);
                                 }}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-normal text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-2xs"
                               >
@@ -1849,10 +1961,11 @@ export default function PurchaseOrdersPage() {
                                 <ChevronDown size={12} className="text-slate-400" />
                               </button>
 
-                              {openActionDropdownId === po.id && (
+                              {openActionDropdownId === po.id && actionMenuPos && (
                                 <div
                                   onClick={(e) => e.stopPropagation()}
-                                  className={`absolute right-0 ${isNearBottom ? 'bottom-full mb-1' : 'top-full mt-1'} w-44 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50 text-xs divide-y divide-slate-100`}
+                                  style={actionMenuPos}
+                                  className="fixed w-60 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50 text-xs divide-y divide-slate-100"
                                 >
                                   <div className="py-0.5">
                                     {/* View Full PO */}
@@ -1864,6 +1977,17 @@ export default function PurchaseOrdersPage() {
                                       <Search size={13} className="text-slate-400" />
                                       <span>View Details</span>
                                     </button>
+                                    {/* All attachments: Pro Forma, Actual Invoice and any extra documents */}
+                                    {!isGuest && (
+                                      <button
+                                        type="button"
+                                        onClick={() => { setOpenActionDropdownId(null); setDocumentsPO(po); }}
+                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors"
+                                      >
+                                        <Paperclip size={13} className="text-slate-400 -rotate-45" />
+                                        <span>Attachments & Documents{po.document_count ? ` (+${po.document_count})` : ''}</span>
+                                      </button>
+                                    )}
                                     {/* Copy PO */}
                                     {!isGuest && (
                                       <button
@@ -1977,7 +2101,7 @@ export default function PurchaseOrdersPage() {
                                             className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors disabled:opacity-50"
                                           >
                                             <Upload size={13} className="text-slate-400" />
-                                            <span>{po.invoice_attachment_url ? 'View Invoice' : 'Attach Invoice'}</span>
+                                            <span>{po.invoice_attachment_url ? 'View Actual Invoice / Receipt' : 'Attach Actual Invoice / Receipt'}</span>
                                           </button>
                                         )}
                                       </div>
@@ -2733,6 +2857,29 @@ export default function PurchaseOrdersPage() {
         </div>
       )}
 
+      {documentsPO && (
+        <AttachedDocuments
+          owner="purchase_orders"
+          ownerId={documentsPO.id}
+          name={`${documentsPO.po_number} · ${documentsPO.supplier_name}`}
+          extras={[
+            ...(documentsPO.confirmation_attachment_url ? [{
+              key: 'pro-forma',
+              label: 'Pro Forma',
+              fileName: documentsPO.confirmation_attachment_name || 'Pro Forma',
+              load: () => purchaseOrdersApi.viewConfirmation(documentsPO.id),
+            }] : []),
+            ...(documentsPO.invoice_attachment_url ? [{
+              key: 'invoice',
+              label: 'Actual Invoice / Receipt',
+              fileName: documentsPO.invoice_attachment_name || 'Invoice',
+              load: () => purchaseOrdersApi.viewInvoice(documentsPO.id),
+            }] : []),
+          ]}
+          onClose={() => { setDocumentsPO(null); loadData(); }}
+        />
+      )}
+
       {/* Attach Invoice Modal */}
       {invoiceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -2740,7 +2887,7 @@ export default function PurchaseOrdersPage() {
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <div>
-                <h2 className="text-slate-900 font-semibold text-lg">Attach Invoice</h2>
+                <h2 className="text-slate-900 font-semibold text-lg">Actual Invoice / Receipt</h2>
                 <p className="text-slate-400 text-xs mt-0.5">{invoiceModal.po_number}</p>
               </div>
               <button

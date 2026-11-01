@@ -1,11 +1,13 @@
 const db = require('../config/db');
+const fileStorage = require('../services/fileStorage');
 
 const selectColumns = `i.id, i.material_id, i.material_name, i.description, i.category,
   i.quantity, i.quantity_purchased, i.unit_of_measure, i.production_id, p.name AS production_name,
-  i.location, i.notes, i.created_at, i.updated_at`;
+  i.location, i.notes, (i.photo_key IS NOT NULL) AS has_photo, i.created_at, i.updated_at`;
 const returningColumns = `id, material_id, material_name, description, category,
   quantity, quantity_purchased, unit_of_measure, production_id, location, notes,
-  created_at, updated_at`;
+  (photo_key IS NOT NULL) AS has_photo, created_at, updated_at`;
+const PHOTO_MIME_TYPES = ['image/jpeg', 'image/png'];
 
 const getInventory = async (_req, res) => {
   try {
@@ -100,12 +102,75 @@ const createInventory = (req, res) => saveInventory(req, res, false);
 const updateInventory = (req, res) => saveInventory(req, res, true);
 const deleteInventory = async (req, res) => {
   try {
-    const { rowCount } = await db.query('DELETE FROM materials_inventory WHERE id = $1', [req.params.id]);
-    if (!rowCount) return res.status(404).json({ error: 'Inventory record not found' });
+    const { rows: [deleted] } = await db.query('DELETE FROM materials_inventory WHERE id = $1 RETURNING photo_key', [req.params.id]);
+    if (!deleted) return res.status(404).json({ error: 'Inventory record not found' });
+    if (deleted.photo_key) await fileStorage.deleteFile(deleted.photo_key);
     res.json({ message: 'Inventory record deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-module.exports = { getInventory, getInventorySummary, createInventory, updateInventory, restockInventory, deleteInventory };
+// ─── POST /api/materials-inventory/:id/photo (one photo per stock item; replaces any existing)
+const uploadInventoryPhoto = async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Choose a photo first' });
+  if (!PHOTO_MIME_TYPES.includes(req.file.mimetype)) return res.status(400).json({ error: 'Photo must be a JPEG or PNG image' });
+  let stored;
+  try {
+    fileStorage.validate(req.file.mimetype, req.file.size);
+    const { rows: [existing] } = await db.query('SELECT photo_key FROM materials_inventory WHERE id = $1', [req.params.id]);
+    if (!existing) return res.status(404).json({ error: 'Inventory record not found' });
+    stored = await fileStorage.store(req.file);
+    const { rows: [updated] } = await db.query(
+      `UPDATE materials_inventory SET photo_key = $1, photo_name = $2, photo_mime_type = $3, updated_at = NOW()
+       WHERE id = $4 RETURNING ${returningColumns}`,
+      [stored.key, req.file.originalname, req.file.mimetype, req.params.id]
+    );
+    if (!updated) {
+      await fileStorage.deleteFile(stored.key);
+      return res.status(404).json({ error: 'Inventory record not found' });
+    }
+    if (existing.photo_key) await fileStorage.deleteFile(existing.photo_key);
+    res.json(updated);
+  } catch (err) {
+    console.error('uploadInventoryPhoto:', err);
+    if (stored) await fileStorage.deleteFile(stored.key);
+    res.status(err.status || 500).json({ error: err.status === 400 ? err.message : 'Unable to upload photo' });
+  }
+};
+
+// ─── GET /api/materials-inventory/:id/photo ─────────────────────────────────────
+const viewInventoryPhoto = async (req, res) => {
+  try {
+    const { rows: [item] } = await db.query('SELECT photo_key, photo_name, photo_mime_type FROM materials_inventory WHERE id = $1', [req.params.id]);
+    if (!item) return res.status(404).json({ error: 'Inventory record not found' });
+    if (!item.photo_key) return res.status(404).json({ error: 'No photo attached' });
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    await fileStorage.streamToResponse(item.photo_key, res, item.photo_name, item.photo_mime_type);
+  } catch (err) {
+    console.error('viewInventoryPhoto:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Unable to open photo' });
+  }
+};
+
+// ─── DELETE /api/materials-inventory/:id/photo ────────────────────────────────
+const deleteInventoryPhoto = async (req, res) => {
+  try {
+    const { rows: [item] } = await db.query('SELECT photo_key FROM materials_inventory WHERE id = $1', [req.params.id]);
+    if (!item) return res.status(404).json({ error: 'Inventory record not found' });
+    if (!item.photo_key) return res.status(404).json({ error: 'No photo attached' });
+    const { rows: [updated] } = await db.query(
+      `UPDATE materials_inventory SET photo_key = NULL, photo_name = NULL, photo_mime_type = NULL, updated_at = NOW()
+       WHERE id = $1 RETURNING ${returningColumns}`,
+      [req.params.id]
+    );
+    await fileStorage.deleteFile(item.photo_key);
+    res.json(updated);
+  } catch (err) {
+    console.error('deleteInventoryPhoto:', err);
+    res.status(500).json({ error: 'Unable to remove photo' });
+  }
+};
+
+module.exports = { getInventory, getInventorySummary, createInventory, updateInventory, restockInventory, deleteInventory, uploadInventoryPhoto, viewInventoryPhoto, deleteInventoryPhoto };
