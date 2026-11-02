@@ -1512,7 +1512,7 @@ export type PayRunPreview = {
 };
 export const payRunsApi = {
   getAvailableWeeks: (production_id: string) =>
-    request<Array<{ week_ending_date: string; timesheet_count: number; pay_run_id: string | null; pay_run_status: string | null; processed_at: string | null }>>(
+    request<Array<{ week_ending_date: string; timesheet_count: number; total_ex_vat: number; pay_run_id: string | null; pay_run_status: string | null; processed_at: string | null }>>(
       `/api/pay-runs/available-weeks?production_id=${production_id}`
     ),
   getPreview: (production_id: string, week_ending_date: string) =>

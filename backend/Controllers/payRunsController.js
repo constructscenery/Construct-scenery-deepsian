@@ -26,6 +26,7 @@ const getAvailableWeeks = async (req, res) => {
     const { rows } = await db.query(
       `SELECT TO_CHAR(t.week_ending_date, 'YYYY-MM-DD') AS week_ending_date,
               COUNT(t.id)::int                                AS timesheet_count,
+              COALESCE(SUM(t.gross_total), 0)::float8         AS total_ex_vat,
               pr.id                                           AS pay_run_id,
               pr.status                                       AS pay_run_status,
               pr.processed_at

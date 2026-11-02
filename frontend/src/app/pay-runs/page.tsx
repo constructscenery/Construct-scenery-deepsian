@@ -452,6 +452,7 @@ function PreviewModal({
 type AvailableWeek = {
   week_ending_date: string;
   timesheet_count: number;
+  total_ex_vat: number;
   pay_run_id: string | null;
   pay_run_status: string | null;
   processed_at: string | null;
@@ -513,6 +514,8 @@ function AvailableWeeksTab({ productionId, refreshSignal, canWrite, onOpenPrevie
             <tr className="bg-slate-50 text-left">
               <th className="px-5 py-3 text-xs font-semibold text-slate-500">Week Ending</th>
               <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-center">Timesheets</th>
+              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Ex VAT Total</th>
+              <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-right">Incl VAT Total</th>
               <th className="px-4 py-3 text-xs font-semibold text-slate-500">Pay Run Status</th>
               <th className="px-4 py-3 text-xs font-semibold text-slate-500">Processed At</th>
               <th className="px-4 py-3 text-xs font-semibold text-slate-500">Actions</th>
@@ -520,10 +523,10 @@ function AvailableWeeksTab({ productionId, refreshSignal, canWrite, onOpenPrevie
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
-              <SkeletonRows cols={5} />
+              <SkeletonRows cols={7} />
             ) : weeks.length === 0 ? (
               <EmptyStateRow
-                colSpan={5}
+                colSpan={7}
                 icon={Calendar}
                 title="No finalised timesheet weeks found"
                 description="Payroll runs require submitted and verified crew timesheets before a payroll batch can be generated."
@@ -554,6 +557,12 @@ function AvailableWeeksTab({ productionId, refreshSignal, canWrite, onOpenPrevie
                       <span className="inline-flex items-center justify-center bg-slate-100 text-slate-700 text-xs font-semibold rounded-full w-7 h-7">
                         {week.timesheet_count}
                       </span>
+                    </td>
+                    <td className="px-4 py-3.5 text-right text-slate-700 text-sm whitespace-nowrap">
+                      {fmtGBP(Number(week.total_ex_vat) || 0)}
+                    </td>
+                    <td className="px-4 py-3.5 text-right text-slate-900 font-medium text-sm whitespace-nowrap">
+                      {fmtGBP(Math.round((Number(week.total_ex_vat) || 0) * 1.2 * 100) / 100)}
                     </td>
                     <td className="px-4 py-3.5">
                       <StatusBadge status={badgeStatus} />
