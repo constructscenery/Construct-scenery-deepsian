@@ -76,13 +76,15 @@ export default function CoordinatorDashboard() {
       icon:    Clapperboard,
     },
     {
-      label:   'Crew On Productions',
+      label:   dashboard?.crew_headcount.week_ending
+        ? `Crew On Site (w/e ${new Date(dashboard.crew_headcount.week_ending).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})`
+        : 'Crew On Site',
       value:   dashboard?.crew_headcount.total ?? 0,
       color:   'bg-purple-50 text-purple-600',
       icon:    Users,
     },
     {
-      label:   'Open POs (Submitted)',
+      label:   'Open POs (Awaiting Approval)',
       value:   dashboard?.open_po_count ?? 0,
       color:   'bg-orange-50 text-orange-600',
       icon:    ShoppingCart,
@@ -276,7 +278,7 @@ export default function CoordinatorDashboard() {
               <div>
                 <h2 className="text-slate-900 font-semibold text-sm">Crew by Production</h2>
                 <p className="text-slate-400 text-xs mt-0.5">
-                  {loading ? '—' : `${dashboard?.crew_headcount.total ?? 0} total active crew`}
+                  {loading ? '—' : `${dashboard?.crew_headcount.total ?? 0} crew on timesheets${dashboard?.crew_headcount.week_ending ? ` w/e ${new Date(dashboard.crew_headcount.week_ending).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}`}
                 </p>
               </div>
               <button
@@ -291,7 +293,7 @@ export default function CoordinatorDashboard() {
                 {[1,2,3].map(i => <div key={i} className="h-10 bg-slate-100 rounded animate-pulse" />)}
               </div>
             ) : !dashboard?.crew_headcount.by_production.length ? (
-              <div className="px-5 py-8 text-center text-slate-400 text-sm">No crew linked to productions.</div>
+              <div className="px-5 py-8 text-center text-slate-400 text-sm">No timesheets for this week.</div>
             ) : (
               <div className="divide-y divide-slate-100">
                 {dashboard.crew_headcount.by_production.map(row => {

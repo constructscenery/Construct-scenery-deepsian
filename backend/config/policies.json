@@ -2,6 +2,10 @@
   "managing_director": {
     "description": "Full access across all modules. Sole role permitted to create and manage user accounts.",
     "routes": [
+      "GET /api/purchase-orders/:id/history",
+      "POST /api/purchase-orders/:id/revert-to-draft",
+      "POST /api/purchase-orders/:id/unvoid",
+      "POST /api/purchase-orders/:id/void",
       "DELETE /api/materials-inventory/:id/photo",
       "GET /api/materials-inventory/:id/photo",
       "POST /api/materials-inventory/:id/photo",
@@ -363,6 +367,10 @@
   "construction_accountant": {
     "description": "Full access across all modules. Excludes user account creation and management.",
     "routes": [
+      "GET /api/purchase-orders/:id/history",
+      "POST /api/purchase-orders/:id/revert-to-draft",
+      "POST /api/purchase-orders/:id/unvoid",
+      "POST /api/purchase-orders/:id/void",
       "DELETE /api/materials-inventory/:id/photo",
       "GET /api/materials-inventory/:id/photo",
       "POST /api/materials-inventory/:id/photo",
@@ -719,6 +727,10 @@
   "construction_coordinator": {
     "description": "Full access across all modules. Excludes user account creation and management.",
     "routes": [
+      "GET /api/purchase-orders/:id/history",
+      "POST /api/purchase-orders/:id/revert-to-draft",
+      "POST /api/purchase-orders/:id/unvoid",
+      "POST /api/purchase-orders/:id/void",
       "DELETE /api/materials-inventory/:id/photo",
       "GET /api/materials-inventory/:id/photo",
       "POST /api/materials-inventory/:id/photo",

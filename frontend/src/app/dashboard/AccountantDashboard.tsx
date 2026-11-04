@@ -184,7 +184,7 @@ export default function AccountantDashboard() {
           {/* Labour Summary */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100">
-              <h2 className="text-slate-900 font-semibold text-sm">Current Week Labour</h2>
+              <h2 className="text-slate-900 font-semibold text-sm">Weekly Labour (latest sent-out week)</h2>
               <p className="text-slate-400 text-xs mt-0.5">
                 w/e {dashboard?.current_week_labour.week_ending
                   ? new Date(dashboard.current_week_labour.week_ending).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })

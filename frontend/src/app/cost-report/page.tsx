@@ -240,9 +240,10 @@ function CostReportContent() {
 
   const exportCSV = () => {
     if (!report) return;
-    const header = ['Date', 'Supplier', 'Set/Account', 'Description', 'Ex VAT', 'VAT', 'Total', 'Method'];
+    const header = ['Date', 'PO Ref', 'Supplier', 'Set/Account', 'Description', 'Ex VAT', 'VAT', 'Total', 'Method'];
     const rows = report.supplier_costs.map(r => [
       r.date,
+      r.po_number ?? '',
       `"${r.supplier}"`,
       r.set_code ?? r.account_code ?? '',
       `"${r.description ?? ''}"`,
@@ -765,6 +766,7 @@ function CostReportContent() {
               <thead>
                 <tr className="bg-slate-50">
                   <th className="px-4 py-2.5 text-slate-500 font-semibold text-left">Date</th>
+                  <th className="px-4 py-2.5 text-slate-500 font-semibold text-left">PO Ref</th>
                   <th className="px-4 py-2.5 text-slate-500 font-semibold text-left">Supplier</th>
                   <th className="px-4 py-2.5 text-slate-500 font-semibold text-left">Set/Account</th>
                   <th className="px-4 py-2.5 text-slate-500 font-semibold text-left">Description</th>
@@ -778,7 +780,7 @@ function CostReportContent() {
                 {loading ? (
                   Array.from({ length: 4 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 8 }).map((_, j) => (
+                      {Array.from({ length: 9 }).map((_, j) => (
                         <td key={j} className="px-4 py-2.5">
                           <div className="h-3.5 bg-slate-100 rounded animate-pulse" />
                         </td>
@@ -787,7 +789,7 @@ function CostReportContent() {
                   ))
                 ) : filteredSupplierCosts.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-5 py-8 text-center text-slate-400">
+                    <td colSpan={9} className="px-5 py-8 text-center text-slate-400">
                       {(report?.supplier_costs.length ?? 0) === 0 ? 'No supplier costs recorded.' : 'No supplier costs match the filters.'}
                     </td>
                   </tr>
@@ -795,6 +797,7 @@ function CostReportContent() {
                   filteredSupplierCosts.map((r, i) => (
                     <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap">{fmtDate(r.date)}</td>
+                      <td className="px-4 py-2.5 text-blue-700 font-mono whitespace-nowrap">{r.po_number ?? '—'}</td>
                       <td className="px-4 py-2.5 text-slate-700 font-medium">{r.supplier}</td>
                       <td className="px-4 py-2.5 text-slate-500 font-mono">{r.set_code ?? r.account_code ?? '—'}</td>
                       <td className="px-4 py-2.5 text-slate-500 max-w-xs truncate">{r.description ?? '—'}</td>
@@ -807,7 +810,7 @@ function CostReportContent() {
                 )}
                 {!loading && filteredSupplierCosts.length > 0 && (
                   <tr className="bg-slate-50 border-t-2 border-slate-200">
-                    <td className="px-4 py-2.5 font-bold text-slate-700" colSpan={4}>Totals</td>
+                    <td className="px-4 py-2.5 font-bold text-slate-700" colSpan={5}>Totals</td>
                     <td className="px-4 py-2.5 font-bold text-slate-800 text-right">{fmtGBP(supplierExVatTotal)}</td>
                     <td className="px-4 py-2.5 font-bold text-slate-800 text-right">{fmtGBP(supplierVatTotal)}</td>
                     <td className="px-4 py-2.5 font-bold text-slate-900 text-right">{fmtGBP(supplierTotal)}</td>

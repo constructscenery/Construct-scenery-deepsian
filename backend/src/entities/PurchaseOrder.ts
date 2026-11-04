@@ -103,6 +103,19 @@ export class PurchaseOrder {
   @Column({ name: 'approved_at', type: 'timestamptz', nullable: true })
   approvedAt: Date | null;
 
+  @Column({ type: 'uuid', name: 'voided_by', nullable: true })
+  voidedById: string | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'voided_by' })
+  voidedBy: User | null;
+
+  @Column({ name: 'voided_at', type: 'timestamptz', nullable: true })
+  voidedAt: Date | null;
+
+  @Column({ name: 'void_reason', type: 'text', nullable: true })
+  voidReason: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

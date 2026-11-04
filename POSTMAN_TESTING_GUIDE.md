@@ -1050,6 +1050,17 @@ First create a throwaway PO (POST /api/purchase-orders), then:
 
 ---
 
+### 4.12 — Revert, Void, Un-void & History
+
+- **POST** `{{baseUrl}}/api/purchase-orders/{{poId}}/revert-to-draft` — approved → draft. Clears `approved_by`/`approved_at` and removes the PO's cost from the Cost Report until it is re-approved. **409** if not approved.
+- **POST** `{{baseUrl}}/api/purchase-orders/{{poId}}/void` — Body: `{ "reason": "optional text (max 1000)" }`. Any non-voided status → `voided`; sets `voided_by`, `voided_at`, `void_reason`. If it was approved, its cost is removed from the Cost Report. The PO number is kept and never reused. **409** if already voided.
+- **POST** `{{baseUrl}}/api/purchase-orders/{{poId}}/unvoid` — voided → draft (void fields cleared; the reason stays in history). **409** if not voided.
+- **GET** `{{baseUrl}}/api/purchase-orders/{{poId}}/history` → `[{ id, action, details, created_at, user_name, user_role }]`, oldest first (e.g. `po_created`, `po_submitted`, `po_approved`, `po_reverted_to_draft`, `po_voided`, `po_unvoided`).
+
+Voided POs cannot be edited, approved, or have their Pro Forma / Invoice changed (**403/400/409**).
+
+---
+
 ## ═══════════════════════════════════════════════
 ## PHASE 5: TIMESHEETS (Module 3 — Part A)
 ### Accountant manages timesheets | Coordinator read-only
@@ -1792,6 +1803,13 @@ if (r.id) pm.environment.set("forecastId", r.id);
 ## ═══════════════════════════════════════════════
 
 > Switch to MD: `{{accessToken}}` = `{{mdToken}}`
+
+**Week selection (all week-based dashboard endpoints):** optional `?week_ending=YYYY-MM-DD`. Any date is snapped to the Sunday ending its Mon–Sun week. When omitted (or invalid), the dashboard uses the **latest week whose timesheets have been sent out** (status Distributed, Amendment Requested or Finalised), so it moves on automatically as soon as the next week is distributed; it falls back to the last completed Mon–Sun week only if no timesheet has been sent out. Weeks dated after the current week are ignored for the default, and weekly crew/labour figures count sent-out timesheets only (drafts are excluded). Applies to `/api/dashboard`, `/labour-costs`, `/crew-headcount`, `/po-spend`, `/accountant-overview`, `/coordinator-overview`.
+
+- `GET /api/dashboard/labour-costs?week_ending=2026-11-01` → `{ current_week_ending, total_labour_this_week, breakdown: [{ production_id, production_name, amount, crew_count, status }] }`
+- `GET /api/dashboard/crew-headcount?week_ending=2026-11-01` → `{ week_ending, total_active_crew, breakdown: [{ production_id, production_name, crew_count }] }` (crew = distinct crew with a timesheet that week)
+- `GET /api/dashboard/po-spend?week_ending=2026-11-01` → adds `week_start`, `week_ending`; `total_approved_this_week` covers that Mon–Sun
+- `production_pipeline` now lists active productions only (Pre-Production, Active Build, Strike); `pending_approvals.purchase_orders` counts Submitted + Invoice Received
 
 ---
 

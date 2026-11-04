@@ -35,6 +35,10 @@ router.get('/:id/invoice/download',      ctrl.downloadInvoice);
 router.get('/:id/invoice/view',          ctrl.viewInvoice);
 router.delete('/:id/invoice',            requireRole(...ALL_ROLES), ctrl.deleteInvoice);
 router.post('/:id/approve',              requireRole(...ALL_ROLES), ctrl.approvePO);
+router.post('/:id/revert-to-draft',      requireRole(...ALL_ROLES), ctrl.revertPOToDraft);
+router.post('/:id/void',                 requireRole(...ALL_ROLES), ctrl.voidPO);
+router.post('/:id/unvoid',               requireRole(...ALL_ROLES), ctrl.unvoidPO);
+router.get('/:id/history',               requireRole(...ALL_ROLES), ctrl.getPOHistory);
 
 // Additional documents (any number per PO, alongside Pro Forma / Actual Invoice)
 router.get('/:id/documents',                requireRole(...ALL_ROLES), docsCtrl.list);

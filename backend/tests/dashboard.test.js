@@ -106,11 +106,14 @@ describe('GET /api/dashboard/cost-summary', () => {
 });
 
 // ─── GET /api/dashboard/labour-costs ─────────────────────────────────────────
+// Without ?week_ending, the first query resolves the latest sent-out timesheet week.
+const LATEST_WEEK = { week_ending: '2026-11-08' };
+
 describe('GET /api/dashboard/labour-costs', () => {
   test('MD gets labour costs — 200', async () => {
-    dbMock.respond([
-      { grand_total: '3500', status: 'verified', prod_name: 'Star Wars' },
-      { grand_total: '2000', status: 'sent', prod_name: 'Star Wars' },
+    dbMock.respond(LATEST_WEEK, [
+      { grand_total: '3500', status: 'finalised',   crew_member_id: 'c1', prod_id: 'p1', prod_name: 'Star Wars' },
+      { grand_total: '2000', status: 'distributed', crew_member_id: 'c2', prod_id: 'p1', prod_name: 'Star Wars' },
     ]);
 
     const res = await request(app)
@@ -118,14 +121,14 @@ describe('GET /api/dashboard/labour-costs', () => {
       .set(authHeader('md'));
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty('current_week_ending');
-    expect(res.body).toHaveProperty('total_labour_this_week');
-    expect(Array.isArray(res.body.breakdown)).toBe(true);
+    expect(res.body.current_week_ending).toBe('2026-11-08');
+    expect(res.body.total_labour_this_week).toBe(5500);
+    expect(res.body.breakdown[0]).toMatchObject({ production_id: 'p1', crew_count: 2 });
   });
 
-  test('status = pending when not all verified', async () => {
-    dbMock.respond([
-      { grand_total: '2000', status: 'sent', prod_name: 'Prod A' },
+  test('status = pending when not all finalised', async () => {
+    dbMock.respond(LATEST_WEEK, [
+      { grand_total: '2000', status: 'distributed', crew_member_id: 'c1', prod_id: 'p1', prod_name: 'Prod A' },
     ]);
     const res = await request(app)
       .get('/api/dashboard/labour-costs')
@@ -134,15 +137,27 @@ describe('GET /api/dashboard/labour-costs', () => {
     expect(res.body.breakdown[0].status).toBe('pending');
   });
 
-  test('status = approved when all verified', async () => {
-    dbMock.respond([
-      { grand_total: '3000', status: 'verified', prod_name: 'Prod A' },
+  test('status = approved when all finalised', async () => {
+    dbMock.respond(LATEST_WEEK, [
+      { grand_total: '3000', status: 'finalised', crew_member_id: 'c1', prod_id: 'p1', prod_name: 'Prod A' },
     ]);
     const res = await request(app)
       .get('/api/dashboard/labour-costs')
       .set(authHeader('md'));
 
     expect(res.body.breakdown[0].status).toBe('approved');
+  });
+
+  test('explicit ?week_ending skips the latest-week lookup', async () => {
+    dbMock.respond([
+      { grand_total: '1000', status: 'finalised', crew_member_id: 'c1', prod_id: 'p1', prod_name: 'Prod A' },
+    ]);
+    const res = await request(app)
+      .get('/api/dashboard/labour-costs?week_ending=2026-10-28')
+      .set(authHeader('md'));
+
+    expect(res.body.current_week_ending).toBe('2026-11-01');
+    expect(res.body.total_labour_this_week).toBe(1000);
   });
 
   test('Accountant gets labour costs — 200', async () => {
@@ -159,29 +174,35 @@ describe('GET /api/dashboard/labour-costs', () => {
 // ─── GET /api/dashboard/crew-headcount ───────────────────────────────────────
 describe('GET /api/dashboard/crew-headcount', () => {
   test('MD gets crew headcount — 200', async () => {
-    dbMock.respond([
-      { prod_name: 'Star Wars', crew_count: '8' },
-      { prod_name: 'Dune',      crew_count: '5' },
-    ]);
+    dbMock.respond(
+      LATEST_WEEK,
+      [{ cnt: 13 }],
+      [
+        { production_id: 'p1', production: 'Star Wars', headcount: 8 },
+        { production_id: 'p2', production: 'Dune',      headcount: 5 },
+      ],
+    );
 
     const res = await request(app)
       .get('/api/dashboard/crew-headcount')
       .set(authHeader('md'));
 
     expect(res.status).toBe(200);
+    expect(res.body.week_ending).toBe('2026-11-08');
     expect(res.body.total_active_crew).toBe(13);
     expect(res.body.breakdown).toHaveLength(2);
+    expect(res.body.breakdown[0]).toEqual({ production_id: 'p1', production_name: 'Star Wars', crew_count: 8 });
   });
 
-  test('No timesheets this week → total = 0 with note', async () => {
-    dbMock.respond([]);
+  test('No timesheets that week → total = 0', async () => {
+    dbMock.respond(LATEST_WEEK, [{ cnt: 0 }], []);
     const res = await request(app)
       .get('/api/dashboard/crew-headcount')
       .set(authHeader('md'));
 
     expect(res.status).toBe(200);
     expect(res.body.total_active_crew).toBe(0);
-    expect(res.body).toHaveProperty('note');
+    expect(res.body.breakdown).toEqual([]);
   });
 });
 

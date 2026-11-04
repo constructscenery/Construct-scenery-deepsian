@@ -25,12 +25,18 @@ const STATUS_CONFIG: Record<ProductionStatus, { label: string; className: string
   archived:       { label: 'Archived',        className: 'bg-red-100 text-red-500',     icon: <Archive size={11} className="inline mr-1" /> },
 };
 
-const STATUS_TABS: { value: ProductionStatus | 'all'; label: string }[] = [
-  { value: 'all',            label: 'All' },
+type ProductionTab = ProductionStatus | 'all' | 'active' | 'history';
+
+// Pre-Production, Active Build and Strike are active; anything else is history.
+const ACTIVE_STATUSES: ProductionStatus[] = ['pre_production', 'active_build', 'strike'];
+
+const STATUS_TABS: { value: ProductionTab; label: string }[] = [
+  { value: 'active',         label: 'Active' },
   { value: 'active_build',   label: 'Active Build' },
   { value: 'pre_production', label: 'Pre-Production' },
   { value: 'strike',         label: 'Strike' },
-  { value: 'complete',       label: 'Complete' },
+  { value: 'history',        label: 'History' },
+  { value: 'all',            label: 'All' },
 ];
 
 const CONTRACT_TYPES: { value: ContractType; label: string }[] = [
@@ -382,7 +388,7 @@ export default function ProductionsPage() {
   const [page, setPage]                   = useState(1);
   const [sort, setSort]                   = useState<SortState>({ key: 'start_date', dir: 'desc' });
   const [search, setSearch]               = useState('');
-  const [activeTab, setActiveTab]         = useState<ProductionStatus | 'all'>('all');
+  const [activeTab, setActiveTab]         = useState<ProductionTab>('active');
   const [showArchived, setShowArchived]   = useState(false);
   const [showModal, setShowModal]         = useState(false);
 
@@ -471,7 +477,11 @@ export default function ProductionsPage() {
   }, [search, activeTab]);
 
   const filtered = productions.filter(p => {
-    const matchesTab    = activeTab === 'all' || p.status === activeTab;
+    const matchesTab    =
+      activeTab === 'all' ? true :
+      activeTab === 'active' ? ACTIVE_STATUSES.includes(p.status) :
+      activeTab === 'history' ? !ACTIVE_STATUSES.includes(p.status) :
+      p.status === activeTab;
     const q = search.toLowerCase();
     const matchesSearch = !q || [
       p.name,
@@ -565,11 +575,11 @@ export default function ProductionsPage() {
             { label: 'Active Build',   count: counts.active_build,   color: 'bg-blue-500',   tab: 'active_build'   as ProductionStatus },
             { label: 'Pre-Production', count: counts.pre_production, color: 'bg-blue-500',   tab: 'pre_production' as ProductionStatus },
             { label: 'Strike',         count: counts.strike,         color: 'bg-amber-500',  tab: 'strike'         as ProductionStatus },
-            { label: 'Complete',       count: counts.complete,       color: 'bg-slate-400',  tab: 'complete'       as ProductionStatus },
+            { label: 'Complete',       count: counts.complete,       color: 'bg-slate-400',  tab: 'history'        as ProductionTab },
           ].map(s => (
             <button
               key={s.label}
-              onClick={() => setActiveTab(t => t === s.tab ? 'all' : s.tab)}
+              onClick={() => setActiveTab(t => t === s.tab ? 'active' : s.tab)}
               className={`bg-white rounded-xl border px-5 py-4 shadow-sm flex items-center gap-3 text-left transition-colors ${activeTab === s.tab ? 'border-blue-400 ring-1 ring-blue-400' : 'border-slate-200 hover:border-slate-300'}`}
             >
               <div className={`w-2.5 h-2.5 rounded-full ${s.color} flex-shrink-0`} />

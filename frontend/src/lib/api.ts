@@ -316,8 +316,9 @@ export type DashboardData = {
     rag_status: 'green' | 'amber' | 'red' | 'unknown';
   }>;
   crew_headcount: {
+    week_ending?: string;
     total: number;
-    by_production: Array<{ production: string; headcount: number }>;
+    by_production: Array<{ production_id?: string; production: string; headcount: number }>;
   };
   forecasting_variance: Array<{
     forecast_name: string;
@@ -418,7 +419,7 @@ export const productionsApi = {
 // own scoped overview endpoints, which deliberately exclude Cost
 // Report/Forecasting financial data they're not permitted to see.
 export const dashboardApi = {
-  get: () => request<DashboardData>('/api/dashboard'),
+  get: (weekEnding?: string) => request<DashboardData>(`/api/dashboard${weekEnding ? `?week_ending=${encodeURIComponent(weekEnding)}` : ''}`),
 
   accountantOverview: () => request<{
     current_week_labour: DashboardData['current_week_labour'];
@@ -524,7 +525,16 @@ export type GatewayError = {
 };
 
 // ─── Purchase Order types ──────────────────────────────────────────────────────
-export type POStatus = 'draft' | 'submitted' | 'issued' | 'invoice_received' | 'approved';
+export type POStatus = 'draft' | 'submitted' | 'issued' | 'invoice_received' | 'approved' | 'voided';
+
+export type POHistoryEntry = {
+  id: string;
+  action: string;
+  details: string | null;
+  created_at: string;
+  user_name: string | null;
+  user_role: string | null;
+};
 
 export type PurchaseOrder = {
   id: string;
@@ -556,6 +566,9 @@ export type PurchaseOrder = {
   confirmation_attachment_name: string | null;
   approved_by: string | null;
   approved_at: string | null;
+  voided_by?: string | null;
+  voided_at?: string | null;
+  void_reason?: string | null;
   created_at: string;
   is_archived?: boolean;
   deleted_at?: string | null;
@@ -587,6 +600,19 @@ export const purchaseOrdersApi = {
     request<{ message: string; purchase_order: PurchaseOrder }>(`/api/purchase-orders/${id}/approve`, {
       method: 'POST', body: {},
     }),
+  revertToDraft: (id: string) =>
+    request<{ message: string; purchase_order: PurchaseOrder }>(`/api/purchase-orders/${id}/revert-to-draft`, {
+      method: 'POST', body: {},
+    }),
+  void: (id: string, reason: string) =>
+    request<{ message: string; purchase_order: PurchaseOrder }>(`/api/purchase-orders/${id}/void`, {
+      method: 'POST', body: { reason },
+    }),
+  unvoid: (id: string) =>
+    request<{ message: string; purchase_order: PurchaseOrder }>(`/api/purchase-orders/${id}/unvoid`, {
+      method: 'POST', body: {},
+    }),
+  history: (id: string) => request<POHistoryEntry[]>(`/api/purchase-orders/${id}/history`),
   downloadPdf: async (id: string, po_number: string) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('cs_token') : null;
     const res = await fetch(`/api/purchase-orders/${id}/pdf`, {
@@ -977,7 +1003,7 @@ export type CostReportSupplierItem = {
   date: string;
   supplier: string;
   description: string | null;
-  po_number: string;
+  po_number: string | null;
   set_code: string | null;
   account_code: string | null;
   cost_ex_vat: number;
@@ -1855,13 +1881,31 @@ export type WeeklyPLProduction = {
   production_id: string; production_name: string;
   weeks: Array<{ week_ending_date: string; margin_earned: number; warrens_salary: number; luton_uplift: number; box_rental_uplift: number; weekly_profit: number; running_total_profit: number }>;
 };
+export type DashboardLabourCosts = {
+  current_week_ending: string;
+  total_labour_this_week: number;
+  breakdown: Array<{ production_id: string; production_name: string; amount: number; crew_count: number; status: 'approved' | 'pending' }>;
+};
+export type DashboardCrewHeadcount = {
+  week_ending: string;
+  total_active_crew: number;
+  breakdown: Array<{ production_id: string; production_name: string; crew_count: number }>;
+};
+export type DashboardPOSpend = {
+  week_start: string;
+  week_ending: string;
+  total_approved_today: number;
+  total_approved_this_week: number;
+  breakdown: Array<{ production_name: string; amount: number }>;
+};
+const weekQS = (weekEnding?: string) => (weekEnding ? `?week_ending=${encodeURIComponent(weekEnding)}` : '');
 export const dashboardNewApi = {
   costSummary: () => request<CostSummaryItem[]>('/api/dashboard/cost-summary'),
-  labourCosts: () => request<{ current_week_ending: string; total_labour_this_week: number; breakdown: Array<{ production_name: string; amount: number; status: 'approved' | 'pending' }> }>('/api/dashboard/labour-costs'),
-  crewHeadcount: () => request<{ total_active_crew: number; breakdown: Array<{ production_name: string; crew_count: number }>; note?: string }>('/api/dashboard/crew-headcount'),
+  labourCosts: (weekEnding?: string) => request<DashboardLabourCosts>(`/api/dashboard/labour-costs${weekQS(weekEnding)}`),
+  crewHeadcount: (weekEnding?: string) => request<DashboardCrewHeadcount>(`/api/dashboard/crew-headcount${weekQS(weekEnding)}`),
   forecastVariance: () => request<ForecastVarianceItem[]>('/api/dashboard/forecast-variance'),
   weeklyPL: () => request<WeeklyPLProduction[]>('/api/dashboard/weekly-pl'),
-  poSpend: () => request<{ total_approved_today: number; total_approved_this_week: number; breakdown: Array<{ production_name: string; amount: number }> }>('/api/dashboard/po-spend'),
+  poSpend: (weekEnding?: string) => request<DashboardPOSpend>(`/api/dashboard/po-spend${weekQS(weekEnding)}`),
 };
 
 // ─── Extended Forecast API (link + forecast variance per production) ──────────

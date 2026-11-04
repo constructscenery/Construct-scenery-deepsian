@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import {
   dashboardApi, dashboardNewApi,
   type DashboardData, type CostSummaryItem, type ForecastVarianceItem, type WeeklyPLProduction,
+  type DashboardLabourCosts, type DashboardCrewHeadcount, type DashboardPOSpend,
 } from '@/lib/api';
 import {
   TrendingUp, TrendingDown, Users, ShoppingCart, AlertCircle,
@@ -19,6 +20,19 @@ const fmtDate = (iso: string | null) => {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 };
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const toISODate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+// Sunday ending the current Mon–Sun week (today if Sunday) — newest option in the week picker.
+const currentWeekEnd = () => {
+  const d = new Date();
+  d.setHours(12, 0, 0, 0);
+  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+  return toISODate(d);
+};
+
+const WEEK_OPTION_COUNT = 26;
 
 const statusLabel: Record<string, string> = {
   pre_production: 'Pre-Production', active_build: 'Active Build',
@@ -47,39 +61,70 @@ function CardSkeleton() {
   );
 }
 
-type POSpendData = { total_approved_today: number; total_approved_this_week: number; breakdown: Array<{ production_name: string; amount: number }> };
 
 export default function MDDashboard() {
   const [data, setData]         = useState<DashboardData | null>(null);
   const [costSummary, setCost]  = useState<CostSummaryItem[] | null>(null);
   const [variance, setVariance] = useState<ForecastVarianceItem[] | null>(null);
   const [weeklyPL, setWeeklyPL] = useState<WeeklyPLProduction[] | null>(null);
-  const [labour, setLabour]     = useState<{ current_week_ending: string; total_labour_this_week: number; breakdown: Array<{ production_name: string; amount: number; status: 'approved' | 'pending' }> } | null>(null);
-  const [crew, setCrew]         = useState<{ total_active_crew: number; breakdown: Array<{ production_name: string; crew_count: number }> } | null>(null);
-  const [poSpend, setPoSpend]   = useState<POSpendData | null>(null);
-  const [loading, setLoading]   = useState(true);
+  const [labour, setLabour]     = useState<DashboardLabourCosts | null>(null);
+  const [crew, setCrew]         = useState<DashboardCrewHeadcount | null>(null);
+  const [poSpend, setPoSpend]   = useState<DashboardPOSpend | null>(null);
+  const [staticLoading, setStaticLoading] = useState(true);
+  const [weekLoading, setWeekLoading]     = useState(true);
+  // '' = follow the latest week whose timesheets have been sent out (resolved by the server)
+  const [weekEnding, setWeekEnding]       = useState('');
+  const loading = staticLoading || weekLoading;
 
   const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
+  const weekOptions = useMemo(() => {
+    const newest = new Date(`${currentWeekEnd()}T12:00:00`);
+    return Array.from({ length: WEEK_OPTION_COUNT }, (_, i) => {
+      const d = new Date(newest);
+      d.setDate(d.getDate() - i * 7);
+      return toISODate(d);
+    });
+  }, []);
+
+  // Not tied to a week
   useEffect(() => {
     Promise.allSettled([
-      dashboardApi.get().then(setData),
       dashboardNewApi.costSummary().then(setCost),
       dashboardNewApi.forecastVariance().then(setVariance),
       dashboardNewApi.weeklyPL().then(setWeeklyPL),
-      dashboardNewApi.labourCosts().then(setLabour),
-      dashboardNewApi.crewHeadcount().then(setCrew),
-      dashboardNewApi.poSpend().then(setPoSpend),
-    ]).finally(() => setLoading(false));
+    ]).finally(() => setStaticLoading(false));
   }, []);
 
+  // Everything for the selected week ending
+  useEffect(() => {
+    let active = true;
+    const week = weekEnding || undefined;
+    Promise.allSettled([
+      dashboardApi.get(week).then(v => { if (active) setData(v); }),
+      dashboardNewApi.labourCosts(week).then(v => { if (active) setLabour(v); }),
+      dashboardNewApi.crewHeadcount(week).then(v => { if (active) setCrew(v); }),
+      dashboardNewApi.poSpend(week).then(v => { if (active) setPoSpend(v); }),
+    ]).finally(() => { if (active) setWeekLoading(false); });
+    return () => { active = false; };
+  }, [weekEnding]);
+
+  const changeWeek = (value: string) => {
+    if (value === weekEnding) return;
+    setWeekLoading(true);
+    setWeekEnding(value);
+  };
+
+  // Week actually shown (server-resolved when following the latest)
+  const shownWeek = labour?.current_week_ending ?? crew?.week_ending ?? weekEnding;
+  const weekLabel = shownWeek ? `w/e ${fmtDate(shownWeek)}` : '';
   const pendingTotal  = data?.pending_approvals.total ?? 0;
   const pendingDetail = data ? `${data.pending_approvals.purchase_orders} POs · ${data.pending_approvals.timesheets} timesheets` : '';
-  const statCards = [
-    { label: 'Active Productions', value: String(costSummary?.length ?? data?.active_productions.length ?? '—'), change: 'Active now', up: null, icon: Clapperboard, color: 'bg-blue-50 text-blue-600' },
-    { label: 'Total Crew On Site', value: String(crew?.total_active_crew ?? '—'), change: 'Across active productions', up: null, icon: Users, color: 'bg-blue-50 text-blue-600' },
-    { label: 'Weekly Labour Cost', value: labour ? fmt(labour.total_labour_this_week) : '—', change: labour ? `w/e ${fmtDate(labour.current_week_ending)}` : 'Loading…', up: false, icon: ShoppingCart, color: 'bg-orange-50 text-orange-600' },
-    { label: 'Pending Approvals', value: String(pendingTotal), change: pendingDetail, up: null, icon: AlertCircle, color: 'bg-amber-50 text-amber-600' },
+  const statCards: Array<{ label: string; value: string; change: string; up: boolean | null; icon: typeof Users; color: string; href: string }> = [
+    { label: 'Active Productions', value: String(costSummary?.length ?? data?.active_productions.length ?? '—'), change: 'Active now', up: null, icon: Clapperboard, color: 'bg-blue-50 text-blue-600', href: '/productions' },
+    { label: 'Total Crew On Site', value: String(crew?.total_active_crew ?? '—'), change: `${weekLabel} · on timesheets`, up: null, icon: Users, color: 'bg-blue-50 text-blue-600', href: `/timesheets?week_ending_date=${shownWeek}` },
+    { label: 'Weekly Labour Cost', value: labour ? fmt(labour.total_labour_this_week) : '—', change: weekLabel, up: null, icon: ShoppingCart, color: 'bg-orange-50 text-orange-600', href: '/pay-runs' },
+    { label: 'Pending Approvals', value: String(pendingTotal), change: pendingDetail, up: null, icon: AlertCircle, color: 'bg-amber-50 text-amber-600', href: '/purchase-orders' },
   ];
 
   return (
@@ -87,12 +132,31 @@ export default function MDDashboard() {
       <TopBar title="Managing Director Dashboard" subtitle={today} />
       <main className="flex-1 p-4 md:p-6 space-y-4 md:space-y-6">
 
+        {/* Week selector */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-slate-500 text-xs">
+            Crew, labour and PO spend are for the selected week (Mon–Sun). By default the dashboard follows the latest week whose timesheets have been sent out, and moves on automatically when the next week is distributed.
+          </p>
+          <label className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm text-sm text-slate-600">
+            Week ending:
+            <select
+              value={weekEnding}
+              onChange={(e) => changeWeek(e.target.value)}
+              className="text-slate-900 font-semibold bg-transparent outline-none cursor-pointer"
+            >
+              <option value="">Latest sent out{!weekEnding && shownWeek ? ` (${fmtDate(shownWeek)})` : ''}</option>
+              {weekOptions.map((w) => (
+                <option key={w} value={w}>{fmtDate(w)}</option>
+              ))}
+            </select>
+          </label>
+        </div>
         {/* ── Stat Cards ──────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
           {loading
             ? Array(4).fill(0).map((_, i) => <CardSkeleton key={i} />)
-            : statCards.map(({ label, value, change, up, icon: Icon, color }) => (
-              <div key={label} className="bg-white rounded-xl border border-slate-200 p-5 flex items-start gap-4 shadow-sm">
+            : statCards.map(({ label, value, change, up, icon: Icon, color, href }) => (
+              <Link key={label} href={href} className="bg-white rounded-xl border border-slate-200 p-5 flex items-start gap-4 shadow-sm hover:border-blue-300 hover:shadow transition-colors">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${color}`}><Icon size={20} /></div>
                 <div>
                   <p className="text-slate-500 text-xs font-medium">{label}</p>
@@ -101,7 +165,7 @@ export default function MDDashboard() {
                     {up === true && <TrendingUp size={12} />}{up === false && <TrendingDown size={12} />}{change}
                   </p>
                 </div>
-              </div>
+              </Link>
             ))}
         </div>
 
@@ -165,24 +229,31 @@ export default function MDDashboard() {
             </div>
           </div>
 
-          {/* Labour Costs this week */}
+          {/* Labour Costs for the selected week */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100">
-              <h2 className="text-slate-900 font-semibold text-sm">Current Week Labour</h2>
-              <p className="text-slate-400 text-xs mt-0.5">{labour ? `w/e ${fmtDate(labour.current_week_ending)}` : 'Loading…'}</p>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <div>
+                <h2 className="text-slate-900 font-semibold text-sm">Weekly Labour</h2>
+                <p className="text-slate-400 text-xs mt-0.5">{weekLabel}</p>
+              </div>
+              <Link href={`/timesheets?week_ending_date=${shownWeek}`} className="text-blue-600 text-xs font-medium flex items-center gap-1 hover:underline">
+                Timesheets <ArrowUpRight size={12} />
+              </Link>
             </div>
             <div className="divide-y divide-slate-100">
               {loading
                 ? Array(3).fill(0).map((_, i) => (<div key={i} className="px-5 py-3.5 flex justify-between"><Skeleton className="h-4 w-24" /><Skeleton className="h-4 w-16" /></div>))
                 : !labour?.breakdown.length
-                  ? <p className="px-5 py-8 text-slate-400 text-sm text-center">No timesheets this week</p>
-                  : labour.breakdown.map((l) => {
-                    const crewRow = crew?.breakdown.find(c => c.production_name === l.production_name);
-                    return (
-                      <div key={l.production_name} className="px-5 py-3.5 flex items-center justify-between">
+                  ? <p className="px-5 py-8 text-slate-400 text-sm text-center">No timesheets for this week</p>
+                  : labour.breakdown.map((l) => (
+                      <Link
+                        key={l.production_id}
+                        href={`/timesheets?week_ending_date=${shownWeek}&production_id=${l.production_id}`}
+                        className="px-5 py-3.5 flex items-center justify-between hover:bg-slate-50/70 transition-colors"
+                      >
                         <div>
                           <p className="text-slate-800 text-sm font-medium">{l.production_name}</p>
-                          <p className="text-slate-400 text-xs">{crewRow?.crew_count ?? '—'} crew</p>
+                          <p className="text-slate-400 text-xs">{l.crew_count} crew</p>
                         </div>
                         <div className="text-right">
                           <p className="text-slate-900 text-sm font-semibold">{fmt(l.amount)}</p>
@@ -190,13 +261,12 @@ export default function MDDashboard() {
                             {l.status === 'pending' ? <><Clock size={9} className="inline mr-1" />Pending</> : <><CheckCircle2 size={9} className="inline mr-1" />Approved</>}
                           </span>
                         </div>
-                      </div>
-                    );
-                  })
+                      </Link>
+                    ))
               }
               {!loading && labour && (
                 <div className="px-5 py-3 bg-slate-50 flex justify-between items-center">
-                  <span className="text-slate-600 text-xs font-medium">Total This Week</span>
+                  <span className="text-slate-600 text-xs font-medium">Total for Week</span>
                   <span className="text-slate-900 text-sm font-bold">{fmt(labour.total_labour_this_week)}</span>
                 </div>
               )}
@@ -211,7 +281,7 @@ export default function MDDashboard() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <div>
                 <h2 className="text-slate-900 font-semibold text-sm">Production Pipeline</h2>
-                <p className="text-slate-400 text-xs mt-0.5">All active & upcoming productions</p>
+                <p className="text-slate-400 text-xs mt-0.5">Active productions — Pre-Production, Active Build &amp; Strike</p>
               </div>
               <Link href="/productions" className="text-blue-600 text-xs font-medium flex items-center gap-1 hover:underline">
                 View all <ArrowUpRight size={12} />
@@ -230,9 +300,13 @@ export default function MDDashboard() {
               <tbody className="divide-y divide-slate-100">
                 {loading
                   ? Array(3).fill(0).map((_, i) => (<tr key={i}><td colSpan={5} className="px-5 py-3"><Skeleton className="h-4 w-full" /></td></tr>))
-                  : data?.production_pipeline.map((p) => (
+                  : !data?.production_pipeline.length
+                  ? <tr><td colSpan={5} className="px-5 py-8 text-slate-400 text-sm text-center">No active productions</td></tr>
+                  : data.production_pipeline.map((p) => (
                     <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-5 py-3.5 text-slate-900 font-medium text-sm">{p.name}</td>
+                      <td className="px-5 py-3.5 text-sm font-medium">
+                        <Link href={`/productions/${p.id}`} className="text-slate-900 hover:text-blue-600 hover:underline">{p.name}</Link>
+                      </td>
                       <td className="px-3 py-3.5">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${phaseColor[p.current_phase] ?? 'bg-slate-100 text-slate-600'}`}>
                           {statusLabel[p.current_phase] ?? p.current_phase}
@@ -373,7 +447,7 @@ export default function MDDashboard() {
                 <p className="text-slate-900 font-bold text-lg">{fmt(poSpend.total_approved_today)}</p>
               </div>
               <div className="bg-slate-50 rounded-lg p-3 text-center">
-                <p className="text-slate-500 text-xs mb-1">This Week</p>
+                <p className="text-slate-500 text-xs mb-1">{weekLabel}</p>
                 <p className="text-slate-900 font-bold text-lg">{fmt(poSpend.total_approved_this_week)}</p>
               </div>
             </div>

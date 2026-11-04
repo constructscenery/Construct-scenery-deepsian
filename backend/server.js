@@ -370,6 +370,31 @@ async function start() {
     console.error('⚠️  Schema guard failed (PO documents / stock photo):', err.message);
   }
 
+  // Mirrors migration 1793741255579 (PO void); only rewrites the status CHECK if one exists without 'voided'
+  try {
+    await db.query(`
+      ALTER TABLE purchase_orders
+        ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS voided_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS void_reason TEXT;
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'purchase_orders_status_check'
+            AND pg_get_constraintdef(oid) NOT LIKE '%voided%'
+        ) THEN
+          ALTER TABLE purchase_orders DROP CONSTRAINT purchase_orders_status_check;
+          ALTER TABLE purchase_orders ADD CONSTRAINT purchase_orders_status_check
+            CHECK (status IN ('draft', 'submitted', 'issued', 'invoice_received', 'approved', 'voided'));
+        END IF;
+      END $$;
+    `);
+    console.log('✅ Schema guard: purchase_orders void columns ensured');
+  } catch (err) {
+    console.error('⚠️  Schema guard failed (PO void):', err.message);
+  }
+
   // ── Forecasting Addendum 4 Schema Guard ──────────────────────────────────────
   const { ensureForecastingTables } = require('./services/forecastingSchemaGuard');
   await ensureForecastingTables();

@@ -11,6 +11,7 @@ import {
   supplierApi,
   expenditureTypesApi,
   type PurchaseOrder,
+  type POHistoryEntry,
   type POStatus,
   type Production,
   type ProductionSet,
@@ -36,6 +37,8 @@ import {
   Trash2,
   Archive,
   RotateCcw,
+  Ban,
+  History as HistoryIcon,
   ChevronDown,
   Building2,
   Paperclip,
@@ -75,6 +78,7 @@ const STATUS_TABS: { label: string; value: TabFilter }[] = [
   { label: 'Submitted', value: 'submitted' },
   { label: 'Invoice Received', value: 'invoice_received' },
   { label: 'Approved', value: 'approved' },
+  { label: 'Voided', value: 'voided' },
   { label: 'Archived', value: 'archived' },
 ];
 
@@ -87,6 +91,7 @@ const STATUS_BADGE: Record<POStatus, string> = {
   issued: 'bg-blue-100 text-blue-700',
   invoice_received: 'bg-amber-100 text-amber-700',
   approved: 'bg-green-100 text-green-700',
+  voided: 'bg-slate-200 text-slate-600',
 };
 
 const STATUS_LABEL: Record<POStatus, string> = {
@@ -95,9 +100,17 @@ const STATUS_LABEL: Record<POStatus, string> = {
   issued: 'Issued',
   invoice_received: 'Invoice Received',
   approved: 'Approved',
+  voided: 'Voided',
 };
 
 function getTrafficLight(status: string) {
+  if (status === 'voided') {
+    return {
+      dot: 'bg-slate-400',
+      badge: 'bg-slate-100 text-slate-600 border-slate-300 line-through',
+      label: 'Voided',
+    };
+  }
   if (status === 'approved') {
     return {
       dot: 'bg-emerald-500',
@@ -118,6 +131,19 @@ function getTrafficLight(status: string) {
     label: 'Not Approved',
   };
 }
+
+const PO_HISTORY_LABEL: Record<string, string> = {
+  po_created: 'Raised',
+  po_submitted: 'Submitted',
+  po_issued: 'Issued to supplier',
+  po_invoice_received: 'Submitted (invoice attached)',
+  po_approved: 'Approved',
+  po_reverted_to_draft: 'Reverted to draft',
+  po_voided: 'Voided',
+  po_unvoided: 'Un-voided (restored to draft)',
+  po_archived: 'Archived',
+  po_restored: 'Restored from archive',
+};
 
 const PAID_FROM_BADGE: Record<string, string> = {
   supplier_account: 'bg-blue-50 text-blue-600',
@@ -370,6 +396,14 @@ export default function PurchaseOrdersPage() {
   const [selectedPoIds, setSelectedPoIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState<'invoices-zip' | 'final-backup' | null>(null);
   const [documentsPO, setDocumentsPO] = useState<PurchaseOrder | null>(null);
+  const [voidTarget, setVoidTarget] = useState<PurchaseOrder | null>(null);
+  const [voidReason, setVoidReason] = useState('');
+  const [voidLoading, setVoidLoading] = useState(false);
+  const [voidError, setVoidError] = useState('');
+  const [historyPO, setHistoryPO] = useState<PurchaseOrder | null>(null);
+  const [historyRows, setHistoryRows] = useState<POHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
 
   useEffect(() => {
     const handleOutsideClick = () => setOpenActionDropdownId(null);
@@ -863,11 +897,12 @@ export default function PurchaseOrdersPage() {
   const awaitingAction = pos.filter(
     (p) => p.status === 'submitted' || p.status === 'invoice_received',
   ).length;
-  const totalCommitted = pos.reduce((s, p) => s + parseFloat(p.gross_amount || '0'), 0);
+  const totalCommitted = pos.filter((p) => p.status !== 'voided').reduce((s, p) => s + parseFloat(p.gross_amount || '0'), 0);
 
   const accountingSuppliersSummary = useMemo(() => {
     const map = new Map<string, { name: string; poCount: number; gross: number }>();
     pos.forEach((p) => {
+      if (p.status === 'voided') return;
       const name = p.supplier_name?.trim();
       if (!name) return;
       const existing = map.get(name) || { name, poCount: 0, gross: 0 };
@@ -894,9 +929,9 @@ export default function PurchaseOrdersPage() {
 
   const accountingSupplierSpendData = useMemo(() => {
     const target = accountingSelectedSupplier.trim().toLowerCase();
-    const relevant = target
+    const relevant = (target
       ? pos.filter((p) => p.supplier_name && p.supplier_name.trim().toLowerCase() === target)
-      : pos;
+      : pos).filter((p) => p.status !== 'voided');
 
     const totalGross = relevant.reduce((sum, p) => sum + parseFloat(p.gross_amount || '0'), 0);
     const totalNet = relevant.reduce((sum, p) => sum + parseFloat(p.net_amount || '0'), 0);
@@ -948,6 +983,63 @@ export default function PurchaseOrdersPage() {
       setActionError({ id, msg: err instanceof Error ? err.message : 'Approval failed' });
     } finally {
       setActionLoading(null);
+    }
+  }
+
+  async function handleRevertToDraft(po: PurchaseOrder) {
+    if (!confirm(`Revert ${po.po_number} to Draft?\n\nIts cost will be removed from the Cost Report until it is approved again.`)) return;
+    setActionLoading(po.id + ':revert');
+    setActionError(null);
+    try {
+      await purchaseOrdersApi.revertToDraft(po.id);
+      await loadData();
+    } catch (err: unknown) {
+      setActionError({ id: po.id, msg: err instanceof Error ? err.message : 'Revert failed' });
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleUnvoid(po: PurchaseOrder) {
+    if (!confirm(`Un-void ${po.po_number}? It will be restored to Draft.`)) return;
+    setActionLoading(po.id + ':unvoid');
+    setActionError(null);
+    try {
+      await purchaseOrdersApi.unvoid(po.id);
+      await loadData();
+    } catch (err: unknown) {
+      setActionError({ id: po.id, msg: err instanceof Error ? err.message : 'Un-void failed' });
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleVoidConfirm() {
+    if (!voidTarget) return;
+    setVoidLoading(true);
+    setVoidError('');
+    try {
+      await purchaseOrdersApi.void(voidTarget.id, voidReason.trim());
+      setVoidTarget(null);
+      await loadData();
+    } catch (err: unknown) {
+      setVoidError(err instanceof Error ? err.message : 'Void failed');
+    } finally {
+      setVoidLoading(false);
+    }
+  }
+
+  async function openHistory(po: PurchaseOrder) {
+    setHistoryPO(po);
+    setHistoryRows([]);
+    setHistoryError('');
+    setHistoryLoading(true);
+    try {
+      setHistoryRows(await purchaseOrdersApi.history(po.id));
+    } catch (err: unknown) {
+      setHistoryError(err instanceof Error ? err.message : 'Unable to load history');
+    } finally {
+      setHistoryLoading(false);
     }
   }
 
@@ -1691,7 +1783,7 @@ export default function PurchaseOrdersPage() {
                       <ColumnHeader label="Production" sortKey="prod_name" sort={sort} onSort={setSort} filterType="select" filterOptions={productions.map(p => ({ label: p.name, value: p.id }))} filterValue={poFilters.production_id} onFilterChange={(val) => { setPoFilters(f => ({ ...f, production_id: val, set_code: '' })); setPage(1); }} />
                       <ColumnHeader label="Details" sortKey="title" sort={sort} onSort={setSort} />
                       <ColumnHeader label="Amount" sortKey="gross_amount" sort={sort} onSort={setSort} className="text-right" />
-                      <ColumnHeader label="Status" sortKey="status" sort={sort} onSort={setSort} />
+                      <th className="px-4 py-2.5 text-xs font-semibold text-slate-500">Actions</th>
                       <ColumnHeader label="Code" sortKey="account_code" sort={sort} onSort={setSort} />
                     </>
                   ) : (
@@ -1700,7 +1792,7 @@ export default function PurchaseOrdersPage() {
                       <ColumnHeader label="Set Code" sortKey="set_code" sort={sort} onSort={setSort} filterType="select" filterOptions={Array.from(new Set(pos.map(po => po.set_code).filter((c): c is string => Boolean(c)))).sort().map(c => ({ label: c, value: c }))} filterValue={poFilters.set_code} onFilterChange={(val) => { setPoFilters(f => ({ ...f, set_code: val })); setPage(1); }} />
                       <ColumnHeader label="VAT" sortKey="vat" sort={sort} onSort={setSort} className="text-right" />
                       <ColumnHeader label="Paid From" sortKey="paid_from" sort={sort} onSort={setSort} />
-                      <ColumnHeader label="Approval Status" sortKey="status" sort={sort} onSort={setSort} />
+                      <th className="px-4 py-2.5 text-xs font-semibold text-slate-500">Actions</th>
                     </>
                   )}
                   <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-center">
@@ -1709,7 +1801,7 @@ export default function PurchaseOrdersPage() {
                       Attachment
                     </span>
                   </th>
-                  <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-right">Actions</th>
+                  <ColumnHeader label={viewMode === 'purchasing' ? 'Status' : 'Approval Status'} sortKey="status" sort={sort} onSort={setSort} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1819,20 +1911,6 @@ export default function PurchaseOrdersPage() {
                               <td className="px-4 py-2 text-slate-700 text-xs text-right font-normal whitespace-nowrap">
                                 {fmt(po.gross_amount)}
                               </td>
-                              <td className="px-4 py-2 whitespace-nowrap">
-                                {(() => {
-                                  const tl = getTrafficLight(po.status);
-                                  return (
-                                    <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full font-normal border ${tl.badge}`}>
-                                      <span className={`w-1.5 h-1.5 rounded-full ${tl.dot}`} />
-                                      {tl.label}
-                                    </span>
-                                  );
-                                })()}
-                              </td>
-                              <td className="px-4 py-2 text-slate-600 text-xs font-normal whitespace-nowrap">
-                                {po.account_code || po.set_code || '—'}
-                              </td>
                             </>
                           ) : (
                             <>
@@ -1850,97 +1928,10 @@ export default function PurchaseOrdersPage() {
                                   {PAID_FROM_LABEL[po.paid_from] ?? po.paid_from}
                                 </span>
                               </td>
-                              <td className="px-4 py-2 whitespace-nowrap">
-                                {(() => {
-                                  const tl = getTrafficLight(po.status);
-                                  return (
-                                    <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full font-normal border ${tl.badge}`}>
-                                      <span className={`w-1.5 h-1.5 rounded-full ${tl.dot}`} />
-                                      {tl.label}
-                                    </span>
-                                  );
-                                })()}
-                              </td>
                             </>
                           )}
 
-                          <td className="px-4 py-2 text-center whitespace-nowrap">
-                            {(() => {
-                              const hasConf = Boolean(po.confirmation_attachment_url);
-                              const hasInv = Boolean(po.invoice_attachment_url);
-
-                              if (hasConf && hasInv) {
-                                const invUrl = po.invoice_attachment_url!.startsWith('http') ? po.invoice_attachment_url! : encodeURI(decodeURI(po.invoice_attachment_url!));
-                                return (
-                                  <div className="inline-flex items-center gap-1.5 justify-center">
-                                    <button
-                                      type="button"
-                                      onClick={() => purchaseOrdersApi.downloadConfirmation(po.id, po.confirmation_attachment_name || 'order-confirmation')}
-                                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium border border-blue-200 transition-colors"
-                                      title={`Pro Forma / Confirmation: ${po.confirmation_attachment_name || 'Attached'}`}
-                                    >
-                                      <Paperclip size={11} className="-rotate-45 text-blue-600" />
-                                      <span>Pro Forma</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => window.open(invUrl, '_blank', 'noopener,noreferrer')}
-                                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium border border-emerald-200 transition-colors"
-                                      title={`Invoice: ${po.invoice_attachment_name || 'Attached'}`}
-                                    >
-                                      <CheckCircle2 size={11} className="text-emerald-600" />
-                                      <span>Invoice</span>
-                                    </button>
-                                  </div>
-                                );
-                              }
-
-                              if (hasConf) {
-                                return (
-                                  <button
-                                    type="button"
-                                    onClick={() => purchaseOrdersApi.downloadConfirmation(po.id, po.confirmation_attachment_name || 'order-confirmation')}
-                                    className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium border border-blue-200 transition-colors"
-                                    title={`Pro Forma / Order Confirmation attached: ${po.confirmation_attachment_name || 'Attached'}`}
-                                  >
-                                    <Paperclip size={12} className="-rotate-45 text-blue-600" />
-                                    <span>Pro Forma</span>
-                                  </button>
-                                );
-                              }
-
-                              if (hasInv) {
-                                const invUrl = po.invoice_attachment_url!.startsWith('http') ? po.invoice_attachment_url! : encodeURI(decodeURI(po.invoice_attachment_url!));
-                                return (
-                                  <button
-                                    type="button"
-                                    onClick={() => window.open(invUrl, '_blank', 'noopener,noreferrer')}
-                                    className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium border border-emerald-200 transition-colors"
-                                    title={`Invoice attached: ${po.invoice_attachment_name || 'Attached'}`}
-                                  >
-                                    <CheckCircle2 size={12} className="text-emerald-600" />
-                                    <span>Invoice</span>
-                                  </button>
-                                );
-                              }
-
-                              return po.document_count ? null : (
-                                <span className="text-slate-300 text-xs font-normal" title="No attachments uploaded yet">—</span>
-                              );
-                            })()}
-                            {!!po.document_count && !isGuest && (
-                              <button
-                                type="button"
-                                onClick={() => setDocumentsPO(po)}
-                                title={`${po.document_count} more document${po.document_count === 1 ? '' : 's'} attached`}
-                                className="ml-1.5 inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium border border-slate-200 transition-colors"
-                              >
-                                <Paperclip size={11} className="-rotate-45" />
-                                +{po.document_count}
-                              </button>
-                            )}
-                          </td>
-                          <td className="px-4 py-2 text-right whitespace-nowrap">
+                          <td className="px-4 py-2 whitespace-nowrap">
                             <div className="relative inline-block text-left">
                               <button
                                 type="button"
@@ -1988,6 +1979,17 @@ export default function PurchaseOrdersPage() {
                                         <span>Attachments & Documents{po.document_count ? ` (+${po.document_count})` : ''}</span>
                                       </button>
                                     )}
+                                    {/* Who raised / approved / voided it, and when */}
+                                    {!isGuest && (
+                                      <button
+                                        type="button"
+                                        onClick={() => { setOpenActionDropdownId(null); openHistory(po); }}
+                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors"
+                                      >
+                                        <HistoryIcon size={13} className="text-slate-400" />
+                                        <span>History</span>
+                                      </button>
+                                    )}
                                     {/* Copy PO */}
                                     {!isGuest && (
                                       <button
@@ -2021,7 +2023,7 @@ export default function PurchaseOrdersPage() {
                                   {/* Status Workflow Actions */}
                                   {((isCoordinator && po.status === 'draft') ||
                                     (isAccountant && (po.status === 'submitted' || po.status === 'invoice_received')) ||
-                                    ((isCoordinator || isAccountant) && po.status !== 'draft')) && (
+                                    ((isCoordinator || isAccountant) && po.status !== 'draft' && po.status !== 'voided')) && (
                                       <div className="py-0.5">
                                         {/* Edit: Coordinator only, draft only */}
                                         {isCoordinator && po.status === 'draft' && (
@@ -2107,6 +2109,48 @@ export default function PurchaseOrdersPage() {
                                       </div>
                                     )}
 
+                                  {/* Revert approved → draft, Void / Un-void */}
+                                  {!isGuest && (
+                                    <div className="py-0.5">
+                                      {po.status === 'approved' && (
+                                        <button
+                                          type="button"
+                                          disabled={!!busy}
+                                          onClick={() => { setOpenActionDropdownId(null); handleRevertToDraft(po); }}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-amber-700 hover:bg-amber-50 font-normal transition-colors disabled:opacity-50"
+                                        >
+                                          {busy && actionLoading === po.id + ':revert'
+                                            ? <Loader2 size={13} className="animate-spin text-amber-600" />
+                                            : <RotateCcw size={13} className="text-amber-600" />}
+                                          <span>Revert to Draft</span>
+                                        </button>
+                                      )}
+                                      {po.status === 'voided' ? (
+                                        <button
+                                          type="button"
+                                          disabled={!!busy}
+                                          onClick={() => { setOpenActionDropdownId(null); handleUnvoid(po); }}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-emerald-700 hover:bg-emerald-50 font-normal transition-colors disabled:opacity-50"
+                                        >
+                                          {busy && actionLoading === po.id + ':unvoid'
+                                            ? <Loader2 size={13} className="animate-spin text-emerald-600" />
+                                            : <RotateCcw size={13} className="text-emerald-600" />}
+                                          <span>Un-void (Restore to Draft)</span>
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          disabled={!!busy}
+                                          onClick={() => { setOpenActionDropdownId(null); setVoidTarget(po); setVoidReason(''); setVoidError(''); }}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-rose-700 hover:bg-rose-50 font-normal transition-colors disabled:opacity-50"
+                                        >
+                                          <Ban size={13} className="text-rose-600" />
+                                          <span>Void PO</span>
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+
                                   {/* Archive & Restore */}
                                   {(((isCoordinator || isMD) && po.status === 'draft' && !po.is_archived) ||
                                     ((isCoordinator || isMD) && po.is_archived)) && (
@@ -2153,6 +2197,104 @@ export default function PurchaseOrdersPage() {
                                 </div>
                               )}
                             </div>
+                          </td>
+                          {viewMode === 'purchasing' && (
+                            <td className="px-4 py-2 text-slate-600 text-xs font-normal whitespace-nowrap">
+                              {po.account_code || po.set_code || '—'}
+                            </td>
+                          )}
+                          <td className="px-4 py-2 text-center whitespace-nowrap">
+                            {(() => {
+                              const hasConf = Boolean(po.confirmation_attachment_url);
+                              const hasInv = Boolean(po.invoice_attachment_url);
+
+                              if (hasConf && hasInv) {
+                                const invUrl = po.invoice_attachment_url!.startsWith('http') ? po.invoice_attachment_url! : encodeURI(decodeURI(po.invoice_attachment_url!));
+                                return (
+                                  <div className="inline-flex items-center gap-1.5 justify-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => purchaseOrdersApi.downloadConfirmation(po.id, po.confirmation_attachment_name || 'order-confirmation')}
+                                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium border border-blue-200 transition-colors"
+                                      title={`Pro Forma / Confirmation: ${po.confirmation_attachment_name || 'Attached'}`}
+                                    >
+                                      <Paperclip size={11} className="-rotate-45 text-blue-600" />
+                                      <span>Pro Forma</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => window.open(invUrl, '_blank', 'noopener,noreferrer')}
+                                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium border border-emerald-200 transition-colors"
+                                      title={`Invoice: ${po.invoice_attachment_name || 'Attached'}`}
+                                    >
+                                      <CheckCircle2 size={11} className="text-emerald-600" />
+                                      <span>Invoice</span>
+                                    </button>
+                                  </div>
+                                );
+                              }
+
+                              if (hasConf) {
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => purchaseOrdersApi.downloadConfirmation(po.id, po.confirmation_attachment_name || 'order-confirmation')}
+                                    className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium border border-blue-200 transition-colors"
+                                    title={`Pro Forma / Order Confirmation attached: ${po.confirmation_attachment_name || 'Attached'}`}
+                                  >
+                                    <Paperclip size={12} className="-rotate-45 text-blue-600" />
+                                    <span>Pro Forma</span>
+                                  </button>
+                                );
+                              }
+
+                              if (hasInv) {
+                                const invUrl = po.invoice_attachment_url!.startsWith('http') ? po.invoice_attachment_url! : encodeURI(decodeURI(po.invoice_attachment_url!));
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => window.open(invUrl, '_blank', 'noopener,noreferrer')}
+                                    className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium border border-emerald-200 transition-colors"
+                                    title={`Invoice attached: ${po.invoice_attachment_name || 'Attached'}`}
+                                  >
+                                    <CheckCircle2 size={12} className="text-emerald-600" />
+                                    <span>Invoice</span>
+                                  </button>
+                                );
+                              }
+
+                              return po.document_count ? null : (
+                                <span className="text-slate-300 text-xs font-normal" title="No attachments uploaded yet">—</span>
+                              );
+                            })()}
+                            {!!po.document_count && !isGuest && (
+                              <button
+                                type="button"
+                                onClick={() => setDocumentsPO(po)}
+                                title={`${po.document_count} more document${po.document_count === 1 ? '' : 's'} attached`}
+                                className="ml-1.5 inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium border border-slate-200 transition-colors"
+                              >
+                                <Paperclip size={11} className="-rotate-45" />
+                                +{po.document_count}
+                              </button>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap">
+                            {(() => {
+                              const tl = getTrafficLight(po.status);
+                              return (
+                                <span
+                                  className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full font-normal border ${tl.badge}`}
+                                  title={po.status === 'voided' && po.void_reason ? `Void reason: ${po.void_reason}` : undefined}
+                                >
+                                  <span className={`w-1.5 h-1.5 rounded-full ${tl.dot}`} />
+                                  {tl.label}
+                                </span>
+                              );
+                            })()}
+                            {po.status === 'voided' && po.void_reason && (
+                              <p className="text-[11px] text-slate-500 mt-0.5 max-w-[220px] truncate" title={po.void_reason}>{po.void_reason}</p>
+                            )}
                           </td>
                         </tr>
                       );
@@ -2852,6 +2994,94 @@ export default function PurchaseOrdersPage() {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {voidTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => { if (!voidLoading) setVoidTarget(null); }} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-5 border-b border-slate-100">
+              <h2 className="text-slate-900 font-semibold text-lg">Void {voidTarget.po_number}?</h2>
+              <p className="text-slate-500 text-xs mt-1">
+                The PO stays on record marked VOID and its number is never reused.
+                {voidTarget.status === 'approved' && ' Its cost will be removed from the Cost Report.'}
+                {' '}You can un-void it later (it returns to Draft).
+              </p>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <label className="block text-xs font-semibold text-slate-700">Reason (optional)</label>
+              <textarea
+                rows={3}
+                maxLength={1000}
+                value={voidReason}
+                onChange={(e) => setVoidReason(e.target.value)}
+                placeholder="e.g. Raised in error, supplier cancelled…"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 resize-none"
+              />
+              {voidError && (
+                <p className="flex items-center gap-1.5 text-red-600 text-xs"><AlertCircle size={13} />{voidError}</p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
+              <button
+                type="button"
+                disabled={voidLoading}
+                onClick={() => setVoidTarget(null)}
+                className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-white disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={voidLoading}
+                onClick={handleVoidConfirm}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-rose-600 text-white rounded-lg hover:bg-rose-700 disabled:opacity-50"
+              >
+                {voidLoading ? <Loader2 size={14} className="animate-spin" /> : <Ban size={14} />}
+                Void PO
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {historyPO && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setHistoryPO(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+            <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100">
+              <div>
+                <h2 className="text-slate-900 font-semibold text-lg">History — {historyPO.po_number}</h2>
+                <p className="text-slate-400 text-xs mt-0.5">{historyPO.supplier_name}</p>
+              </div>
+              <button onClick={() => setHistoryPO(null)} aria-label="Close history" className="p-1.5 text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <div className="px-6 py-4 overflow-y-auto">
+              {historyLoading ? (
+                <p className="flex items-center gap-2 text-sm text-slate-500 py-6"><Loader2 size={14} className="animate-spin" /> Loading history…</p>
+              ) : historyError ? (
+                <p className="flex items-center gap-1.5 text-red-600 text-sm py-6"><AlertCircle size={14} />{historyError}</p>
+              ) : historyRows.length === 0 ? (
+                <p className="text-sm text-slate-500 py-6">No history recorded.</p>
+              ) : (
+                <ol className="relative border-l border-slate-200 ml-2 space-y-4">
+                  {historyRows.map((h) => (
+                    <li key={h.id} className="relative ml-4">
+                      <span className="absolute -left-[22px] top-1.5 w-3 h-3 rounded-full bg-blue-500 border-2 border-white" />
+                      <p className="text-sm font-medium text-slate-800">{PO_HISTORY_LABEL[h.action] ?? h.action.replace(/^po_/, '').replace(/_/g, ' ')}</p>
+                      <p className="text-xs text-slate-500">
+                        {h.user_name || 'Unknown user'} · {new Date(h.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      {(h.action === 'po_voided' || h.action === 'po_reverted_to_draft') && h.details && (
+                        <p className="text-xs text-slate-600 mt-0.5">{h.details}</p>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
           </div>
         </div>

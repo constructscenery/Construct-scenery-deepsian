@@ -373,6 +373,8 @@ const updatePO = async (req, res) => {
     if (!existing[0]) return res.status(404).json({ error: 'Purchase order not found' });
     if (existing[0].status === 'approved')
       return res.status(403).json({ error: 'Cannot edit an approved purchase order' });
+    if (existing[0].status === 'voided')
+      return res.status(403).json({ error: 'Cannot edit a voided purchase order — un-void it first' });
 
     const fields    = Object.keys(updates);
     const values    = Object.values(updates);
@@ -502,6 +504,8 @@ const attachInvoice = async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Purchase order not found' });
     if (existing.status === 'approved')
       return res.status(400).json({ error: 'Cannot replace invoice on an approved purchase order' });
+    if (existing.status === 'voided')
+      return res.status(400).json({ error: 'Cannot change attachments on a voided purchase order' });
 
     const newStatus = (existing.status === 'submitted' || existing.status === 'issued') ? 'invoice_received' : existing.status;
     const { rows: [updated] } = await db.query(
@@ -562,6 +566,8 @@ const deleteInvoice = async (req, res) => {
     if (!po) return res.status(404).json({ error: 'Purchase order not found' });
     if (po.status === 'approved')
       return res.status(403).json({ error: 'Cannot delete invoice on an approved purchase order' });
+    if (po.status === 'voided')
+      return res.status(403).json({ error: 'Cannot change attachments on a voided purchase order' });
     if (!po.invoice_attachment_url)
       return res.status(404).json({ error: 'No invoice attached to this purchase order' });
 
@@ -622,6 +628,174 @@ const approvePO = async (req, res) => {
     res.status(500).json({ error: 'Approval failed — cost report could not be updated. Please try again.' });
   } finally {
     client.release();
+  }
+};
+
+// ─── Helper: lock a PO row inside a transaction ────────────────────────────────────
+const lockPO = async (client, id) => {
+  const { rows: [po] } = await client.query(
+    'SELECT id, po_number, status, production_id FROM purchase_orders WHERE id = $1 FOR UPDATE',
+    [id]
+  );
+  return po;
+};
+
+// ─── POST /api/purchase-orders/:id/revert-to-draft ────────────────────────────
+// Approved → draft. Cost leaves the Cost Report until the PO is re-approved.
+const revertPOToDraft = async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid purchase order id' });
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const po = await lockPO(client, req.params.id);
+    if (!po)                       { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Purchase order not found' }); }
+    if (po.status !== 'approved')  { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Only approved purchase orders can be reverted to draft' }); }
+
+    const { rows: [updated] } = await client.query(
+      `UPDATE purchase_orders SET status = 'draft', approved_by = NULL, approved_at = NULL
+       WHERE id = $1 RETURNING *`,
+      [po.id]
+    );
+    await softDeleteEntry(po.id, client);
+    await client.query('COMMIT');
+
+    await logAudit({
+      userId: req.user.id,
+      productionId: po.production_id,
+      category: 'financial',
+      action: 'po_reverted_to_draft',
+      entityType: 'purchase_order',
+      entityId: po.id,
+      details: `Reverted ${po.po_number} from approved to draft (cost removed from Cost Report)`,
+      metadata: { po_id: po.id, po_number: po.po_number, from_status: 'approved', to_status: 'draft' },
+    });
+    res.json({ message: 'PO reverted to draft. Its cost has been removed from the Cost Report.', purchase_order: updated });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('revertPOToDraft:', err);
+    res.status(500).json({ error: 'Revert failed. Please try again.' });
+  } finally {
+    client.release();
+  }
+};
+
+// ─── POST /api/purchase-orders/:id/void ─────────────────────────────────────────
+// Body: { reason?: string }. Any non-voided status. PO number is kept and never reused.
+const voidPO = async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid purchase order id' });
+  const rawReason = req.body?.reason;
+  if (rawReason != null && typeof rawReason !== 'string') return res.status(400).json({ error: 'reason must be text' });
+  const reason = rawReason?.trim() || null;
+  if (reason && reason.length > 1000) return res.status(400).json({ error: 'Reason must be 1000 characters or fewer' });
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const po = await lockPO(client, req.params.id);
+    if (!po)                     { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Purchase order not found' }); }
+    if (po.status === 'voided')  { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Purchase order is already voided' }); }
+
+    const { rows: [updated] } = await client.query(
+      `UPDATE purchase_orders
+       SET status = 'voided', voided_by = $1, voided_at = NOW(), void_reason = $2,
+           approved_by = NULL, approved_at = NULL
+       WHERE id = $3 RETURNING *`,
+      [req.user.id, reason, po.id]
+    );
+    if (po.status === 'approved') await softDeleteEntry(po.id, client);
+    await client.query('COMMIT');
+
+    await logAudit({
+      userId: req.user.id,
+      productionId: po.production_id,
+      category: 'financial',
+      action: 'po_voided',
+      entityType: 'purchase_order',
+      entityId: po.id,
+      details: `Voided ${po.po_number} (was ${po.status})${reason ? ` — reason: ${reason}` : ''}`,
+      metadata: { po_id: po.id, po_number: po.po_number, from_status: po.status, to_status: 'voided', reason },
+    });
+    res.json({ message: `PO voided. ${po.po_number} is kept and will not be reused.`, purchase_order: updated });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('voidPO:', err);
+    res.status(500).json({ error: 'Void failed. Please try again.' });
+  } finally {
+    client.release();
+  }
+};
+
+// ─── POST /api/purchase-orders/:id/unvoid ───────────────────────────────────────
+// Voided → draft. The void reason stays in the PO history.
+const unvoidPO = async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid purchase order id' });
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const po = await lockPO(client, req.params.id);
+    if (!po)                     { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Purchase order not found' }); }
+    if (po.status !== 'voided')  { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Only voided purchase orders can be un-voided' }); }
+
+    const { rows: [updated] } = await client.query(
+      `UPDATE purchase_orders SET status = 'draft', voided_by = NULL, voided_at = NULL, void_reason = NULL
+       WHERE id = $1 RETURNING *`,
+      [po.id]
+    );
+    await client.query('COMMIT');
+
+    await logAudit({
+      userId: req.user.id,
+      productionId: po.production_id,
+      category: 'financial',
+      action: 'po_unvoided',
+      entityType: 'purchase_order',
+      entityId: po.id,
+      details: `Un-voided ${po.po_number} (restored to draft)`,
+      metadata: { po_id: po.id, po_number: po.po_number, from_status: 'voided', to_status: 'draft' },
+    });
+    res.json({ message: 'PO restored to draft.', purchase_order: updated });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('unvoidPO:', err);
+    res.status(500).json({ error: 'Un-void failed. Please try again.' });
+  } finally {
+    client.release();
+  }
+};
+
+// ─── GET /api/purchase-orders/:id/history ──────────────────────────────────────
+// Audit entries for one PO (oldest first). Older entries were keyed by po_number, newer by id.
+const getPOHistory = async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid purchase order id' });
+  try {
+    const { rows: [po] } = await db.query(
+      `SELECT po.id, po.po_number, po.created_at, u.full_name AS created_by_name
+       FROM purchase_orders po LEFT JOIN users u ON u.id = po.created_by
+       WHERE po.id = $1`,
+      [req.params.id]
+    );
+    if (!po) return res.status(404).json({ error: 'Purchase order not found' });
+
+    const { rows } = await db.query(
+      `SELECT a.id, a.action, a.details, a.created_at,
+              COALESCE(a.user_name, u.full_name) AS user_name, a.user_role
+       FROM audit_log a
+       LEFT JOIN users u ON u.id = a.user_id
+       WHERE a.entity_type = 'purchase_order' AND a.entity_id IN ($1, $2)
+       ORDER BY a.created_at ASC, a.id ASC`,
+      [String(po.id), po.po_number]
+    );
+    // POs raised before audit logging existed still show who raised them
+    if (!rows.some(r => r.action === 'po_created')) {
+      rows.unshift({
+        id: `created-${po.id}`, action: 'po_created', details: `Raised ${po.po_number}`,
+        created_at: po.created_at, user_name: po.created_by_name, user_role: null,
+      });
+    }
+    res.json(rows);
+  } catch (err) {
+    console.error('getPOHistory:', err);
+    res.status(500).json({ error: 'Unable to load history' });
   }
 };
 
@@ -734,6 +908,8 @@ const attachConfirmation = async (req, res) => {
       'SELECT status FROM purchase_orders WHERE id = $1', [req.params.id]
     );
     if (!existing) return res.status(404).json({ error: 'Purchase order not found' });
+    if (existing.status === 'voided')
+      return res.status(400).json({ error: 'Cannot change attachments on a voided purchase order' });
 
     const { rows: [updated] } = await db.query(
       `UPDATE purchase_orders
@@ -870,6 +1046,7 @@ module.exports = {
   attachInvoice, downloadInvoice, viewInvoice, deleteInvoice,
   attachConfirmation, downloadConfirmation,
   approvePO, deletePO, restorePO,
+  revertPOToDraft, voidPO, unvoidPO, getPOHistory,
   exportCSV, exportPDFList, downloadPdf,
   bulkDownloadInvoices, bulkFinalBackupPdf,
 };

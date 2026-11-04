@@ -133,9 +133,9 @@ export default function Sidebar() {
           aria-label="Open Sidebar"
         >
           <img
-            src="/the_office_chair_square.png"
+            src="/theoffice_logo_square.jpeg"
             alt=""
-            className="w-5 h-5 rounded object-cover flex-shrink-0"
+            className="w-5 h-5 rounded-full object-contain flex-shrink-0"
           />
           <ChevronsRight size={14} className="text-blue-400 group-hover:text-white transition-colors" />
           <span className="text-xs font-semibold tracking-wider uppercase">Open</span>
@@ -152,14 +152,14 @@ export default function Sidebar() {
           {/* Logo Button — clicking toggles Flap 2 */}
           <button
             onClick={toggleFlap2}
-            className="w-11 h-11 rounded-xl bg-gradient-to-b from-[#0c2854] to-[#071935] border border-blue-500/60 hover:border-blue-400 p-1 flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-105 group relative cursor-pointer"
+            className="w-11 h-11 rounded-xl bg-gradient-to-b from-[#0c2854] to-[#071935] border border-transparent p-1 flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-105 group relative cursor-pointer"
             title={flap2Open ? 'Collapse Navigation (Flap 2)' : 'Expand Navigation (Flap 2)'}
             aria-label="Toggle navigation drawer"
           >
             <img
-              src="/the_office_chair_square.png"
-              alt="TheOffice."
-              className="w-7 h-7 object-contain rounded"
+              src="/theoffice_logo_square.jpeg"
+              alt="TheOffice"
+              className="w-8 h-8 object-contain rounded-full"
             />
             {/* Small status dot indicating flap 2 open/closed */}
             <span
@@ -218,17 +218,12 @@ export default function Sidebar() {
       >
         {/* Header: TheOffice. Brand Card matching office.png */}
         <div className="p-3 border-b border-blue-900/40">
-          <div className="relative rounded-xl bg-[#092247]/90 border border-blue-500/80 shadow-[0_0_15px_rgba(37,99,235,0.25)] p-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <img
-                src="/the_office_chair_square.png"
-                alt="Director's Chair"
-                className="w-6 h-6 object-contain flex-shrink-0 rounded"
-              />
-              <span className="text-white font-bold text-sm tracking-tight truncate">
-                TheOffice<span className="text-blue-500">.</span>
-              </span>
-            </div>
+          <div className="relative rounded-xl bg-[#092247]/90 border border-transparent p-2.5 flex items-center justify-between">
+            <img
+              src="/theoffice_logo_wide.jpeg"
+              alt="TheOffice — Construct Scenery Limited"
+              className="h-11 w-auto max-w-[calc(100%-1.75rem)] object-contain rounded-full"
+            />
 
             {/* Close Flap 2 button */}
             <button

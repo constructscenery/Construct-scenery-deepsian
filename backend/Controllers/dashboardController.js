@@ -1,18 +1,47 @@
 const db = require('../config/db');
 
-const getWeekStart = () => {
-  const d    = new Date();
-  const diff = d.getDay() === 0 ? -6 : 1 - d.getDay();
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().split('T')[0];
+const pad = (n) => String(n).padStart(2, '0');
+const toLocalISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+// Fallback only when no timesheet has been sent out yet: latest completed Mon–Sun week.
+const defaultWeekEnd = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - (d.getDay() === 0 ? 7 : d.getDay()));
+  return toLocalISO(d);
 };
 
-const getWeekEnd = () => {
-  const d    = new Date();
-  const diff = d.getDay() === 0 ? 0 : 7 - d.getDay();
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().split('T')[0];
+// TimesheetStatus.DISTRIBUTED / AMENDMENT_REQUESTED / FINALISED — a week counts once its timesheets are sent out
+const SENT_OUT_TIMESHEET_STATUSES = ['distributed', 'amendment_requested', 'finalised'];
+
+const parseWeekParam = (raw) => {
+  if (typeof raw !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  const d = new Date(`${raw}T12:00:00`);
+  if (Number.isNaN(d.getTime()) || toLocalISO(d) !== raw) return null;
+  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+  return toLocalISO(d);
 };
+
+// ?week_ending=YYYY-MM-DD (snapped to that week's Sunday) or, by default, the latest
+// week whose timesheets have been sent out — so it moves on as soon as a new week is distributed.
+const resolveWeek = async (query = {}) => {
+  let weekEnd = parseWeekParam(query.week_ending);
+  if (!weekEnd) {
+    // Capped at the current week so a mistyped future week ending can't take over the dashboard
+    const thisSunday = new Date();
+    thisSunday.setDate(thisSunday.getDate() + ((7 - thisSunday.getDay()) % 7));
+    const { rows: [row] } = await db.query(
+      `SELECT TO_CHAR(MAX(week_ending_date), 'YYYY-MM-DD') AS week_ending
+       FROM timesheets WHERE status = ANY($1::text[]) AND week_ending_date <= $2`,
+      [SENT_OUT_TIMESHEET_STATUSES, toLocalISO(thisSunday)]
+    );
+    weekEnd = row?.week_ending || defaultWeekEnd();
+  }
+  const start = new Date(`${weekEnd}T12:00:00`);
+  start.setDate(start.getDate() - 6);
+  return { weekStart: toLocalISO(start), weekEnd };
+};
+
+const ACTIVE_PRODUCTION_STATUSES = ['pre_production', 'active_build', 'strike'];
 
 // ─── Sub-aggregators ──────────────────────────────────────────────────────────
 
@@ -52,8 +81,8 @@ const getCurrentWeekLabour = async (weekEnd) => {
     `SELECT t.grand_total, t.status, p.name AS prod_name
      FROM timesheets t
      JOIN productions p ON t.production_id = p.id
-     WHERE t.week_ending_date = $1`,
-    [weekEnd]
+     WHERE t.week_ending_date = $1 AND t.status = ANY($2::text[])`,
+    [weekEnd, SENT_OUT_TIMESHEET_STATUSES]
   );
 
   const byProd = {};
@@ -126,19 +155,25 @@ const getActiveProductionsSummary = async () => {
   }));
 };
 
-const getCrewHeadcountLegacy = async () => {
-  const { rows: [{ cnt }] } = await db.query(
-    `SELECT COUNT(DISTINCT pc.crew_member_id) AS cnt
-     FROM production_crew pc
-     JOIN productions  p  ON pc.production_id  = p.id
-     JOIN crew_members cm ON pc.crew_member_id = cm.id
-     WHERE p.status IN ('pre_production', 'active_build', 'strike')
-       AND cm.is_active = true`
-  );
-  return {
-    total:         parseInt(cnt, 10) || 0,
-    by_production: [],
-  };
+// Crew on site = distinct crew with a sent-out timesheet for the given week
+const getWeeklyCrewHeadcount = async (weekEnd) => {
+  const [{ rows: [{ cnt }] }, { rows }] = await Promise.all([
+    db.query(
+      `SELECT COUNT(DISTINCT crew_member_id)::int AS cnt FROM timesheets
+       WHERE week_ending_date = $1 AND status = ANY($2::text[])`,
+      [weekEnd, SENT_OUT_TIMESHEET_STATUSES]
+    ),
+    db.query(
+      `SELECT p.id AS production_id, p.name AS production, COUNT(DISTINCT t.crew_member_id)::int AS headcount
+       FROM timesheets t
+       JOIN productions p ON p.id = t.production_id
+       WHERE t.week_ending_date = $1 AND t.status = ANY($2::text[])
+       GROUP BY p.id, p.name
+       ORDER BY headcount DESC, p.name`,
+      [weekEnd, SENT_OUT_TIMESHEET_STATUSES]
+    ),
+  ]);
+  return { week_ending: weekEnd, total: cnt || 0, by_production: rows };
 };
 
 const getForecastingVariance = async () => {
@@ -261,8 +296,9 @@ const getProductionPipeline = async () => {
   const { rows } = await db.query(
     `SELECT id, name, start_date, end_date, status, contract_type
      FROM productions
-     WHERE status != 'archived'
-     ORDER BY start_date`
+     WHERE status = ANY($1::text[])
+     ORDER BY start_date NULLS LAST, name`,
+    [ACTIVE_PRODUCTION_STATUSES]
   );
   return rows.map(p => ({
     id:           p.id,
@@ -278,7 +314,7 @@ const getProductionPipeline = async () => {
 
 const getPendingApprovals = async () => {
   const [{ rows: [pos] }, { rows: [tss] }] = await Promise.all([
-    db.query(`SELECT COUNT(*)::int AS cnt FROM purchase_orders WHERE status = 'submitted'`),
+    db.query(`SELECT COUNT(*)::int AS cnt FROM purchase_orders WHERE status IN ('submitted', 'invoice_received') AND deleted_at IS NULL AND is_archived = false`),
     db.query(`SELECT COUNT(*)::int AS cnt FROM timesheets WHERE status IN ('distributed', 'amendment_requested')`),
   ]);
   return {
@@ -292,8 +328,8 @@ const getPendingApprovals = async () => {
 // Accountant has full Cost Report + Timesheets&PayRun access, so cost-RAG and
 // labour-cost figures are appropriate here (unlike the MD-only base route).
 const getAccountantOverview = async (req, res) => {
-  const weekEnd = getWeekEnd();
   try {
+    const { weekEnd } = await resolveWeek(req.query);
     const [currentWeekLabour, activeProductions] = await Promise.all([
       getCurrentWeekLabour(weekEnd),
       getActiveProductionsSummary(),
@@ -311,9 +347,10 @@ const getAccountantOverview = async (req, res) => {
 // operational counts and the production pipeline.
 const getCoordinatorOverview = async (req, res) => {
   try {
+    const { weekEnd } = await resolveWeek(req.query);
     const [activeProductions, crewHeadcount, pendingApprovals, pipeline] = await Promise.all([
       getActiveProductionsSummary(),
-      getCrewHeadcountLegacy(),
+      getWeeklyCrewHeadcount(weekEnd),
       getPendingApprovals(),
       getProductionPipeline(),
     ]);
@@ -331,17 +368,16 @@ const getCoordinatorOverview = async (req, res) => {
 
 // ─── GET /api/dashboard ───────────────────────────────────────────────────────
 const getDashboard = async (req, res) => {
-  const today     = new Date().toISOString().split('T')[0];
-  const weekStart = getWeekStart();
-  const weekEnd   = getWeekEnd();
+  const today     = toLocalISO(new Date());
 
   try {
+    const { weekStart, weekEnd } = await resolveWeek(req.query);
     const [poSpend, labourCosts, activeProductions, crewHeadcount, forecastingVariance, pipeline, pendingApprovals] =
       await Promise.all([
         getPOSpend(today, weekStart, weekEnd),
         getCurrentWeekLabour(weekEnd),
         getActiveProductionsSummary(),
-        getCrewHeadcountLegacy(),
+        getWeeklyCrewHeadcount(weekEnd),
         getForecastingVariance(),
         getProductionPipeline(),
         getPendingApprovals(),
@@ -370,10 +406,13 @@ const getDashboard = async (req, res) => {
 
 // GET /api/dashboard/po-spend  (MD only)
 const getDashboardPOSpend = async (req, res) => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = toLocalISO(new Date());
   try {
-    const raw = await getPOSpend(today, getWeekStart(), getWeekEnd());
+    const { weekStart, weekEnd } = await resolveWeek(req.query);
+    const raw = await getPOSpend(today, weekStart, weekEnd);
     res.json({
+      week_start:               weekStart,
+      week_ending:              weekEnd,
       total_approved_today:     raw.today_total,
       total_approved_this_week: raw.week_total,
       breakdown: raw.by_production.map(p => ({ production_name: p.production, amount: p.total })),
@@ -393,30 +432,33 @@ const getDashboardProductions = async (req, res) => {
 };
 
 // ─── GET /api/dashboard/labour-costs  (MD only) ───────────────────────────────
-// Returns this week's labour cost by production.
+// Returns the selected week's labour cost by production (default: latest sent-out timesheet week).
 // status = 'approved' if all timesheets for that production are finalised; 'pending' otherwise.
 const getLabourCosts = async (req, res) => {
-  const weekEnd = getWeekEnd();
   try {
+    const { weekEnd } = await resolveWeek(req.query);
     const { rows } = await db.query(
-      `SELECT t.grand_total, t.status, p.name AS prod_name
+      `SELECT t.grand_total, t.status, t.crew_member_id, p.id AS prod_id, p.name AS prod_name
        FROM timesheets t
        JOIN productions p ON t.production_id = p.id
-       WHERE t.week_ending_date = $1`,
-      [weekEnd]
+       WHERE t.week_ending_date = $1 AND t.status = ANY($2::text[])`,
+      [weekEnd, SENT_OUT_TIMESHEET_STATUSES]
     );
 
     const byProd = {};
     rows.forEach(ts => {
-      const name = ts.prod_name || 'Unknown';
-      if (!byProd[name]) byProd[name] = { production_name: name, amount: 0, all_finalised: true };
-      byProd[name].amount += parseFloat(ts.grand_total || 0);
-      if (ts.status !== 'finalised') byProd[name].all_finalised = false;
+      if (!byProd[ts.prod_id]) byProd[ts.prod_id] = { production_id: ts.prod_id, production_name: ts.prod_name || 'Unknown', amount: 0, all_finalised: true, crew: new Set() };
+      const p = byProd[ts.prod_id];
+      p.amount += parseFloat(ts.grand_total || 0);
+      p.crew.add(ts.crew_member_id);
+      if (ts.status !== 'finalised') p.all_finalised = false;
     });
 
     const breakdown = Object.values(byProd).map(p => ({
+      production_id:   p.production_id,
       production_name: p.production_name,
       amount:          parseFloat(p.amount.toFixed(2)),
+      crew_count:      p.crew.size,
       status:          p.all_finalised ? 'approved' : 'pending',
     }));
 
@@ -432,19 +474,16 @@ const getLabourCosts = async (req, res) => {
 };
 
 // ─── GET /api/dashboard/crew-headcount  (MD only) ────────────────────────────
-// Active crew = crew members (is_active=true) assigned to active productions.
+// Crew = distinct crew members with a timesheet in the selected week.
 const getCrewHeadcount = async (req, res) => {
   try {
-    const { rows: [{ cnt }] } = await db.query(
-      `SELECT COUNT(DISTINCT pc.crew_member_id) AS cnt
-       FROM production_crew pc
-       JOIN productions p  ON pc.production_id  = p.id
-       JOIN crew_members cm ON pc.crew_member_id = cm.id
-       WHERE p.status IN ('pre_production', 'active_build', 'strike')
-         AND cm.is_active = true`
-    );
-    const total_active_crew = parseInt(cnt, 10);
-    res.json({ total_active_crew, breakdown: [] });
+    const { weekEnd } = await resolveWeek(req.query);
+    const crew = await getWeeklyCrewHeadcount(weekEnd);
+    res.json({
+      week_ending:       weekEnd,
+      total_active_crew: crew.total,
+      breakdown:         crew.by_production.map(r => ({ production_id: r.production_id, production_name: r.production, crew_count: r.headcount })),
+    });
   } catch (err) {
     console.error('getCrewHeadcount:', err);
     res.status(500).json({ error: err.message });
