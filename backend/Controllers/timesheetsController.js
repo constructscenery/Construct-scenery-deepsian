@@ -167,7 +167,8 @@ const getAllTimesheets = async (req, res) => {
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const { rows } = await db.query(
       `SELECT t.*,
-              cm.id AS cm_id, cm.crew_number, cm.first_name, cm.last_name, cm.crew_trade, cm.crew_rank,
+              cm.id AS cm_id, cm.crew_number, cm.first_name, cm.last_name, cm.email, cm.crew_trade, cm.crew_rank,
+              cm.employment_status, cm.paye_withholding_rate, cm.vat_registration_number,
               p.id AS prod_id, p.name AS prod_name
               , COALESCE(te_agg.overtime_hours_total, 0) AS overtime_hours_total
               , COALESCE(te_agg.days_worked, 0)::int   AS days_worked
@@ -433,8 +434,8 @@ const createTimesheet = async (req, res) => {
     // Return with joined crew and production info
     const { rows: [full] } = await db.query(
       `SELECT t.*,
-              cm.id AS cm_id, cm.crew_number, cm.first_name, cm.last_name, cm.crew_trade, cm.crew_rank,
-              cm.employment_status, cm.company_name, cm.paye_withholding_rate,
+              cm.id AS cm_id, cm.crew_number, cm.first_name, cm.last_name, cm.email, cm.crew_trade, cm.crew_rank,
+              cm.employment_status, cm.company_name, cm.paye_withholding_rate, cm.vat_registration_number,
               p.id AS prod_id, p.name AS prod_name
        FROM   timesheets t
        JOIN   crew_members cm ON t.crew_member_id = cm.id
@@ -650,6 +651,7 @@ const saveEntries = async (req, res) => {
       const { rows: [fullTs] } = await db.query(
         `SELECT t.*, cm.first_name, cm.last_name, cm.email, cm.crew_number,
                 cm.crew_trade, cm.crew_rank, cm.employment_status, cm.company_name,
+                cm.paye_withholding_rate, cm.vat_registration_number,
                 p.name AS prod_name
          FROM timesheets t
          JOIN crew_members cm ON t.crew_member_id = cm.id
@@ -682,7 +684,13 @@ const sendTimesheetEmail = async (ts, entries) => {
   await sendEmail({
     replyTo:     'invoice@constructscenery.co.uk',
     to:          ts.email,
-    ...templates.timesheetDistributed(crewName, ts.week_ending_date, ts.prod_name, daysWorked, ts.grand_total),
+    ...templates.timesheetDistributed(crewName, ts.week_ending_date, ts.prod_name, daysWorked, ts.grand_total, {
+      timesheetTotal:      ts.gross_total,
+      vatAmount:           ts.vat,
+      vatRegistered:       ts.employment_status !== 'paye' && (Boolean(ts.vat_registration_number) || parseFloat(ts.vat || 0) > 0),
+      employmentStatus:    ts.employment_status,
+      payeWithholdingRate: ts.paye_withholding_rate,
+    }),
     attachments: [{ filename: `Timesheet-${ts.week_ending_date}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }],
   });
 };
@@ -734,6 +742,7 @@ const bulkDistribute = async (req, res) => {
       `SELECT t.*,
               cm.first_name, cm.last_name, cm.email, cm.crew_number,
               cm.crew_trade, cm.crew_rank, cm.employment_status, cm.company_name,
+              cm.paye_withholding_rate, cm.vat_registration_number,
               p.name AS prod_name
        FROM timesheets t
        JOIN crew_members cm ON t.crew_member_id = cm.id
@@ -816,6 +825,7 @@ const resendTimesheet = async (req, res) => {
       `SELECT t.*,
               cm.first_name, cm.last_name, cm.email, cm.crew_number,
               cm.crew_trade, cm.crew_rank, cm.employment_status, cm.company_name,
+              cm.paye_withholding_rate, cm.vat_registration_number,
               p.name AS prod_name
        FROM timesheets t
        JOIN crew_members cm ON t.crew_member_id = cm.id
@@ -853,6 +863,7 @@ const sendSingleTimesheet = async (req, res) => {
       `SELECT t.*,
               cm.first_name, cm.last_name, cm.email, cm.crew_number,
               cm.crew_trade, cm.crew_rank, cm.employment_status, cm.company_name,
+              cm.paye_withholding_rate, cm.vat_registration_number,
               p.name AS prod_name
        FROM timesheets t
        JOIN crew_members cm ON t.crew_member_id = cm.id
@@ -1296,7 +1307,7 @@ const generateVerificationPackCombinedPdf = async (req, res) => {
     const { rows: timesheets } = await db.query(
       `SELECT t.*,
               cm.crew_number, cm.first_name, cm.last_name, cm.crew_trade, cm.crew_rank,
-              cm.employment_status, cm.company_name, cm.vat_registration_number,
+              cm.employment_status, cm.company_name, cm.paye_withholding_rate, cm.vat_registration_number,
               p.name AS prod_name,
               (SELECT br.daily_rate
                FROM bectu_rates br
@@ -1361,7 +1372,7 @@ const getTimesheetVerificationPack = async (req, res) => {
     const { rows: [ts] } = await db.query(
       `SELECT t.*,
               cm.crew_number, cm.first_name, cm.last_name, cm.crew_trade, cm.crew_rank,
-              cm.employment_status, cm.company_name, cm.vat_registration_number,
+              cm.employment_status, cm.company_name, cm.paye_withholding_rate, cm.vat_registration_number,
               p.id AS prod_id, p.name AS prod_name,
               (SELECT br.daily_rate
                FROM bectu_rates br
@@ -1415,7 +1426,7 @@ const getDraftPdf = async (req, res) => {
     const { rows: [ts] } = await db.query(
       `SELECT t.*,
               cm.crew_number, cm.first_name, cm.last_name, cm.crew_trade, cm.crew_rank,
-              cm.employment_status, cm.company_name, cm.vat_registration_number,
+              cm.employment_status, cm.company_name, cm.paye_withholding_rate, cm.vat_registration_number,
               p.id AS prod_id, p.name AS prod_name,
               (SELECT br.daily_rate
                FROM bectu_rates br

@@ -134,35 +134,85 @@ const templates = {
   /**
    * Timesheet distributed to crew member.
    */
-  timesheetDistributed: (crewName, weekEndingDate, productionName, daysWorked, grandTotal) => ({
-    subject: `Timesheet for Week Ending ${weekEndingDate} — ${productionName}`,
-    html: `
-      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-        <div style="background:#0f172a;padding:16px 24px;margin-bottom:24px">
-          <span style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1px">Construct Scenery</span>
-          <span style="color:#94a3b8;font-size:11px;margin-left:10px">Construct Scenery Limited</span>
+  timesheetDistributed: (crewName, weekEndingDate, productionName, daysWorked, grandTotal, options = {}) => {
+    const isPaye              = options.employmentStatus === 'paye';
+    const vatAmount           = parseFloat(options.vatAmount || 0);
+    const isVatRegistered     = !isPaye && (Boolean(options.vatRegistered) || vatAmount > 0);
+    const grossTotalToInvoice = parseFloat(grandTotal || 0);
+    const timesheetTotal      = options.timesheetTotal !== undefined && options.timesheetTotal !== null
+      ? parseFloat(options.timesheetTotal || 0)
+      : (isVatRegistered ? grossTotalToInvoice - vatAmount : grossTotalToInvoice);
+    const payeRate            = isPaye ? parseFloat(options.payeWithholdingRate || 0) : 0;
+    const payeRateLabel       = Number.isInteger(payeRate) ? String(payeRate) : payeRate.toFixed(2).replace(/\.?0+$/, '');
+    const payeWithheld        = isPaye && payeRate > 0 ? Math.round(grossTotalToInvoice * (payeRate / 100) * 100) / 100 : 0;
+    const payeNetPayable      = isPaye && payeRate > 0 ? Math.round((grossTotalToInvoice - payeWithheld) * 100) / 100 : grossTotalToInvoice;
+
+    const summaryRows = isPaye
+      ? `
+          <tr>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0"><strong>Timesheet total</strong></td>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0"><strong>£${timesheetTotal.toFixed(2)}</strong></td>
+          </tr>
+          ${payeRate > 0 ? `
+          <tr>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0;color:#b45309"><strong>PAYE Tax Holdback (${payeRateLabel}%)</strong></td>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0;color:#b45309">-£${payeWithheld.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 16px"><strong>Net total payable</strong></td>
+            <td style="padding:10px 16px"><strong>£${payeNetPayable.toFixed(2)}</strong></td>
+          </tr>` : ''}
+        `
+      : `
+          <tr>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0"><strong>Timesheet total</strong></td>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0">£${timesheetTotal.toFixed(2)}</td>
+          </tr>
+          ${isVatRegistered ? `
+          <tr>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0"><strong>VAT Amount (20%)</strong></td>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0">£${vatAmount.toFixed(2)}</td>
+          </tr>` : ''}
+          <tr>
+            <td style="padding:10px 16px"><strong>Gross total to invoice</strong></td>
+            <td style="padding:10px 16px"><strong>£${grossTotalToInvoice.toFixed(2)}</strong></td>
+          </tr>
+        `;
+
+    const payeNote = isPaye
+      ? `<p style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:12px 16px;border-radius:6px;font-size:13px;line-height:1.5">
+           <strong>PAYE Notice:</strong> As you are on PAYE, we have held back a % of your wages to cover taxes and national insurance. When we do the payslips at the end of the month, there will likely be an additional payment back to you once the taxes have been calculated.
+         </p>`
+      : '';
+
+    return {
+      subject: `Timesheet for Week Ending ${weekEndingDate} — ${productionName}`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+          <div style="background:#0f172a;padding:16px 24px;margin-bottom:24px">
+            <span style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1px">Construct Scenery</span>
+            <span style="color:#94a3b8;font-size:11px;margin-left:10px">Construct Scenery Limited</span>
+          </div>
+          <h2 style="color:#0f172a;margin:0 0 4px">Timesheet: Week Ending ${weekEndingDate}</h2>
+          <p style="color:#64748b;margin:0 0 20px">Production: <strong>${productionName || '—'}</strong></p>
+          <p>Dear ${crewName},</p>
+          <p>Please find your timesheet for the week ending <strong>${weekEndingDate}</strong> attached to this email.</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0;background:#f8fafc;border-radius:6px">
+            <tr>
+              <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0"><strong>Days worked</strong></td>
+              <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0">${daysWorked ?? '—'}</td>
+            </tr>
+            ${summaryRows}
+          </table>
+          ${payeNote}
+          <p>If everything looks correct, please reply to this email with your <strong>invoice</strong> for the amount shown above.</p>
+          <p>If anything needs correcting, please reply explaining the issue and we will amend and resend.</p>
+          <br/>
+          <p style="color:#666;font-size:13px">Regards,<br/><strong>Construct Scenery Limited</strong><br/>invoice@constructscenery.co.uk</p>
         </div>
-        <h2 style="color:#0f172a;margin:0 0 4px">Timesheet: Week Ending ${weekEndingDate}</h2>
-        <p style="color:#64748b;margin:0 0 20px">Production: <strong>${productionName || '—'}</strong></p>
-        <p>Dear ${crewName},</p>
-        <p>Please find your timesheet for the week ending <strong>${weekEndingDate}</strong> attached to this email.</p>
-        <table style="width:100%;border-collapse:collapse;margin:16px 0;background:#f8fafc;border-radius:6px">
-          <tr>
-            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0"><strong>Days worked</strong></td>
-            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0">${daysWorked ?? '—'}</td>
-          </tr>
-          <tr>
-            <td style="padding:10px 16px"><strong>Grand total</strong></td>
-            <td style="padding:10px 16px"><strong>£${parseFloat(grandTotal || 0).toFixed(2)}</strong></td>
-          </tr>
-        </table>
-        <p>If everything looks correct, please reply to this email with your <strong>invoice</strong> for the amount shown above.</p>
-        <p>If anything needs correcting, please reply explaining the issue and we will amend and resend.</p>
-        <br/>
-        <p style="color:#666;font-size:13px">Regards,<br/><strong>Construct Scenery Limited</strong><br/>invoice@constructscenery.co.uk</p>
-      </div>
-    `,
-  }),
+      `,
+    };
+  },
 
   /**
    * Invoice chase reminder (self-employed crew only).

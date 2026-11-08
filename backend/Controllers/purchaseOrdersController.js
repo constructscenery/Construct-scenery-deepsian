@@ -499,13 +499,15 @@ const attachInvoice = async (req, res) => {
       return res.status(400).json({ error: 'Provide a file upload or invoice_attachment_url' });
 
     const { rows: [existing] } = await db.query(
-      'SELECT status FROM purchase_orders WHERE id = $1', [req.params.id]
+      'SELECT status, invoice_attachment_url FROM purchase_orders WHERE id = $1', [req.params.id]
     );
     if (!existing) return res.status(404).json({ error: 'Purchase order not found' });
-    if (existing.status === 'approved')
-      return res.status(400).json({ error: 'Cannot replace invoice on an approved purchase order' });
     if (existing.status === 'voided')
       return res.status(400).json({ error: 'Cannot change attachments on a voided purchase order' });
+    // A PO approved on its Pro Forma may still receive its Actual Invoice / Receipt,
+    // but an invoice already on an approved PO is audit evidence and cannot be replaced.
+    if (existing.status === 'approved' && existing.invoice_attachment_url)
+      return res.status(400).json({ error: 'Cannot replace invoice on an approved purchase order' });
 
     const newStatus = (existing.status === 'submitted' || existing.status === 'issued') ? 'invoice_received' : existing.status;
     const { rows: [updated] } = await db.query(
@@ -571,8 +573,12 @@ const deleteInvoice = async (req, res) => {
     if (!po.invoice_attachment_url)
       return res.status(404).json({ error: 'No invoice attached to this purchase order' });
 
-    // If pending_approval, revert to issued since it's no longer ready for approval
-    const revertStatus = po.status === 'pending_approval' ? 'issued' : po.status;
+    // If pending_approval or invoice_received, revert status since invoice is no longer attached
+    const revertStatus = po.status === 'pending_approval'
+      ? 'issued'
+      : po.status === 'invoice_received'
+        ? 'submitted'
+        : po.status;
     await db.query(
       `UPDATE purchase_orders
        SET invoice_attachment_url = NULL, invoice_attachment_name = NULL, status = $1
@@ -940,6 +946,33 @@ const downloadConfirmation = async (req, res) => {
   }
 };
 
+// ─── DELETE /api/purchase-orders/:id/confirmation ────────────────────────────
+const deleteConfirmation = async (req, res) => {
+  try {
+    const { rows: [po] } = await db.query(
+      'SELECT status, confirmation_attachment_url FROM purchase_orders WHERE id = $1',
+      [req.params.id]
+    );
+    if (!po) return res.status(404).json({ error: 'Purchase order not found' });
+    if (po.status === 'approved')
+      return res.status(403).json({ error: 'Cannot delete pro forma on an approved purchase order' });
+    if (po.status === 'voided')
+      return res.status(403).json({ error: 'Cannot change attachments on a voided purchase order' });
+    if (!po.confirmation_attachment_url)
+      return res.status(404).json({ error: 'No pro forma attached to this purchase order' });
+
+    await db.query(
+      `UPDATE purchase_orders
+       SET confirmation_attachment_url = NULL, confirmation_attachment_name = NULL
+       WHERE id = $1`,
+      [req.params.id]
+    );
+    res.json({ message: 'Pro forma deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // ─── GET /api/purchase-orders/:id/pdf ─────────────────────────────────────────
 const downloadPdf = async (req, res) => {
   try {
@@ -1044,7 +1077,7 @@ module.exports = {
   createPO,
   issuePO, submitPO,
   attachInvoice, downloadInvoice, viewInvoice, deleteInvoice,
-  attachConfirmation, downloadConfirmation,
+  attachConfirmation, downloadConfirmation, deleteConfirmation,
   approvePO, deletePO, restorePO,
   revertPOToDraft, voidPO, unvoidPO, getPOHistory,
   exportCSV, exportPDFList, downloadPdf,

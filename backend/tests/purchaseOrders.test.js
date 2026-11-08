@@ -297,3 +297,75 @@ describe('Purchase Orders - Department and Date Range Enhancements', () => {
   });
 });
 
+
+// ─── Pro Forma & Actual Invoice / Receipt attachments ─────────────────────────
+describe('PO attachments — Pro Forma & Actual Invoice / Receipt', () => {
+  const URL_BODY = { invoice_attachment_url: '/uploads/inv.pdf', invoice_attachment_name: 'inv.pdf' };
+
+  test('Invoice can be added to a PO approved on its Pro Forma — status stays approved', async () => {
+    dbMock.respond([{ status: 'approved', invoice_attachment_url: null }]);
+    dbMock.respond([{ ...SAMPLE_PO, status: 'approved', invoice_attachment_url: '/uploads/inv.pdf' }]);
+    const res = await request(app)
+      .post('/api/purchase-orders/po-001/attach-invoice')
+      .set(authHeader('accountant'))
+      .send(URL_BODY);
+    expect(res.status).toBe(200);
+    expect(res.body.purchase_order.status).toBe('approved');
+    const update = dbMock.queries.find(c => /UPDATE purchase_orders/.test(c.sql));
+    expect(update.params[2]).toBe('approved');
+  });
+
+  test('Existing invoice on an approved PO cannot be replaced — 400', async () => {
+    dbMock.respond([{ status: 'approved', invoice_attachment_url: '/uploads/old.pdf' }]);
+    const res = await request(app)
+      .post('/api/purchase-orders/po-001/attach-invoice')
+      .set(authHeader('accountant'))
+      .send(URL_BODY);
+    expect(res.status).toBe(400);
+  });
+
+  test('Invoice on a draft PO keeps it in draft', async () => {
+    dbMock.respond([{ status: 'draft', invoice_attachment_url: null }]);
+    dbMock.respond([{ ...SAMPLE_PO, status: 'draft' }]);
+    const res = await request(app)
+      .post('/api/purchase-orders/po-001/attach-invoice')
+      .set(authHeader('coordinator'))
+      .send(URL_BODY);
+    expect(res.status).toBe(200);
+    const update = dbMock.queries.find(c => /UPDATE purchase_orders/.test(c.sql));
+    expect(update.params[2]).toBe('draft');
+  });
+
+  test('Invoice on a voided PO — 400', async () => {
+    dbMock.respond([{ status: 'voided', invoice_attachment_url: null }]);
+    const res = await request(app)
+      .post('/api/purchase-orders/po-001/attach-invoice')
+      .set(authHeader('coordinator'))
+      .send(URL_BODY);
+    expect(res.status).toBe(400);
+  });
+
+  test('Delete Pro Forma on a draft PO — 200', async () => {
+    dbMock.respond([{ status: 'draft', confirmation_attachment_url: '/uploads/pf.pdf' }]);
+    dbMock.respond({ rows: [], rowCount: 1 });
+    const res = await request(app).delete('/api/purchase-orders/po-001/confirmation').set(authHeader('coordinator'));
+    expect(res.status).toBe(200);
+  });
+
+  test('Delete Pro Forma on an approved PO — 403', async () => {
+    dbMock.respond([{ status: 'approved', confirmation_attachment_url: '/uploads/pf.pdf' }]);
+    const res = await request(app).delete('/api/purchase-orders/po-001/confirmation').set(authHeader('coordinator'));
+    expect(res.status).toBe(403);
+  });
+
+  test('Delete Pro Forma when none attached — 404', async () => {
+    dbMock.respond([{ status: 'draft', confirmation_attachment_url: null }]);
+    const res = await request(app).delete('/api/purchase-orders/po-001/confirmation').set(authHeader('coordinator'));
+    expect(res.status).toBe(404);
+  });
+
+  test('Delete Pro Forma — no auth → 401', async () => {
+    const res = await request(app).delete('/api/purchase-orders/po-001/confirmation');
+    expect(res.status).toBe(401);
+  });
+});

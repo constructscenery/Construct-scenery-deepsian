@@ -296,8 +296,11 @@ export default function TimesheetDetailPage() {
     : [];
 
   const isLocked       = ts?.status === 'finalised';
+  const isPaye         = ts ? String(ts.employment_status) === 'paye' : false;
   const isSelfEmployed = ts ? String(ts.employment_status) === 'self_employed' : false;
   const vatRegistered  = isSelfEmployed && !!ts?.vat_registration_number;
+  const payeRate       = isPaye ? (parseFloat(String(ts?.paye_withholding_rate ?? '0')) || 0) : 0;
+  const payeRateLabel  = Number.isInteger(payeRate) ? String(payeRate) : payeRate.toFixed(2).replace(/\.?0+$/, '');
 
   // Rates from backend (fetched on load)
   const dailyRate = parseFloat(String(ts?.daily_rate    ?? '0')) || 0;
@@ -615,22 +618,44 @@ export default function TimesheetDetailPage() {
                 </div>
               )}
               <div>
-                <p className="text-slate-400 text-xs mb-0.5">Gross Total</p>
+                <p className="text-slate-400 text-xs mb-0.5">Timesheet Total</p>
                 <p className="text-slate-900 font-bold text-lg">{fmtGBP(grossTotal)}</p>
               </div>
-              {vatRegistered && (
-                <div>
-                  <p className="text-slate-400 text-xs mb-0.5">VAT (20%)</p>
-                  <p className="text-slate-900 font-semibold">{fmtGBP(vat)}</p>
-                </div>
-              )}
-              {vatRegistered && (
-                <div>
-                  <p className="text-slate-400 text-xs mb-0.5">Grand Total (inc. VAT)</p>
-                  <p className="text-blue-700 font-bold text-lg">{fmtGBP(grandTotal)}</p>
-                </div>
+              {isPaye ? (
+                payeRate > 0 && (
+                  <>
+                    <div>
+                      <p className="text-amber-700 text-xs mb-0.5">PAYE Tax Holdback ({payeRateLabel}%)</p>
+                      <p className="text-amber-700 font-semibold">-{fmtGBP(Math.round(grandTotal * (payeRate / 100) * 100) / 100)}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-400 text-xs mb-0.5">Net Total Payable</p>
+                      <p className="text-blue-700 font-bold text-lg">
+                        {fmtGBP(Math.round((grandTotal - Math.round(grandTotal * (payeRate / 100) * 100) / 100) * 100) / 100)}
+                      </p>
+                    </div>
+                  </>
+                )
+              ) : (
+                <>
+                  {vatRegistered && (
+                    <div>
+                      <p className="text-slate-400 text-xs mb-0.5">VAT Amount (20%)</p>
+                      <p className="text-slate-900 font-semibold">{fmtGBP(vat)}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-slate-400 text-xs mb-0.5">Gross Total to Invoice</p>
+                    <p className="text-blue-700 font-bold text-lg">{fmtGBP(grandTotal)}</p>
+                  </div>
+                </>
               )}
             </div>
+            {isPaye && (
+              <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-amber-800 text-xs leading-relaxed">
+                As you are on PAYE, we have held back a % of your wages to cover taxes and national insurance. When we do the payslips at the end of the month, there will likely be an additional payment back to you once the taxes have been calculated.
+              </div>
+            )}
           </div>
         )}
 

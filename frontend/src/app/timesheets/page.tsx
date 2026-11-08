@@ -2124,22 +2124,62 @@ export default function TimesheetsPage() {
                                   <span className="text-xs font-bold text-slate-800">{fmtAmt(extrasTotal)}</span>
                                   <span className="text-xs text-slate-400">(OT + Mileage + PerDiem + AdHoc + Food)</span>
                                 </div>
-                                {grossTotalNum !== null && (
-                                  <>
-                                    <div className="h-3 w-px bg-slate-300" />
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Gross (pre-VAT)</span>
-                                      <span className="text-xs font-semibold text-slate-700">{fmtAmt(grossTotalNum)}</span>
-                                    </div>
-                                  </>
-                                )}
-                                {grandTotalNum !== null && grossTotalNum !== null && Math.abs(grandTotalNum - grossTotalNum) > 0.01 && (
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-xs font-semibold text-green-600 uppercase tracking-wide">Grand Total (inc. VAT)</span>
-                                    <span className="text-xs font-bold text-green-700">{fmtAmt(grandTotalNum)}</span>
-                                  </div>
-                                )}
+                                {(() => {
+                                  const isPaye = ts.employment_status === 'paye';
+                                  const timesheetTotal = grossTotalNum ?? netAmt;
+                                  const vatNum = parseFloat(ts.vat ?? '0') || (grandTotalNum !== null && grossTotalNum !== null ? Math.max(0, grandTotalNum - grossTotalNum) : 0);
+                                  const isVatReg = !isPaye && (Boolean(ts.vat_registration_number) || vatNum > 0.005);
+                                  const grossToInvoice = grandTotalNum ?? (timesheetTotal + vatNum);
+                                  const payeRate = isPaye ? (parseFloat(String(ts.paye_withholding_rate ?? '0')) || 0) : 0;
+                                  const payeRateLabel = Number.isInteger(payeRate) ? String(payeRate) : payeRate.toFixed(2).replace(/\.?0+$/, '');
+                                  const payeWithheld = isPaye && payeRate > 0 ? Math.round(grossToInvoice * (payeRate / 100) * 100) / 100 : 0;
+                                  const payeNetPayable = isPaye && payeRate > 0 ? Math.round((grossToInvoice - payeWithheld) * 100) / 100 : grossToInvoice;
+
+                                  return (
+                                    <>
+                                      <div className="h-3 w-px bg-slate-300" />
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Timesheet Total</span>
+                                        <span className="text-xs font-semibold text-slate-800">{fmtAmt(timesheetTotal)}</span>
+                                      </div>
+                                      {isPaye ? (
+                                        payeRate > 0 && (
+                                          <>
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
+                                                PAYE Holdback ({payeRateLabel}%)
+                                              </span>
+                                              <span className="text-xs font-semibold text-amber-700">-{fmtAmt(payeWithheld)}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Net Total Payable</span>
+                                              <span className="text-xs font-bold text-blue-700">{fmtAmt(payeNetPayable)}</span>
+                                            </div>
+                                          </>
+                                        )
+                                      ) : (
+                                        <>
+                                          {isVatReg && (
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">VAT Amount (20%)</span>
+                                              <span className="text-xs font-semibold text-slate-700">{fmtAmt(vatNum)}</span>
+                                            </div>
+                                          )}
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-xs font-semibold text-green-600 uppercase tracking-wide">Gross Total to Invoice</span>
+                                            <span className="text-xs font-bold text-green-700">{fmtAmt(grossToInvoice)}</span>
+                                          </div>
+                                        </>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                               </div>
+                              {ts.employment_status === 'paye' && (
+                                <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                                  As you are on PAYE, we have held back a % of your wages to cover taxes and national insurance. When we do the payslips at the end of the month, there will likely be an additional payment back to you once the taxes have been calculated.
+                                </p>
+                              )}
                             </td>
                           </tr>
                         )}

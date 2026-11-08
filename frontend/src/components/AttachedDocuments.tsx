@@ -4,7 +4,19 @@ import { useEffect, useRef, useState } from 'react';
 import { Download, Eye, FileText, Loader2, Trash2, Upload, X } from 'lucide-react';
 import { attachedDocumentsApi, type AttachedDocument, type DocumentOwner } from '@/lib/api';
 
-export type ExtraAttachedFile = { key: string; label: string; fileName: string; load: () => Promise<Blob> };
+export type ExtraAttachedFile = {
+  key: string;
+  label: string;
+  fileName: string;
+  load: () => Promise<Blob>;
+  onRemove?: () => Promise<void>;
+};
+
+export type SpecialUploadOption = {
+  value: string;
+  label: string;
+  onUpload?: (file: File) => Promise<void>;
+};
 
 const mimeFromName = (fileName: string) => {
   const ext = fileName.toLowerCase().split('.').pop();
@@ -15,17 +27,46 @@ const mimeFromName = (fileName: string) => {
   return '';
 };
 
-export default function AttachedDocuments({ owner, ownerId, name, onClose, extras }: { owner: DocumentOwner; ownerId: string; name: string; onClose: () => void; extras?: ExtraAttachedFile[] }) {
+export default function AttachedDocuments({
+  owner,
+  ownerId,
+  name,
+  onClose,
+  extras,
+  uploadOptions,
+  defaultUploadOption,
+}: {
+  owner: DocumentOwner;
+  ownerId: string;
+  name: string;
+  onClose: () => void;
+  extras?: ExtraAttachedFile[];
+  uploadOptions?: SpecialUploadOption[];
+  defaultUploadOption?: string;
+}) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [documents, setDocuments] = useState<AttachedDocument[]>([]);
   const [file, setFile] = useState<File | null>(null);
+  const [selectedUploadType, setSelectedUploadType] = useState<string>(
+    defaultUploadOption || uploadOptions?.[0]?.value || 'standard'
+  );
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
   const [preview, setPreview] = useState<{ id: string; name: string; url: string; type: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AttachedDocument | null>(null);
+
+  useEffect(() => {
+    if (defaultUploadOption) setSelectedUploadType(defaultUploadOption);
+  }, [defaultUploadOption]);
+
+  useEffect(() => {
+    if (uploadOptions && uploadOptions.length > 0 && !uploadOptions.some(o => o.value === selectedUploadType)) {
+      setSelectedUploadType(defaultUploadOption || uploadOptions[0].value);
+    }
+  }, [uploadOptions, selectedUploadType, defaultUploadOption]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -49,8 +90,13 @@ export default function AttachedDocuments({ owner, ownerId, name, onClose, extra
     if (file.size > 25 * 1024 * 1024) { setError('Maximum file size is 25 MB.'); return; }
     setBusy(true); setError('');
     try {
-      const document = await attachedDocumentsApi.upload(owner, ownerId, file);
-      setDocuments(current => [document, ...current]);
+      const specialOpt = uploadOptions?.find(o => o.value === selectedUploadType);
+      if (specialOpt?.onUpload) {
+        await specialOpt.onUpload(file);
+      } else {
+        const document = await attachedDocumentsApi.upload(owner, ownerId, file);
+        setDocuments(current => [document, ...current]);
+      }
       setFile(null);
       if (inputRef.current) inputRef.current.value = '';
     } catch (err) { setError(err instanceof Error ? err.message : 'Upload failed'); }
@@ -94,21 +140,68 @@ export default function AttachedDocuments({ owner, ownerId, name, onClose, extra
       <div className="min-w-0"><h2 id="attached-documents-title" className="font-semibold text-slate-900">Documents</h2><p className="text-sm text-slate-500 break-words mt-1">{name}</p></div>
       <button disabled={busy} onClick={onClose} title="Close documents" aria-label="Close documents" className="p-2 text-slate-500 disabled:opacity-50"><X size={18} /></button>
     </header>
-    <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-4">
-      <label className="block flex-1 min-w-0 text-xs font-medium text-slate-600">Document (PDF, JPEG, PNG; max 25 MB)<input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={busy || loading} onChange={event => { setFile(event.target.files?.[0] || null); setError(''); }} className="block mt-2 w-full min-w-0 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-slate-700" /></label>
-      <button disabled={!file || busy || loading} onClick={upload} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"><Upload size={15} /> Upload</button>
+    <div className="space-y-3 mb-4">
+      {uploadOptions && uploadOptions.length > 0 && (
+        <div>
+          <span className="block text-xs font-medium text-slate-600 mb-1.5">Attachment Type</span>
+          <div className="inline-flex flex-wrap gap-1.5 rounded-lg bg-slate-100 p-1">
+            {uploadOptions.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                disabled={busy || loading}
+                onClick={() => setSelectedUploadType(opt.value)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  selectedUploadType === opt.value
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+        <label className="block flex-1 min-w-0 text-xs font-medium text-slate-600">Document (PDF, JPEG, PNG; max 25 MB)<input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={busy || loading} onChange={event => { setFile(event.target.files?.[0] || null); setError(''); }} className="block mt-2 w-full min-w-0 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-slate-700" /></label>
+        <button disabled={!file || busy || loading} onClick={upload} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"><Upload size={15} /> Upload</button>
+      </div>
     </div>
     {error && <div role="alert" className="flex flex-wrap gap-3 rounded-lg bg-red-50 p-3 text-sm text-red-700 mb-3"><span>{error}</span><button disabled={busy} onClick={() => { setError(''); setLoading(true); setReload(current => current + 1); }} className="underline">Reload documents</button></div>}
     {busy && <p role="status" className="flex items-center gap-2 text-sm text-slate-500 mb-3"><Loader2 size={14} className="animate-spin" /> Working...</p>}
     {!!extras?.length && <ul className="divide-y divide-slate-100 border-y border-slate-100 mb-4">
       {extras.map(extra => <li key={extra.key} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
         <div className="flex items-start gap-2 min-w-0"><FileText size={18} className="text-emerald-600 mt-0.5 shrink-0" /><div className="min-w-0"><p className="text-sm font-medium text-slate-800 break-all">{extra.fileName}</p><p className="text-xs text-slate-500 mt-1">{extra.label}</p></div></div>
-        <div className="flex gap-2 shrink-0"><button disabled={busy} onClick={() => viewExtra(extra)} className="inline-flex items-center gap-1 rounded px-2 py-1 text-sm text-blue-600 disabled:opacity-50"><Eye size={15} /> View</button></div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button disabled={busy} onClick={() => viewExtra(extra)} className="inline-flex items-center gap-1 rounded px-2 py-1 text-sm text-blue-600 disabled:opacity-50"><Eye size={15} /> View</button>
+          {extra.onRemove && (
+            <button
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true); setError('');
+                try {
+                  await extra.onRemove!();
+                  if (preview?.id === extra.key) setPreview(null);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Unable to delete document');
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              title={`Delete ${extra.fileName}`}
+              aria-label={`Delete ${extra.fileName}`}
+              className="p-2 rounded text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
+        </div>
       </li>)}
     </ul>}
-    {loading ? <p role="status" className="py-6 text-sm text-slate-500">Loading documents...</p> : documents.length === 0 ? <p className="py-6 text-sm text-slate-500">No documents attached.</p> : <ul className="divide-y divide-slate-100 border-y border-slate-100">
+    {loading ? <p role="status" className="py-6 text-sm text-slate-500">Loading documents...</p> : documents.length === 0 ? (!extras?.length ? <p className="py-6 text-sm text-slate-500">No documents attached.</p> : null) : <ul className="divide-y divide-slate-100 border-y border-slate-100">
       {documents.map(document => <li key={document.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
-        <div className="flex items-start gap-2 min-w-0"><FileText size={18} className="text-blue-600 mt-0.5 shrink-0" /><div className="min-w-0"><p className="text-sm font-medium text-slate-800 break-all">{document.file_name}</p><p className="text-xs text-slate-500 mt-1">{Math.max(1, Math.ceil(Number(document.file_size) / 1024))} KB · {new Date(document.uploaded_at).toLocaleDateString('en-GB')}</p></div></div>
+        <div className="flex items-start gap-2 min-w-0"><FileText size={18} className="text-blue-600 mt-0.5 shrink-0" /><div className="min-w-0"><p className="text-sm font-medium text-slate-800 break-all">{document.file_name}</p><p className="text-xs text-slate-500 mt-1">{uploadOptions?.length ? 'Additional Document · ' : ''}{Math.max(1, Math.ceil(Number(document.file_size) / 1024))} KB · {new Date(document.uploaded_at).toLocaleDateString('en-GB')}</p></div></div>
         <div className="flex gap-2 shrink-0"><button disabled={busy} onClick={() => view(document)} className="inline-flex items-center gap-1 rounded px-2 py-1 text-sm text-blue-600 disabled:opacity-50"><Eye size={15} /> View</button><button disabled={busy} onClick={() => setDeleteTarget(document)} title={`Delete ${document.file_name}`} aria-label={`Delete ${document.file_name}`} className="p-2 rounded text-red-600 hover:bg-red-50 disabled:opacity-50"><Trash2 size={15} /></button></div>
       </li>)}
     </ul>}

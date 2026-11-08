@@ -82,7 +82,7 @@ const STATUS_TABS: { label: string; value: TabFilter }[] = [
   { label: 'Archived', value: 'archived' },
 ];
 
-const MAX_FILE_MB = 10;
+const MAX_FILE_MB = 25;
 const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
 
 const STATUS_BADGE: Record<POStatus, string> = {
@@ -392,7 +392,7 @@ export default function PurchaseOrdersPage() {
   const [sort, setSort] = useState<SortState>({ key: '', dir: null });
   const pageSize = PAGE_SIZE;
   const [openActionDropdownId, setOpenActionDropdownId] = useState<string | null>(null);
-  const [actionMenuPos, setActionMenuPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
+  const [actionMenuPos, setActionMenuPos] = useState<{ top?: number; bottom?: number; right: number; maxHeight: number } | null>(null);
   const [selectedPoIds, setSelectedPoIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState<'invoices-zip' | 'final-backup' | null>(null);
   const [documentsPO, setDocumentsPO] = useState<PurchaseOrder | null>(null);
@@ -407,14 +407,20 @@ export default function PurchaseOrdersPage() {
 
   useEffect(() => {
     const handleOutsideClick = () => setOpenActionDropdownId(null);
+    // Scrolling inside the (height-clamped) menu itself must not close it
+    const handleScroll = (e: Event) => {
+      const target = e.target as Element | null;
+      if (target && typeof target.closest === 'function' && target.closest('[data-po-action-menu]')) return;
+      setOpenActionDropdownId(null);
+    };
     if (openActionDropdownId) {
       document.addEventListener('click', handleOutsideClick);
       // Menu is fixed-positioned, so close it rather than let it drift on scroll/resize
-      window.addEventListener('scroll', handleOutsideClick, true);
+      window.addEventListener('scroll', handleScroll, true);
       window.addEventListener('resize', handleOutsideClick);
       return () => {
         document.removeEventListener('click', handleOutsideClick);
-        window.removeEventListener('scroll', handleOutsideClick, true);
+        window.removeEventListener('scroll', handleScroll, true);
         window.removeEventListener('resize', handleOutsideClick);
       };
     }
@@ -485,19 +491,39 @@ export default function PurchaseOrdersPage() {
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [invoiceError, setInvoiceError] = useState('');
+  const [uploadDocType, setUploadDocType] = useState<'pro_forma' | 'invoice'>('pro_forma');
 
-  const [confirmationModal, setConfirmationModal] = useState<PurchaseOrder | null>(null);
   const [confirmationFile, setConfirmationFile] = useState<File | null>(null);
   const [newConfirmationFile, setNewConfirmationFile] = useState<File | null>(null);
-  const [confirmationError, setConfirmationError] = useState('');
+  const [newInvoiceFile, setNewInvoiceFile] = useState<File | null>(null);
+  const [newUploadDocType, setNewUploadDocType] = useState<'pro_forma' | 'invoice'>('pro_forma');
 
   const [submitConfirmPO, setSubmitConfirmPO] = useState<PurchaseOrder | null>(null);
   const [submitConfirmInvoiceFile, setSubmitConfirmInvoiceFile] = useState<File | null>(null);
+  const [submitConfirmProFormaFile, setSubmitConfirmProFormaFile] = useState<File | null>(null);
+  const [submitConfirmDocType, setSubmitConfirmDocType] = useState<'pro_forma' | 'invoice'>('pro_forma');
 
   const [editPO, setEditPO] = useState<PurchaseOrder | null>(null);
   const [editForm, setEditForm] = useState<NewPOForm>(EMPTY_FORM);
   const [editError, setEditError] = useState('');
   const [editLoading, setEditLoading] = useState(false);
+  const [editUploadDocType, setEditUploadDocType] = useState<'pro_forma' | 'invoice'>('pro_forma');
+  const [editProFormaFile, setEditProFormaFile] = useState<File | null>(null);
+  const [editInvoiceFile, setEditInvoiceFile] = useState<File | null>(null);
+
+  function openAttachmentModal(po: PurchaseOrder, preferredType?: 'pro_forma' | 'invoice') {
+    setInvoiceModal(po);
+    setInvoiceFile(null);
+    setConfirmationFile(null);
+    setInvoiceError('');
+    if (preferredType) {
+      setUploadDocType(preferredType);
+    } else if (!po.confirmation_attachment_url) {
+      setUploadDocType('pro_forma');
+    } else {
+      setUploadDocType('invoice');
+    }
+  }
 
   // Quick Add Production & Supplier modals
   const [showQuickProdModal, setShowQuickProdModal] = useState(false);
@@ -1110,6 +1136,9 @@ export default function PurchaseOrdersPage() {
       paid_from: po.paid_from,
     });
     setEditError('');
+    setEditProFormaFile(null);
+    setEditInvoiceFile(null);
+    setEditUploadDocType(!po.confirmation_attachment_url ? 'pro_forma' : 'invoice');
   }
 
   async function handleSaveEdit() {
@@ -1143,10 +1172,24 @@ export default function PurchaseOrdersPage() {
         gross_amount: editForm.gross_amount,
         paid_from: editForm.paid_from,
       });
+      if (editProFormaFile) {
+        const fd = new FormData();
+        fd.append('confirmation', editProFormaFile);
+        await purchaseOrdersApi.attachConfirmation(editPO.id, fd);
+        setEditProFormaFile(null);
+      }
+      if (editInvoiceFile) {
+        const fd = new FormData();
+        fd.append('invoice', editInvoiceFile);
+        await purchaseOrdersApi.attachInvoice(editPO.id, fd);
+        setEditInvoiceFile(null);
+      }
       setEditPO(null);
       await loadData();
     } catch (err: unknown) {
       setEditError(err instanceof Error ? err.message : 'Failed to update PO.');
+      // Details may already be saved even if an attachment failed — keep the table in sync
+      loadData();
     } finally {
       setEditLoading(false);
     }
@@ -1206,13 +1249,26 @@ export default function PurchaseOrdersPage() {
         paid_from: newForm.paid_from,
       });
 
+      const failedAttachments: string[] = [];
       if (newConfirmationFile) {
         try {
           const formData = new FormData();
           formData.append('confirmation', newConfirmationFile);
           await purchaseOrdersApi.attachConfirmation(created.purchase_order.id, formData);
         } catch (e) {
-          console.error('Failed to attach confirmation during creation', e);
+          console.error('Failed to attach pro forma during creation', e);
+          failedAttachments.push('Pro Forma');
+        }
+      }
+
+      if (newInvoiceFile) {
+        try {
+          const formData = new FormData();
+          formData.append('invoice', newInvoiceFile);
+          await purchaseOrdersApi.attachInvoice(created.purchase_order.id, formData);
+        } catch (e) {
+          console.error('Failed to attach invoice during creation', e);
+          failedAttachments.push('Actual Invoice / Receipt');
         }
       }
 
@@ -1221,7 +1277,14 @@ export default function PurchaseOrdersPage() {
       setShowNewModal(false);
       setNewForm(EMPTY_FORM);
       setNewConfirmationFile(null);
+      setNewInvoiceFile(null);
       await loadData();
+      if (failedAttachments.length) {
+        setActionError({
+          id: created.purchase_order.id,
+          msg: `${created.purchase_order.po_number} was created, but the ${failedAttachments.join(' and ')} failed to upload. Use Actions → Attach to try again.`,
+        });
+      }
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : 'Failed to create PO.');
     } finally {
@@ -1292,24 +1355,45 @@ export default function PurchaseOrdersPage() {
   };
 
   async function handleAttachInvoice() {
-    if (!invoiceModal || !invoiceFile) return;
+    if (!invoiceModal || (!invoiceFile && !confirmationFile)) return;
     setInvoiceError('');
-    if (invoiceFile.size > MAX_FILE_BYTES) {
-      setInvoiceError(`File too large. Maximum size is ${MAX_FILE_MB}MB. Your file is ${(invoiceFile.size / 1024 / 1024).toFixed(1)}MB.`);
-      return;
+    for (const f of [confirmationFile, invoiceFile]) {
+      if (f && f.size > MAX_FILE_BYTES) {
+        setInvoiceError(`File "${f.name}" is too large. Maximum size is ${MAX_FILE_MB}MB. Your file is ${(f.size / 1024 / 1024).toFixed(1)}MB.`);
+        return;
+      }
     }
     setInvoiceLoading(true);
+    // Upload sequentially and clear each queued file as soon as it lands, so a failure on the
+    // second upload never causes the first one to be re-uploaded on retry.
+    let current: PurchaseOrder = invoiceModal;
     try {
-      const fd = new FormData();
-      fd.append('invoice', invoiceFile);
-      await purchaseOrdersApi.attachInvoice(invoiceModal.id, fd);
-      setInvoiceModal(null);
-      setInvoiceFile(null);
-      await loadData();
+      if (confirmationFile) {
+        const fd = new FormData();
+        fd.append('confirmation', confirmationFile);
+        const res = await purchaseOrdersApi.attachConfirmation(current.id, fd);
+        current = { ...current, ...res.purchase_order };
+        setConfirmationFile(null);
+        setInvoiceModal(current);
+      }
+      if (invoiceFile) {
+        const fd = new FormData();
+        fd.append('invoice', invoiceFile);
+        const res = await purchaseOrdersApi.attachInvoice(current.id, fd);
+        current = { ...current, ...res.purchase_order };
+        setInvoiceFile(null);
+        setInvoiceModal(current);
+      }
+      if (!current.confirmation_attachment_url) {
+        setUploadDocType('pro_forma');
+      } else if (!current.invoice_attachment_url) {
+        setUploadDocType('invoice');
+      }
     } catch (err: unknown) {
       setInvoiceError(err instanceof Error ? err.message : 'Upload failed.');
     } finally {
       setInvoiceLoading(false);
+      await loadData();
     }
   }
 
@@ -1941,9 +2025,13 @@ export default function PurchaseOrdersPage() {
                                   // Fixed positioning so the table's overflow container can't clip the menu (few-row tabs like Pending Approvals)
                                   const rect = e.currentTarget.getBoundingClientRect();
                                   const right = window.innerWidth - rect.right;
-                                  setActionMenuPos(window.innerHeight - rect.bottom < 300
-                                    ? { bottom: window.innerHeight - rect.top + 4, right }
-                                    : { top: rect.bottom + 4, right });
+                                  const spaceBelow = window.innerHeight - rect.bottom;
+                                  const spaceAbove = rect.top;
+                                  // Open on the side with more room; clamp height so it is never cut off
+                                  const openUp = spaceBelow < 260 && spaceAbove > spaceBelow;
+                                  setActionMenuPos(openUp
+                                    ? { bottom: window.innerHeight - rect.top + 4, right, maxHeight: Math.max(160, spaceAbove - 12) }
+                                    : { top: rect.bottom + 4, right, maxHeight: Math.max(160, spaceBelow - 12) });
                                   setOpenActionDropdownId(po.id);
                                 }}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-normal text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-2xs"
@@ -1954,9 +2042,10 @@ export default function PurchaseOrdersPage() {
 
                               {openActionDropdownId === po.id && actionMenuPos && (
                                 <div
+                                  data-po-action-menu
                                   onClick={(e) => e.stopPropagation()}
                                   style={actionMenuPos}
-                                  className="fixed w-60 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50 text-xs divide-y divide-slate-100"
+                                  className="fixed w-64 overflow-y-auto bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50 text-xs divide-y divide-slate-100"
                                 >
                                   <div className="py-0.5">
                                     {/* View Full PO */}
@@ -2023,7 +2112,7 @@ export default function PurchaseOrdersPage() {
                                   {/* Status Workflow Actions */}
                                   {((isCoordinator && po.status === 'draft') ||
                                     (isAccountant && (po.status === 'submitted' || po.status === 'invoice_received')) ||
-                                    ((isCoordinator || isAccountant) && po.status !== 'draft' && po.status !== 'voided')) && (
+                                    ((isCoordinator || isAccountant) && po.status !== 'voided')) && (
                                       <div className="py-0.5">
                                         {/* Edit: Coordinator only, draft only */}
                                         {isCoordinator && po.status === 'draft' && (
@@ -2045,6 +2134,9 @@ export default function PurchaseOrdersPage() {
                                             onClick={() => {
                                               setOpenActionDropdownId(null);
                                               if (!po.invoice_attachment_url) {
+                                                setSubmitConfirmInvoiceFile(null);
+                                                setSubmitConfirmProFormaFile(null);
+                                                setSubmitConfirmDocType(!po.confirmation_attachment_url ? 'pro_forma' : 'invoice');
                                                 setSubmitConfirmPO(po);
                                               } else {
                                                 handleSubmit(po.id);
@@ -2072,16 +2164,14 @@ export default function PurchaseOrdersPage() {
                                             <span>Approve PO</span>
                                           </button>
                                         )}
-                                        {/* Attach Confirmation */}
-                                        {(isCoordinator || isAccountant) && po.status !== 'draft' && (
+                                        {/* Attach / View Pro Forma */}
+                                        {(isCoordinator || isAccountant) && (
                                           <button
                                             type="button"
                                             disabled={!!busy}
                                             onClick={() => {
                                               setOpenActionDropdownId(null);
-                                              setConfirmationModal(po);
-                                              setConfirmationFile(null);
-                                              setConfirmationError('');
+                                              openAttachmentModal(po, 'pro_forma');
                                             }}
                                             className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors disabled:opacity-50"
                                           >
@@ -2089,21 +2179,19 @@ export default function PurchaseOrdersPage() {
                                             <span>{po.confirmation_attachment_url ? 'View / Replace Pro Forma' : 'Attach Pro Forma'}</span>
                                           </button>
                                         )}
-                                        {/* Attach Invoice */}
-                                        {(isCoordinator || isAccountant) && po.status !== 'draft' && (
+                                        {/* Attach / View Actual Invoice / Receipt */}
+                                        {(isCoordinator || isAccountant) && (
                                           <button
                                             type="button"
                                             disabled={!!busy}
                                             onClick={() => {
                                               setOpenActionDropdownId(null);
-                                              setInvoiceModal(po);
-                                              setInvoiceFile(null);
-                                              setInvoiceError('');
+                                              openAttachmentModal(po, 'invoice');
                                             }}
                                             className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors disabled:opacity-50"
                                           >
                                             <Upload size={13} className="text-slate-400" />
-                                            <span>{po.invoice_attachment_url ? 'View Actual Invoice / Receipt' : 'Attach Actual Invoice / Receipt'}</span>
+                                            <span>{po.invoice_attachment_url ? 'View / Replace Actual Invoice / Receipt' : 'Attach Actual Invoice / Receipt'}</span>
                                           </button>
                                         )}
                                       </div>
@@ -2207,6 +2295,7 @@ export default function PurchaseOrdersPage() {
                             {(() => {
                               const hasConf = Boolean(po.confirmation_attachment_url);
                               const hasInv = Boolean(po.invoice_attachment_url);
+                              const canAttach = !isGuest && po.status !== 'voided';
 
                               if (hasConf && hasInv) {
                                 const invUrl = po.invoice_attachment_url!.startsWith('http') ? po.invoice_attachment_url! : encodeURI(decodeURI(po.invoice_attachment_url!));
@@ -2215,8 +2304,8 @@ export default function PurchaseOrdersPage() {
                                     <button
                                       type="button"
                                       onClick={() => purchaseOrdersApi.downloadConfirmation(po.id, po.confirmation_attachment_name || 'order-confirmation')}
-                                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium border border-blue-200 transition-colors"
-                                      title={`Pro Forma / Confirmation: ${po.confirmation_attachment_name || 'Attached'}`}
+                                      className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 font-normal border border-blue-200 transition-colors"
+                                      title={`Pro Forma: ${po.confirmation_attachment_name || 'Attached'}`}
                                     >
                                       <Paperclip size={11} className="-rotate-45 text-blue-600" />
                                       <span>Pro Forma</span>
@@ -2224,8 +2313,8 @@ export default function PurchaseOrdersPage() {
                                     <button
                                       type="button"
                                       onClick={() => window.open(invUrl, '_blank', 'noopener,noreferrer')}
-                                      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium border border-emerald-200 transition-colors"
-                                      title={`Invoice: ${po.invoice_attachment_name || 'Attached'}`}
+                                      className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-normal border border-emerald-200 transition-colors"
+                                      title={`Actual Invoice / Receipt: ${po.invoice_attachment_name || 'Attached'}`}
                                     >
                                       <CheckCircle2 size={11} className="text-emerald-600" />
                                       <span>Invoice</span>
@@ -2236,29 +2325,69 @@ export default function PurchaseOrdersPage() {
 
                               if (hasConf) {
                                 return (
-                                  <button
-                                    type="button"
-                                    onClick={() => purchaseOrdersApi.downloadConfirmation(po.id, po.confirmation_attachment_name || 'order-confirmation')}
-                                    className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium border border-blue-200 transition-colors"
-                                    title={`Pro Forma / Order Confirmation attached: ${po.confirmation_attachment_name || 'Attached'}`}
-                                  >
-                                    <Paperclip size={12} className="-rotate-45 text-blue-600" />
-                                    <span>Pro Forma</span>
-                                  </button>
+                                  <div className="inline-flex items-center gap-1.5 justify-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => purchaseOrdersApi.downloadConfirmation(po.id, po.confirmation_attachment_name || 'order-confirmation')}
+                                      className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 font-normal border border-blue-200 transition-colors"
+                                      title={`Pro Forma attached: ${po.confirmation_attachment_name || 'Attached'}`}
+                                    >
+                                      <Paperclip size={12} className="-rotate-45 text-blue-600" />
+                                      <span>Pro Forma</span>
+                                    </button>
+                                    {canAttach && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openAttachmentModal(po, 'invoice')}
+                                        className="inline-flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 font-normal border border-dashed border-slate-300 transition-colors"
+                                        title="Attach Actual Invoice / Receipt"
+                                      >
+                                        <Plus size={11} />
+                                        <span>Invoice</span>
+                                      </button>
+                                    )}
+                                  </div>
                                 );
                               }
 
                               if (hasInv) {
                                 const invUrl = po.invoice_attachment_url!.startsWith('http') ? po.invoice_attachment_url! : encodeURI(decodeURI(po.invoice_attachment_url!));
                                 return (
+                                  <div className="inline-flex items-center gap-1.5 justify-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => window.open(invUrl, '_blank', 'noopener,noreferrer')}
+                                      className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-normal border border-emerald-200 transition-colors"
+                                      title={`Actual Invoice / Receipt attached: ${po.invoice_attachment_name || 'Attached'}`}
+                                    >
+                                      <CheckCircle2 size={12} className="text-emerald-600" />
+                                      <span>Invoice</span>
+                                    </button>
+                                    {canAttach && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openAttachmentModal(po, 'pro_forma')}
+                                        className="inline-flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 font-normal border border-dashed border-slate-300 transition-colors"
+                                        title="Attach Pro Forma"
+                                      >
+                                        <Plus size={11} />
+                                        <span>Pro Forma</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              if (canAttach) {
+                                return (
                                   <button
                                     type="button"
-                                    onClick={() => window.open(invUrl, '_blank', 'noopener,noreferrer')}
-                                    className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium border border-emerald-200 transition-colors"
-                                    title={`Invoice attached: ${po.invoice_attachment_name || 'Attached'}`}
+                                    onClick={() => openAttachmentModal(po, 'pro_forma')}
+                                    className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 font-normal border border-dashed border-slate-300 transition-colors"
+                                    title="Upload Pro Forma or Actual Invoice / Receipt"
                                   >
-                                    <CheckCircle2 size={12} className="text-emerald-600" />
-                                    <span>Invoice</span>
+                                    <Upload size={11} />
+                                    <span>Attach</span>
                                   </button>
                                 );
                               }
@@ -2921,19 +3050,104 @@ export default function PurchaseOrdersPage() {
                       <p className="font-bold text-slate-900">Gross: {fmt(newForm.gross_amount)}</p>
                       <p className="text-xs mt-1">Paid From: {PAID_FROM_LABEL[newForm.paid_from] || newForm.paid_from}</p>
                     </div>
-                    <div className="col-span-2 pt-4 border-t border-slate-200 mt-2">
-                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Order Confirmation (Optional)</p>
-                      <label className="block w-full border border-dashed border-slate-300 rounded-lg p-3 text-center cursor-pointer hover:bg-white transition-colors">
-                        <span className="text-slate-500 text-sm font-medium">
-                          {newConfirmationFile ? newConfirmationFile.name : 'Click to upload confirmation document'}
+                    <div className="col-span-2 pt-4 border-t border-slate-200 mt-2 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-normal text-slate-500 uppercase tracking-wide">Attachments — Pro Forma &amp; Actual Invoice / Receipt (Optional)</p>
+                      </div>
+
+                      {/* Segmented selector for Pro Forma vs Actual Invoice / Receipt */}
+                      <div>
+                        <p className="text-xs text-slate-500 font-normal mb-1.5">Select Attachment Type to Upload</p>
+                        <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-lg">
+                          <button
+                            type="button"
+                            onClick={() => setNewUploadDocType('pro_forma')}
+                            className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-normal transition-colors ${
+                              newUploadDocType === 'pro_forma'
+                                ? 'bg-white text-blue-700 shadow-2xs border border-blue-200'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <Paperclip size={12} className="-rotate-45" />
+                            <span>Pro Forma</span>
+                            {newConfirmationFile && <span className="text-emerald-600">✓</span>}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNewUploadDocType('invoice')}
+                            className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-normal transition-colors ${
+                              newUploadDocType === 'invoice'
+                                ? 'bg-white text-blue-700 shadow-2xs border border-blue-200'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                          >
+                            <FileText size={12} />
+                            <span>Actual Invoice / Receipt</span>
+                            {newInvoiceFile && <span className="text-emerald-600">✓</span>}
+                          </button>
+                        </div>
+                      </div>
+
+                      <label className="block w-full border border-dashed border-slate-300 bg-white rounded-lg p-3 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/20 transition-colors">
+                        <span className="text-slate-600 text-sm font-normal">
+                          {newUploadDocType === 'pro_forma'
+                            ? (newConfirmationFile ? `Replace Pro Forma (${newConfirmationFile.name})` : 'Click to upload Pro Forma document')
+                            : (newInvoiceFile ? `Replace Actual Invoice / Receipt (${newInvoiceFile.name})` : 'Click to upload Actual Invoice / Receipt')}
                         </span>
+                        <p className="text-xs text-slate-400 mt-0.5 font-normal">PDF, PNG, JPG up to {MAX_FILE_MB}MB — you can upload one or both</p>
                         <input
+                          key={newUploadDocType}
                           type="file"
                           className="hidden"
                           accept=".pdf,.png,.jpg,.jpeg"
-                          onChange={e => setNewConfirmationFile(e.target.files?.[0] || null)}
+                          onChange={e => {
+                            const f = e.target.files?.[0] || null;
+                            if (!f) return;
+                            if (newUploadDocType === 'pro_forma') {
+                              setNewConfirmationFile(f);
+                            } else {
+                              setNewInvoiceFile(f);
+                            }
+                          }}
                         />
                       </label>
+
+                      {(newConfirmationFile || newInvoiceFile) && (
+                        <div className="space-y-1.5">
+                          {newConfirmationFile && (
+                            <div className="flex items-center justify-between gap-2 bg-white border border-blue-200 rounded-lg px-3 py-2 text-xs">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 shrink-0">Pro Forma</span>
+                                <span className="text-slate-700 truncate">{newConfirmationFile.name}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setNewConfirmationFile(null)}
+                                className="text-slate-400 hover:text-red-600 shrink-0"
+                                title="Remove Pro Forma"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          )}
+                          {newInvoiceFile && (
+                            <div className="flex items-center justify-between gap-2 bg-white border border-emerald-200 rounded-lg px-3 py-2 text-xs">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">Actual Invoice / Receipt</span>
+                                <span className="text-slate-700 truncate">{newInvoiceFile.name}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setNewInvoiceFile(null)}
+                                className="text-slate-400 hover:text-red-600 shrink-0"
+                                title="Remove Actual Invoice / Receipt"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3092,33 +3306,87 @@ export default function PurchaseOrdersPage() {
           owner="purchase_orders"
           ownerId={documentsPO.id}
           name={`${documentsPO.po_number} · ${documentsPO.supplier_name}`}
+          defaultUploadOption={
+            !documentsPO.confirmation_attachment_url
+              ? 'pro_forma'
+              : (!documentsPO.invoice_attachment_url && documentsPO.status !== 'voided')
+                ? 'invoice'
+                : 'supporting'
+          }
+          uploadOptions={[
+            ...(documentsPO.status !== 'voided' ? [{
+              value: 'pro_forma',
+              label: 'Pro Forma',
+              onUpload: async (file: File) => {
+                const fd = new FormData();
+                fd.append('confirmation', file);
+                const res = await purchaseOrdersApi.attachConfirmation(documentsPO.id, fd);
+                setDocumentsPO(prev => prev ? { ...prev, ...res.purchase_order } : prev);
+                await loadData();
+              },
+            }] : []),
+            ...(documentsPO.status !== 'voided' && !(documentsPO.status === 'approved' && documentsPO.invoice_attachment_url) ? [{
+              value: 'invoice',
+              label: 'Actual Invoice / Receipt',
+              onUpload: async (file: File) => {
+                const fd = new FormData();
+                fd.append('invoice', file);
+                const res = await purchaseOrdersApi.attachInvoice(documentsPO.id, fd);
+                setDocumentsPO(prev => prev ? { ...prev, ...res.purchase_order } : prev);
+                await loadData();
+              },
+            }] : []),
+            {
+              value: 'supporting',
+              label: 'Additional Document',
+            },
+          ]}
           extras={[
             ...(documentsPO.confirmation_attachment_url ? [{
               key: 'pro-forma',
               label: 'Pro Forma',
               fileName: documentsPO.confirmation_attachment_name || 'Pro Forma',
               load: () => purchaseOrdersApi.viewConfirmation(documentsPO.id),
+              onRemove: documentsPO.status !== 'approved' && documentsPO.status !== 'voided' ? async () => {
+                await purchaseOrdersApi.deleteConfirmation(documentsPO.id);
+                setDocumentsPO(prev => prev ? {
+                  ...prev,
+                  confirmation_attachment_url: null,
+                  confirmation_attachment_name: null,
+                } as PurchaseOrder : prev);
+                await loadData();
+              } : undefined,
             }] : []),
             ...(documentsPO.invoice_attachment_url ? [{
               key: 'invoice',
               label: 'Actual Invoice / Receipt',
               fileName: documentsPO.invoice_attachment_name || 'Invoice',
               load: () => purchaseOrdersApi.viewInvoice(documentsPO.id),
+              onRemove: documentsPO.status !== 'approved' && documentsPO.status !== 'voided' ? async () => {
+                await purchaseOrdersApi.deleteInvoice(documentsPO.id);
+                setDocumentsPO(prev => prev ? {
+                  ...prev,
+                  invoice_attachment_url: null,
+                  invoice_attachment_name: null,
+                  status: prev.status === 'invoice_received' ? 'submitted' : prev.status,
+                } as PurchaseOrder : prev);
+                await loadData();
+              } : undefined,
             }] : []),
           ]}
           onClose={() => { setDocumentsPO(null); loadData(); }}
         />
       )}
 
-      {/* Attach Invoice Modal */}
+      {/* Unified PO Attachments Modal (Pro Forma & Actual Invoice / Receipt) */}
       {invoiceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setInvoiceModal(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div>
-                <h2 className="text-slate-900 font-semibold text-lg">Actual Invoice / Receipt</h2>
-                <p className="text-slate-400 text-xs mt-0.5">{invoiceModal.po_number}</p>
+                <h2 className="text-slate-900 font-normal text-lg">PO Attachments — Pro Forma &amp; Invoice/Receipt</h2>
+                <p className="text-slate-400 text-xs mt-0.5 font-normal">{invoiceModal.po_number} · {invoiceModal.supplier_name}</p>
               </div>
               <button
                 onClick={() => setInvoiceModal(null)}
@@ -3127,78 +3395,297 @@ export default function PurchaseOrdersPage() {
                 <X size={18} />
               </button>
             </div>
-            <div className="px-6 py-5 space-y-4">
-              {invoiceModal.invoice_attachment_url ? (
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-white rounded-lg border border-slate-200">
-                        <FileText size={20} className="text-slate-600" />
-                      </div>
-                      <div className="flex flex-col overflow-hidden max-w-[200px] sm:max-w-[250px]">
-                        <span className="text-sm font-medium text-slate-700 truncate" title={invoiceModal.invoice_attachment_name || 'Attached Invoice'}>
-                          {invoiceModal.invoice_attachment_name || 'Attached Invoice'}
-                        </span>
-                        <span className="text-xs text-slate-400">Already attached</span>
-                      </div>
+
+            <div className="px-6 py-5 space-y-5">
+              {/* Two Attachment Slots Status */}
+              <div className="space-y-2.5">
+                <p className="text-xs text-slate-500 font-normal uppercase tracking-wide">Attached Documents (2 Slots)</p>
+
+                {/* Slot 1: Pro Forma */}
+                <div className={`flex items-center justify-between gap-3 p-3 rounded-xl border ${
+                  invoiceModal.confirmation_attachment_url
+                    ? 'bg-blue-50/50 border-blue-200'
+                    : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`p-2 rounded-lg border ${
+                      invoiceModal.confirmation_attachment_url
+                        ? 'bg-white border-blue-200 text-blue-600'
+                        : 'bg-white border-slate-200 text-slate-400'
+                    }`}>
+                      <Paperclip size={16} className="-rotate-45" />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={async () => {
-                          try {
-                            const res = await purchaseOrdersApi.downloadInvoice(invoiceModal.id);
-                            if (res.url) window.open(res.url, '_blank');
-                          } catch (err: unknown) {
-                            setInvoiceError(err instanceof Error ? err.message : 'Download failed');
-                          }
-                        }}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Download Invoice"
-                      >
-                        <Download size={16} />
-                      </button>
-                      <button
-                        disabled={invoiceLoading}
-                        onClick={async () => {
-                          setInvoiceLoading(true);
-                          setInvoiceError('');
-                          try {
-                            await purchaseOrdersApi.deleteInvoice(invoiceModal.id);
-                            setInvoiceModal({ ...invoiceModal, invoice_attachment_url: null, invoice_attachment_name: null } as PurchaseOrder);
-                            await loadData();
-                          } catch (err: unknown) {
-                            setInvoiceError(err instanceof Error ? err.message : 'Delete failed');
-                          } finally {
-                            setInvoiceLoading(false);
-                          }
-                        }}
-                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                        title="Remove Invoice"
-                      >
-                        {invoiceLoading ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                      </button>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700 font-normal">1. Pro Forma</span>
+                        {invoiceModal.confirmation_attachment_url && (
+                          <span className="text-xs text-emerald-600 font-normal">Attached ✓</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-slate-700 truncate mt-0.5 font-normal" title={invoiceModal.confirmation_attachment_name || undefined}>
+                        {invoiceModal.confirmation_attachment_url
+                          ? (invoiceModal.confirmation_attachment_name || 'Pro Forma attached')
+                          : 'No Pro Forma uploaded yet'}
+                      </p>
                     </div>
                   </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {invoiceModal.confirmation_attachment_url ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => purchaseOrdersApi.downloadConfirmation(invoiceModal.id, invoiceModal.confirmation_attachment_name || 'pro-forma')}
+                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                          title="Download Pro Forma"
+                        >
+                          <Download size={15} />
+                        </button>
+                        {invoiceModal.status !== 'approved' && (
+                        <button
+                          type="button"
+                          disabled={invoiceLoading}
+                          onClick={async () => {
+                            if (!confirm('Remove the Pro Forma from this PO?')) return;
+                            setInvoiceLoading(true);
+                            setInvoiceError('');
+                            try {
+                              await purchaseOrdersApi.deleteConfirmation(invoiceModal.id);
+                              setInvoiceModal({
+                                ...invoiceModal,
+                                confirmation_attachment_url: null,
+                                confirmation_attachment_name: null,
+                              } as PurchaseOrder);
+                              await loadData();
+                            } catch (err: unknown) {
+                              setInvoiceError(err instanceof Error ? err.message : 'Failed to remove Pro Forma');
+                            } finally {
+                              setInvoiceLoading(false);
+                            }
+                          }}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                          title="Remove Pro Forma"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                        )}
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setUploadDocType('pro_forma')}
+                        className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700 font-normal transition-colors"
+                      >
+                        Select
+                      </button>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-colors">
-                  <Upload size={22} className="text-slate-400 mb-2" />
-                  <span className="text-slate-500 text-sm font-medium">
-                    {invoiceFile ? invoiceFile.name : 'Click to upload invoice'}
-                  </span>
-                  <span className="text-slate-400 text-xs mt-1">PDF, PNG, JPG up to 25MB</span>
-                  <input
-                    type="file"
-                    accept=".pdf,.png,.jpg,.jpeg"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0] ?? null;
-                      setInvoiceFile(f);
-                      setInvoiceError('');
-                    }}
-                  />
-                </label>
-              )}
+
+                {/* Slot 2: Actual Invoice / Receipt */}
+                <div className={`flex items-center justify-between gap-3 p-3 rounded-xl border ${
+                  invoiceModal.invoice_attachment_url
+                    ? 'bg-emerald-50/50 border-emerald-200'
+                    : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`p-2 rounded-lg border ${
+                      invoiceModal.invoice_attachment_url
+                        ? 'bg-white border-emerald-200 text-emerald-600'
+                        : 'bg-white border-slate-200 text-slate-400'
+                    }`}>
+                      <FileText size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-normal">2. Actual Invoice / Receipt</span>
+                        {invoiceModal.invoice_attachment_url && (
+                          <span className="text-xs text-emerald-600 font-normal">Attached ✓</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-slate-700 truncate mt-0.5 font-normal" title={invoiceModal.invoice_attachment_name || undefined}>
+                        {invoiceModal.invoice_attachment_url
+                          ? (invoiceModal.invoice_attachment_name || 'Actual Invoice / Receipt attached')
+                          : 'No Actual Invoice / Receipt uploaded yet'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {invoiceModal.invoice_attachment_url ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const res = await purchaseOrdersApi.downloadInvoice(invoiceModal.id);
+                              if (res.url) window.open(res.url, '_blank');
+                            } catch (err: unknown) {
+                              setInvoiceError(err instanceof Error ? err.message : 'Download failed');
+                            }
+                          }}
+                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                          title="Download Actual Invoice / Receipt"
+                        >
+                          <Download size={15} />
+                        </button>
+                        {invoiceModal.status !== 'approved' && (
+                        <button
+                          type="button"
+                          disabled={invoiceLoading}
+                          onClick={async () => {
+                            if (!confirm('Remove the Actual Invoice / Receipt from this PO?')) return;
+                            setInvoiceLoading(true);
+                            setInvoiceError('');
+                            try {
+                              await purchaseOrdersApi.deleteInvoice(invoiceModal.id);
+                              setInvoiceModal({
+                                ...invoiceModal,
+                                invoice_attachment_url: null,
+                                invoice_attachment_name: null,
+                                status: invoiceModal.status === 'invoice_received' ? 'submitted' : invoiceModal.status,
+                              } as PurchaseOrder);
+                              await loadData();
+                            } catch (err: unknown) {
+                              setInvoiceError(err instanceof Error ? err.message : 'Delete failed');
+                            } finally {
+                              setInvoiceLoading(false);
+                            }
+                          }}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                          title="Remove Actual Invoice / Receipt"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                        )}
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setUploadDocType('invoice')}
+                        className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700 font-normal transition-colors"
+                      >
+                        Select
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Document Upload Section with Option for Pro Forma or Actual Receipt/Invoice */}
+              <div className="pt-3 border-t border-slate-100 space-y-3">
+                <div>
+                  <label className="block text-xs text-slate-500 font-normal uppercase tracking-wide mb-2">
+                    Upload Document — Choose Attachment Type
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => setUploadDocType('pro_forma')}
+                      className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-normal transition-colors ${
+                        uploadDocType === 'pro_forma'
+                          ? 'bg-white text-blue-700 shadow-2xs border border-blue-200'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Paperclip size={13} className="-rotate-45" />
+                      <span>Pro Forma</span>
+                      {confirmationFile && <span className="text-emerald-600">✓</span>}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUploadDocType('invoice')}
+                      className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-xs font-normal transition-colors ${
+                        uploadDocType === 'invoice'
+                          ? 'bg-white text-blue-700 shadow-2xs border border-blue-200'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <FileText size={13} />
+                      <span>Actual Invoice / Receipt</span>
+                      {invoiceFile && <span className="text-emerald-600">✓</span>}
+                    </button>
+                  </div>
+                </div>
+
+                {uploadDocType === 'invoice' && invoiceModal.status === 'approved' && Boolean(invoiceModal.invoice_attachment_url) ? (
+                  <div className="flex flex-col items-center justify-center w-full h-24 border border-slate-200 bg-slate-50 rounded-xl px-4 text-center">
+                    <span className="text-slate-600 text-xs font-normal">
+                      Actual Invoice / Receipt on an approved PO is locked for audit compliance.
+                    </span>
+                    <span className="text-slate-400 text-xs mt-0.5 font-normal">
+                      Revert the PO to Draft if you need to replace the invoice.
+                    </span>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-colors px-4 text-center">
+                    <Upload size={20} className="text-slate-400 mb-1.5" />
+                    <span className="text-slate-700 text-sm font-normal">
+                      {uploadDocType === 'pro_forma'
+                        ? (confirmationFile
+                          ? `Selected Pro Forma: ${confirmationFile.name}`
+                          : invoiceModal.confirmation_attachment_url
+                            ? 'Click to replace Pro Forma'
+                            : 'Click to select Pro Forma file')
+                        : (invoiceFile
+                          ? `Selected Actual Invoice / Receipt: ${invoiceFile.name}`
+                          : invoiceModal.invoice_attachment_url
+                            ? 'Click to replace Actual Invoice / Receipt'
+                            : 'Click to select Actual Invoice / Receipt file')}
+                    </span>
+                    <span className="text-slate-400 text-xs mt-0.5 font-normal">PDF, PNG, JPG up to {MAX_FILE_MB}MB</span>
+                    <input
+                      key={uploadDocType}
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        if (!f) return;
+                        if (uploadDocType === 'pro_forma') {
+                          setConfirmationFile(f);
+                        } else {
+                          setInvoiceFile(f);
+                        }
+                        setInvoiceError('');
+                      }}
+                    />
+                  </label>
+                )}
+
+                {/* Queued files ready to upload */}
+                {(confirmationFile || invoiceFile) && (
+                  <div className="space-y-1.5">
+                    {confirmationFile && (
+                      <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-xs">
+                        <span className="text-blue-800 truncate font-normal">
+                          Ready to upload <strong>Pro Forma</strong>: {confirmationFile.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmationFile(null)}
+                          className="text-blue-600 hover:text-red-600 shrink-0"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    )}
+                    {invoiceFile && (
+                      <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs">
+                        <span className="text-emerald-800 truncate font-normal">
+                          Ready to upload <strong>Actual Invoice / Receipt</strong>: {invoiceFile.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setInvoiceFile(null)}
+                          className="text-emerald-600 hover:text-red-600 shrink-0"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {invoiceError && (
                 <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                   <AlertCircle size={13} />
@@ -3206,95 +3693,30 @@ export default function PurchaseOrdersPage() {
                 </div>
               )}
             </div>
-            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50">
+
+            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
               <button
                 onClick={() => setInvoiceModal(null)}
-                className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-white transition-colors"
+                className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-white transition-colors font-normal"
               >
-                {invoiceModal.invoice_attachment_url ? 'Close' : 'Cancel'}
+                Close
               </button>
-              {!invoiceModal.invoice_attachment_url && (
-                <button
-                  disabled={!invoiceFile || invoiceLoading}
-                  onClick={handleAttachInvoice}
-                  className="flex items-center gap-2 px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-60"
-                >
-                  {invoiceLoading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                  Upload Invoice
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Attach Confirmation Modal */}
-      {confirmationModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmationModal(null)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-              <div>
-                <h2 className="text-slate-900 font-semibold text-lg">Attach Order Confirmation</h2>
-                <p className="text-slate-400 text-xs mt-0.5">{confirmationModal.po_number}</p>
-              </div>
               <button
-                onClick={() => setConfirmationModal(null)}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                disabled={(!invoiceFile && !confirmationFile) || invoiceLoading}
+                onClick={handleAttachInvoice}
+                className="flex items-center gap-2 px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-normal disabled:opacity-50"
               >
-                <X size={18} />
+                {invoiceLoading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                {confirmationFile && invoiceFile
+                  ? 'Upload Both Attachments'
+                  : confirmationFile
+                    ? 'Upload Pro Forma'
+                    : invoiceFile
+                      ? 'Upload Actual Invoice / Receipt'
+                      : uploadDocType === 'pro_forma'
+                        ? 'Upload Pro Forma'
+                        : 'Upload Actual Invoice / Receipt'}
               </button>
-            </div>
-            <div className="px-6 py-5 space-y-4">
-              {confirmationModal.confirmation_attachment_url && (
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-emerald-800">Confirmation already attached</p>
-                    <p className="text-xs text-emerald-700 truncate">{confirmationModal.confirmation_attachment_name || 'Order confirmation'}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => purchaseOrdersApi.downloadConfirmation(confirmationModal.id, confirmationModal.confirmation_attachment_name || 'order-confirmation')}
-                    className="flex-shrink-0 text-xs font-medium text-emerald-700 hover:text-emerald-900"
-                  >
-                    Download
-                  </button>
-                </div>
-              )}
-              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-colors">
-                <Upload size={22} className="text-slate-400 mb-2" />
-                <span className="text-slate-500 text-sm font-medium">
-                  {confirmationFile ? confirmationFile.name : confirmationModal.confirmation_attachment_url ? 'Click to replace confirmation' : 'Click to upload confirmation'}
-                </span>
-                <input type="file" className="hidden" onChange={e => { setConfirmationFile(e.target.files?.[0] || null); setConfirmationError(''); }} />
-              </label>
-              {confirmationError && (
-                <div className="flex items-center gap-2 text-red-600 text-xs bg-red-50 p-2 rounded-lg">
-                  <AlertCircle size={13} /> {confirmationError}
-                </div>
-              )}
-              <div className="flex justify-end gap-2 pt-2">
-                <button onClick={() => setConfirmationModal(null)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium">
-                  Cancel
-                </button>
-                <button
-                  disabled={!confirmationFile || actionLoading === confirmationModal.id + ':attach-confirm'}
-                  onClick={async () => {
-                    if (!confirmationFile) return;
-                    handleAction(confirmationModal.id, 'attach-confirm', async () => {
-                      const formData = new FormData();
-                      formData.append('confirmation', confirmationFile);
-                      await purchaseOrdersApi.attachConfirmation(confirmationModal.id, formData);
-                      setConfirmationModal(null);
-                      await loadData();
-                    }, (msg) => setConfirmationError(msg));
-                  }}
-                  className="flex items-center gap-2 px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
-                >
-                  {actionLoading === confirmationModal.id + ':attach-confirm' ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                  {confirmationModal.confirmation_attachment_url ? 'Replace Confirmation' : 'Upload Confirmation'}
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -3479,6 +3901,111 @@ export default function PurchaseOrdersPage() {
                   </select>
                 </div>
               </div>
+
+              {/* Attachments — Pro Forma & Actual Invoice / Receipt */}
+              <div>
+                <p className="text-xs font-normal text-slate-500 uppercase tracking-wide mb-2">Attachments — Pro Forma &amp; Actual Invoice / Receipt</p>
+                <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div>
+                    <p className="text-xs text-slate-500 font-normal mb-1.5">Select Attachment Type to Upload</p>
+                    <div className="grid grid-cols-2 gap-1.5 bg-slate-200/70 p-1 rounded-lg">
+                      <button
+                        type="button"
+                        onClick={() => setEditUploadDocType('pro_forma')}
+                        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-normal transition-colors ${
+                          editUploadDocType === 'pro_forma'
+                            ? 'bg-white text-blue-700 shadow-2xs border border-blue-200'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <Paperclip size={12} className="-rotate-45" />
+                        <span>Pro Forma</span>
+                        {(editProFormaFile || editPO.confirmation_attachment_url) && <span className="text-emerald-600">✓</span>}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditUploadDocType('invoice')}
+                        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-normal transition-colors ${
+                          editUploadDocType === 'invoice'
+                            ? 'bg-white text-blue-700 shadow-2xs border border-blue-200'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <FileText size={12} />
+                        <span>Actual Invoice / Receipt</span>
+                        {(editInvoiceFile || editPO.invoice_attachment_url) && <span className="text-emerald-600">✓</span>}
+                      </button>
+                    </div>
+                  </div>
+
+                  <label className="block w-full border border-dashed border-slate-300 bg-white rounded-lg p-3 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/20 transition-colors">
+                    <span className="text-slate-600 text-sm font-normal">
+                      {editUploadDocType === 'pro_forma'
+                        ? (editProFormaFile
+                          ? `Selected Pro Forma: ${editProFormaFile.name}`
+                          : editPO.confirmation_attachment_url
+                            ? `Click to replace Pro Forma (${editPO.confirmation_attachment_name || 'Attached'})`
+                            : 'Click to upload Pro Forma')
+                        : (editInvoiceFile
+                          ? `Selected Actual Invoice / Receipt: ${editInvoiceFile.name}`
+                          : editPO.invoice_attachment_url
+                            ? `Click to replace Actual Invoice / Receipt (${editPO.invoice_attachment_name || 'Attached'})`
+                            : 'Click to upload Actual Invoice / Receipt')}
+                    </span>
+                    <p className="text-xs text-slate-400 mt-0.5 font-normal">PDF, PNG, JPG up to {MAX_FILE_MB}MB — both can be attached</p>
+                    <input
+                      key={editUploadDocType}
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      onChange={e => {
+                        const f = e.target.files?.[0] || null;
+                        if (!f) return;
+                        if (editUploadDocType === 'pro_forma') {
+                          setEditProFormaFile(f);
+                        } else {
+                          setEditInvoiceFile(f);
+                        }
+                      }}
+                    />
+                  </label>
+
+                  {(editProFormaFile || editInvoiceFile || editPO.confirmation_attachment_url || editPO.invoice_attachment_url) && (
+                    <div className="space-y-1.5 text-xs">
+                      {(editProFormaFile || editPO.confirmation_attachment_url) && (
+                        <div className="flex items-center justify-between gap-2 bg-white border border-blue-200 rounded-lg px-3 py-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 shrink-0">Pro Forma</span>
+                            <span className="text-slate-700 truncate">
+                              {editProFormaFile ? `${editProFormaFile.name} (new)` : (editPO.confirmation_attachment_name || 'Attached')}
+                            </span>
+                          </div>
+                          {editProFormaFile && (
+                            <button type="button" onClick={() => setEditProFormaFile(null)} className="text-slate-400 hover:text-red-600 shrink-0">
+                              <X size={13} />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {(editInvoiceFile || editPO.invoice_attachment_url) && (
+                        <div className="flex items-center justify-between gap-2 bg-white border border-emerald-200 rounded-lg px-3 py-1.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">Actual Invoice / Receipt</span>
+                            <span className="text-slate-700 truncate">
+                              {editInvoiceFile ? `${editInvoiceFile.name} (new)` : (editPO.invoice_attachment_name || 'Attached')}
+                            </span>
+                          </div>
+                          {editInvoiceFile && (
+                            <button type="button" onClick={() => setEditInvoiceFile(null)} className="text-slate-400 hover:text-red-600 shrink-0">
+                              <X size={13} />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl shrink-0">
               <button onClick={() => setEditPO(null)} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-white transition-colors">
@@ -3500,31 +4027,88 @@ export default function PurchaseOrdersPage() {
       {/* Submit without invoice confirmation modal */}
       {submitConfirmPO && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => { setSubmitConfirmPO(null); setSubmitConfirmInvoiceFile(null); }} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="px-6 pt-6 pb-2">
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setSubmitConfirmPO(null); setSubmitConfirmInvoiceFile(null); setSubmitConfirmProFormaFile(null); }} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-6 pt-6 pb-3">
               <div className="flex items-center justify-center w-12 h-12 rounded-full bg-amber-50 mb-4 mx-auto">
                 <AlertCircle size={24} className="text-amber-500" />
               </div>
-              <h2 className="text-slate-900 font-semibold text-lg text-center">Submit Purchase Order</h2>
-              <p className="text-slate-500 text-sm text-center mt-2">
-                No invoice is attached to <span className="font-medium">{submitConfirmPO.po_number}</span>. Are you sure you want to submit? Or you can attach an invoice now.
+              <h2 className="text-slate-900 font-normal text-lg text-center">Submit Purchase Order</h2>
+              <p className="text-slate-500 text-sm text-center mt-2 font-normal">
+                No Actual Invoice / Receipt is attached to <span className="text-slate-800">{submitConfirmPO.po_number}</span>. You can attach a <strong>Pro Forma</strong> or <strong>Actual Invoice / Receipt</strong> now, or submit directly.
               </p>
 
-              <div className="mt-4 border border-slate-200 rounded-xl p-4 bg-slate-50">
-                <label className="block text-xs font-semibold text-slate-700 mb-2">Attach Invoice (Optional)</label>
+              <div className="mt-4 border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+                <div>
+                  <label className="block text-xs font-normal text-slate-600 mb-1.5">Select Attachment Type (Optional)</label>
+                  <div className="grid grid-cols-2 gap-1.5 bg-slate-200/70 p-1 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => setSubmitConfirmDocType('pro_forma')}
+                      className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-normal transition-colors ${
+                        submitConfirmDocType === 'pro_forma'
+                          ? 'bg-white text-blue-700 shadow-2xs border border-blue-200'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Paperclip size={12} className="-rotate-45" />
+                      <span>Pro Forma</span>
+                      {(submitConfirmProFormaFile || submitConfirmPO.confirmation_attachment_url) && <span className="text-emerald-600">✓</span>}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSubmitConfirmDocType('invoice')}
+                      className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-normal transition-colors ${
+                        submitConfirmDocType === 'invoice'
+                          ? 'bg-white text-blue-700 shadow-2xs border border-blue-200'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <FileText size={12} />
+                      <span>Actual Invoice / Receipt</span>
+                      {submitConfirmInvoiceFile && <span className="text-emerald-600">✓</span>}
+                    </button>
+                  </div>
+                </div>
+
                 <input
+                  key={submitConfirmDocType}
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={(e) => setSubmitConfirmInvoiceFile(e.target.files?.[0] || null)}
-                  className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] || null;
+                    if (!f) return;
+                    if (submitConfirmDocType === 'pro_forma') {
+                      setSubmitConfirmProFormaFile(f);
+                    } else {
+                      setSubmitConfirmInvoiceFile(f);
+                    }
+                  }}
+                  className="w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-normal file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                 />
+
+                {(submitConfirmProFormaFile || submitConfirmInvoiceFile) && (
+                  <div className="space-y-1 text-xs">
+                    {submitConfirmProFormaFile && (
+                      <div className="flex items-center justify-between bg-white border border-blue-200 rounded px-2.5 py-1">
+                        <span className="text-blue-700 truncate">Pro Forma: {submitConfirmProFormaFile.name}</span>
+                        <button type="button" onClick={() => setSubmitConfirmProFormaFile(null)} className="text-slate-400 hover:text-red-600"><X size={12} /></button>
+                      </div>
+                    )}
+                    {submitConfirmInvoiceFile && (
+                      <div className="flex items-center justify-between bg-white border border-emerald-200 rounded px-2.5 py-1">
+                        <span className="text-emerald-700 truncate">Invoice: {submitConfirmInvoiceFile.name}</span>
+                        <button type="button" onClick={() => setSubmitConfirmInvoiceFile(null)} className="text-slate-400 hover:text-red-600"><X size={12} /></button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
             </div>
             <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
               <button
-                onClick={() => { setSubmitConfirmPO(null); setSubmitConfirmInvoiceFile(null); }}
+                onClick={() => { setSubmitConfirmPO(null); setSubmitConfirmInvoiceFile(null); setSubmitConfirmProFormaFile(null); }}
                 className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-white transition-colors"
               >
                 Cancel
@@ -3534,6 +4118,11 @@ export default function PurchaseOrdersPage() {
                 onClick={() => {
                   const id = submitConfirmPO.id;
                   handleAction(id, 'submit', async () => {
+                    if (submitConfirmProFormaFile) {
+                      const fd = new FormData();
+                      fd.append('confirmation', submitConfirmProFormaFile);
+                      await purchaseOrdersApi.attachConfirmation(id, fd);
+                    }
                     if (submitConfirmInvoiceFile) {
                       const formData = new FormData();
                       formData.append('invoice', submitConfirmInvoiceFile);
@@ -3542,10 +4131,11 @@ export default function PurchaseOrdersPage() {
                     await purchaseOrdersApi.submit(id);
                     setSubmitConfirmPO(null);
                     setSubmitConfirmInvoiceFile(null);
+                    setSubmitConfirmProFormaFile(null);
                     await loadData();
                   }, (msg) => setActionError(msg ? { id, msg } : null));
                 }}
-                className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-60"
+                className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-normal disabled:opacity-60"
               >
                 {actionLoading === submitConfirmPO.id + ':submit' ? <Loader2 size={14} className="animate-spin" /> : 'Yes, Submit'}
               </button>
@@ -3645,49 +4235,93 @@ export default function PurchaseOrdersPage() {
               </div>
 
               <div className="mt-4 p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
-                <div className="flex items-center gap-1.5 font-semibold text-slate-800 mb-2">
-                  <Paperclip size={13} className="text-slate-500 -rotate-45" />
-                  <span>Attached Documents</span>
-                </div>
-                {viewFullPO.confirmation_attachment_url || viewFullPO.invoice_attachment_url ? (
-                  <div className="space-y-2">
-                    {viewFullPO.confirmation_attachment_url && (
-                      <div className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-lg border border-slate-200">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Paperclip size={13} className="text-blue-600 shrink-0 -rotate-45" />
-                          <span className="font-medium text-slate-700 truncate">{viewFullPO.confirmation_attachment_name || 'Pro Forma / Order Confirmation'}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => purchaseOrdersApi.downloadConfirmation(viewFullPO.id, viewFullPO.confirmation_attachment_name || 'order-confirmation')}
-                          className="text-xs text-blue-600 hover:text-blue-800 font-medium shrink-0 px-2 py-1 rounded bg-blue-50 border border-blue-200"
-                        >
-                          Download
-                        </button>
-                      </div>
-                    )}
-                    {viewFullPO.invoice_attachment_url && (
-                      <div className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-lg border border-slate-200">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
-                          <span className="font-medium text-slate-700 truncate">{viewFullPO.invoice_attachment_name || 'Supplier Invoice'}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const url = viewFullPO.invoice_attachment_url!.startsWith('http') ? viewFullPO.invoice_attachment_url! : encodeURI(decodeURI(viewFullPO.invoice_attachment_url!));
-                            window.open(url, '_blank', 'noopener,noreferrer');
-                          }}
-                          className="text-xs text-emerald-600 hover:text-emerald-800 font-medium shrink-0 px-2 py-1 rounded bg-emerald-50 border border-emerald-200"
-                        >
-                          View
-                        </button>
-                      </div>
-                    )}
+                <div className="flex items-center justify-between gap-2 mb-2.5">
+                  <div className="flex items-center gap-1.5 font-normal text-slate-800">
+                    <Paperclip size={13} className="text-slate-500 -rotate-45" />
+                    <span>Attached Documents (Pro Forma &amp; Actual Invoice / Receipt)</span>
                   </div>
-                ) : (
-                  <p className="text-slate-400 italic">No attachments (pro forma or invoice) uploaded to this PO yet.</p>
-                )}
+                  {!isGuest && viewFullPO.status !== 'voided' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = viewFullPO;
+                        setViewFullPO(null);
+                        openAttachmentModal(target);
+                      }}
+                      className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-normal transition-colors"
+                    >
+                      <Upload size={12} />
+                      <span>Upload / Manage</span>
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {/* Slot 1: Pro Forma */}
+                  <div className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-lg border border-slate-200">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Paperclip size={13} className={viewFullPO.confirmation_attachment_url ? 'text-blue-600 shrink-0 -rotate-45' : 'text-slate-300 shrink-0 -rotate-45'} />
+                      <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 shrink-0">Pro Forma</span>
+                      <span className={`truncate ${viewFullPO.confirmation_attachment_url ? 'text-slate-700' : 'text-slate-400 italic'}`}>
+                        {viewFullPO.confirmation_attachment_url ? (viewFullPO.confirmation_attachment_name || 'Attached') : 'Not uploaded yet'}
+                      </span>
+                    </div>
+                    {viewFullPO.confirmation_attachment_url ? (
+                      <button
+                        type="button"
+                        onClick={() => purchaseOrdersApi.downloadConfirmation(viewFullPO.id, viewFullPO.confirmation_attachment_name || 'order-confirmation')}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-normal shrink-0 px-2 py-1 rounded bg-blue-50 border border-blue-200"
+                      >
+                        Download
+                      </button>
+                    ) : (!isGuest && viewFullPO.status !== 'voided' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = viewFullPO;
+                          setViewFullPO(null);
+                          openAttachmentModal(target, 'pro_forma');
+                        }}
+                        className="text-xs text-slate-600 hover:text-blue-700 font-normal shrink-0 px-2 py-1 rounded bg-slate-50 border border-slate-200"
+                      >
+                        + Attach
+                      </button>
+                    ))}
+                  </div>
+                  {/* Slot 2: Actual Invoice / Receipt */}
+                  <div className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-lg border border-slate-200">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <CheckCircle2 size={13} className={viewFullPO.invoice_attachment_url ? 'text-emerald-600 shrink-0' : 'text-slate-300 shrink-0'} />
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">Actual Invoice / Receipt</span>
+                      <span className={`truncate ${viewFullPO.invoice_attachment_url ? 'text-slate-700' : 'text-slate-400 italic'}`}>
+                        {viewFullPO.invoice_attachment_url ? (viewFullPO.invoice_attachment_name || 'Attached') : 'Not uploaded yet'}
+                      </span>
+                    </div>
+                    {viewFullPO.invoice_attachment_url ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = viewFullPO.invoice_attachment_url!.startsWith('http') ? viewFullPO.invoice_attachment_url! : encodeURI(decodeURI(viewFullPO.invoice_attachment_url!));
+                          window.open(url, '_blank', 'noopener,noreferrer');
+                        }}
+                        className="text-xs text-emerald-600 hover:text-emerald-800 font-normal shrink-0 px-2 py-1 rounded bg-emerald-50 border border-emerald-200"
+                      >
+                        View
+                      </button>
+                    ) : (!isGuest && viewFullPO.status !== 'voided' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const target = viewFullPO;
+                          setViewFullPO(null);
+                          openAttachmentModal(target, 'invoice');
+                        }}
+                        className="text-xs text-slate-600 hover:text-blue-700 font-normal shrink-0 px-2 py-1 rounded bg-slate-50 border border-slate-200"
+                      >
+                        + Attach
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div className="mt-4 p-3.5 bg-blue-50/70 border border-blue-100 rounded-xl text-xs text-blue-900">

@@ -445,6 +445,7 @@ export type Timesheet = {
   status: TimesheetStatus;
   grand_total: string | null;
   gross_total?: string | null;
+  vat?: string | null;
   net_total_amount?: string | null;
   overtime_amount?: string | null;
   travel_amount?: string | null;
@@ -463,6 +464,9 @@ export type Timesheet = {
   crew_number?: string;
   crew_trade?: string;
   crew_rank?: string;
+  employment_status?: 'paye' | 'self_employed' | string | null;
+  paye_withholding_rate?: string | number | null;
+  vat_registration_number?: string | null;
   // joined from productions
   prod_name?: string;
   amended_at?: string | null;
@@ -649,6 +653,8 @@ export const purchaseOrdersApi = {
   viewConfirmation: async (id: string) => (await documentFetch(`/api/purchase-orders/${id}/confirmation/download`)).blob(),
   deleteInvoice: (id: string) =>
     request<{ message: string }>(`/api/purchase-orders/${id}/invoice`, { method: 'DELETE' }),
+  deleteConfirmation: (id: string) =>
+    request<{ message: string }>(`/api/purchase-orders/${id}/confirmation`, { method: 'DELETE' }),
   attachConfirmation: (id: string, formData: FormData) =>
     fetch(`/api/purchase-orders/${id}/attach-confirmation`, {
       method: 'POST',

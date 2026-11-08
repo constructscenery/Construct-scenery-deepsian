@@ -31,6 +31,7 @@ router.post('/:id/submit',               requireRole(...ALL_ROLES), ctrl.submitP
 router.post('/:id/attach-invoice',       upload.single('invoice'), requireRole(...ALL_ROLES), ctrl.attachInvoice);
 router.post('/:id/attach-confirmation',  upload.single('confirmation'), requireRole(...ALL_ROLES), ctrl.attachConfirmation);
 router.get('/:id/confirmation/download',   ctrl.downloadConfirmation);
+router.delete('/:id/confirmation',       requireRole(...ALL_ROLES), ctrl.deleteConfirmation);
 router.get('/:id/invoice/download',      ctrl.downloadInvoice);
 router.get('/:id/invoice/view',          ctrl.viewInvoice);
 router.delete('/:id/invoice',            requireRole(...ALL_ROLES), ctrl.deleteInvoice);

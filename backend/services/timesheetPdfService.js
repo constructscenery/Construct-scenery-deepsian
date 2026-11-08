@@ -162,20 +162,33 @@ const generateTimesheetPdf = (ts, entries) => {
     doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#0f172a').text('WEEKLY TOTALS', L, y);
     y += 13;
 
-    const lblX = L + 270;
+    const lblX = L + 250;
     const valR = L + W;
 
-    const totRow = (label, amount, bold = false, rule = false) => {
+    const totRow = (label, amount, bold = false, rule = false, isDeduction = false) => {
       if (rule) {
         doc.moveTo(lblX, y - 1).lineTo(valR, y - 1).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
       }
       doc.fontSize(8.5)
-         .font(bold ? 'Helvetica-Bold' : 'Helvetica').fillColor('#475569')
-         .text(label, lblX, y, { width: 140, lineBreak: false });
-      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fillColor('#0f172a')
-         .text(fmt(amount), valR - 65, y, { align: 'right', width: 65 });
+         .font(bold ? 'Helvetica-Bold' : 'Helvetica')
+         .fillColor(isDeduction ? '#b45309' : '#475569')
+         .text(label, lblX, y, { width: 170, lineBreak: false });
+      const formattedVal = isDeduction ? `-${fmt(amount)}` : fmt(amount);
+      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica')
+         .fillColor(isDeduction ? '#b45309' : '#0f172a')
+         .text(formattedVal, valR - 70, y, { align: 'right', width: 70 });
       y += 14;
     };
+
+    const isPaye              = ts.employment_status === 'paye';
+    const timesheetTotal      = parseFloat(ts.gross_total ?? ts.net_total_amount ?? ts.grand_total ?? 0);
+    const vatAmount           = parseFloat(ts.vat || 0);
+    const isVatRegistered     = !isPaye && (Boolean(ts.vat_registration_number) || vatAmount > 0);
+    const grossTotalToInvoice = parseFloat(ts.grand_total ?? (timesheetTotal + vatAmount));
+    const payeRate            = isPaye ? parseFloat(ts.paye_withholding_rate || 0) : 0;
+    const payeRateLabel       = Number.isInteger(payeRate) ? String(payeRate) : payeRate.toFixed(2).replace(/\.?0+$/, '');
+    const payeWithheld        = isPaye && payeRate > 0 ? Math.round(grossTotalToInvoice * (payeRate / 100) * 100) / 100 : 0;
+    const payeNetPayable      = isPaye && payeRate > 0 ? Math.round((grossTotalToInvoice - payeWithheld) * 100) / 100 : grossTotalToInvoice;
 
     totRow('Weekly Rate',      ts.weekly_rate);
     if (parseFloat(ts.sixth_day_payment || 0) > 0) {
@@ -187,17 +200,27 @@ const generateTimesheetPdf = (ts, entries) => {
     totRow('Overtime Amount',  ts.overtime_amount);
     totRow('Meal Allowance',   ts.meal_allowance_total);
     totRow('Mileage & Travel', ts.mileage_and_travel);
-    totRow('Gross Total',      ts.gross_total, false, true);
-    if (parseFloat(ts.vat || 0) > 0) {
-      totRow('VAT (20%)', ts.vat);
+
+    if (isPaye) {
+      totRow('Timesheet Total', timesheetTotal, payeRate <= 0, true);
+      if (payeRate > 0) {
+        totRow(`PAYE Tax Holdback (${payeRateLabel}%)`, payeWithheld, false, false, true);
+        totRow('Net Total Payable', payeNetPayable, true, true);
+      }
+    } else {
+      totRow('Timesheet Total', timesheetTotal, false, true);
+      if (isVatRegistered) {
+        totRow('VAT Amount (20%)', vatAmount);
+      }
+      totRow('Gross Total to Invoice', grossTotalToInvoice, true, true);
     }
-    totRow('GRAND TOTAL', ts.grand_total, true, true);
 
     // ── Info Paragraph Notice Box ──────────────────────────────────────────────
-    y = Math.max(y, 480) + 15;
+    y = Math.max(y, 480) + 12;
+    const boxHeight = isPaye ? 210 : 175;
     
     doc.save()
-       .rect(L, y, W, 175)
+       .rect(L, y, W, boxHeight)
        .fillColor('#f8fafc')
        .strokeColor('#e2e8f0')
        .lineWidth(0.5)
@@ -209,6 +232,17 @@ const generateTimesheetPdf = (ts, entries) => {
        .text('If your timesheet this week is inaccurate in anyway, please respond to this email or contact Ben on Whats App (+44 7474 309837) with what should be changed.', L + 15, noteY, { width: W - 30, lineGap: 2 });
 
     noteY += 28;
+    if (isPaye) {
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#92400e')
+         .text(
+           'As you are on PAYE, we have held back a % of your wages to cover taxes and national insurance. When we do the payslips at the end of the month, there will likely be an additional payment back to you once the taxes have been calculated.',
+           L + 15,
+           noteY,
+           { width: W - 30, lineGap: 2 }
+         );
+      noteY += 36;
+    }
+
     doc.fontSize(8).font('Helvetica-Bold').fillColor('#0f172a')
        .text('Please raise and send your invoice to ', L + 15, noteY, { continued: true })
        .font('Helvetica-Bold').fillColor('#2563eb')
