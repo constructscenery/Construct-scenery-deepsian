@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Building2, Plus, Pencil, Trash2, MapPin, Search, X, Calendar, Key, User, FileText, AlertCircle } from 'lucide-react';
 import { buildingsApi, Building } from '@/lib/api';
+import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
+import { usePagedList } from '@/hooks/usePagination';
 import AttachedDocuments from '@/components/AttachedDocuments';
 
 const fmtDate = (d: string | null | undefined) =>
@@ -131,6 +133,7 @@ export default function BuildingsTab({ isCoordinatorOrMD }: { isCoordinatorOrMD:
     const bDate = new Date(b.lease_expiry || b.created_at || 0).getTime();
     return bDate - aDate;
   });
+  const pager = usePagedList(filteredBuildings, 'assets-buildings');
 
   return (
     <div className="space-y-4">
@@ -196,7 +199,7 @@ export default function BuildingsTab({ isCoordinatorOrMD }: { isCoordinatorOrMD:
                   </td>
                 </tr>
               ) : (
-                filteredBuildings.map(b => (
+                pager.pageItems.map(b => (
                   <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-4 py-3">
                       <div className="font-bold text-slate-900 text-sm">{b.name}</div>
@@ -246,6 +249,7 @@ export default function BuildingsTab({ isCoordinatorOrMD }: { isCoordinatorOrMD:
             </tbody>
           </table>
         </div>
+        {!loading && <PaginationScrollIndicator {...pager.barProps} itemName="buildings" />}
       </div>
 
       {/* Add / Edit Building Modal */}

@@ -304,7 +304,7 @@ const listInvoices = handle(async (req, res) => {
   let outstanding = [];
   if (req.crew.employment_status === 'self_employed') {
     ({ rows: outstanding } = await db.query(
-      `SELECT t.production_id, p.name AS production_name, t.week_ending_date, t.grand_total
+      `SELECT t.production_id, p.name AS production_name, t.week_ending_date, t.grand_total, t.gross_total, t.vat
        FROM timesheets t JOIN productions p ON p.id = t.production_id
        WHERE t.crew_member_id = $1 AND t.invoice_attachment_url IS NULL
          AND t.status IN ('distributed', 'amendment_requested')

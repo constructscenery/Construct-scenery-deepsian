@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Package, Plus, Pencil, Trash2, Search, X, AlertCircle } from 'lucide-react';
 import { assetsPlantApi, Asset, Production } from '@/lib/api';
+import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
+import { usePagedList } from '@/hooks/usePagination';
 
 const fmtDate = (d: string | null | undefined) =>
   d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -166,6 +168,7 @@ export default function AssetsPlantTab({ isCoordinatorOrMD, productions }: { isC
     const bDate = new Date(b.purchase_date || b.created_at || 0).getTime();
     return bDate - aDate;
   });
+  const pager = usePagedList(filteredAssets, 'assets-plant');
 
   return (
     <div className="space-y-4">
@@ -232,7 +235,7 @@ export default function AssetsPlantTab({ isCoordinatorOrMD, productions }: { isC
                   </td>
                 </tr>
               ) : (
-                filteredAssets.map(a => (
+                pager.pageItems.map(a => (
                   <tr key={a.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-4 py-3">
                       <div className="font-bold text-slate-900 text-sm">{a.name}</div>
@@ -287,6 +290,7 @@ export default function AssetsPlantTab({ isCoordinatorOrMD, productions }: { isC
             </tbody>
           </table>
         </div>
+        {!loading && <PaginationScrollIndicator {...pager.barProps} itemName="assets" />}
       </div>
 
       {/* Add / Edit Asset Modal */}

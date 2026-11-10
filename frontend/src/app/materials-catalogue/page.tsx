@@ -25,8 +25,7 @@ import {
 } from 'lucide-react';
 import { EmptyStateRow } from '@/components/EmptyState';
 import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
-
-const PAGE_SIZE = 10;
+import { usePageSize, usePagedList } from '@/hooks/usePagination';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const fmtGBP = (n: number | string | null | undefined) =>
@@ -224,6 +223,7 @@ export default function MaterialsCataloguePage() {
 
   // ── Filter state ──
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = usePageSize('materials-catalogue');
   const [search, setSearch] = useState('');
   const [supplierFilter, setSupplierFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -308,9 +308,10 @@ export default function MaterialsCataloguePage() {
     })
     .sort((a, b) => (a.material_name || a.product_description).localeCompare(b.material_name || b.product_description));
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pagedItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pagedItems = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const stockPager = usePagedList(inventory, 'materials-stock');
 
   const categories = Array.from(new Set(items.map(item => item.category).filter((value): value is string => !!value))).sort();
   const stockTotalsFor = (materialId: string) => inventorySummary
@@ -744,7 +745,8 @@ export default function MaterialsCataloguePage() {
               totalPages={totalPages}
               onPageChange={setPage}
               totalItems={filtered.length}
-              pageSize={PAGE_SIZE}
+              pageSize={pageSize}
+              onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
               itemName="items"
             />
           </div>
@@ -778,7 +780,7 @@ export default function MaterialsCataloguePage() {
                         icon: Plus,
                       } : undefined}
                     />
-                  ) : inventory.map(item => (
+                  ) : stockPager.pageItems.map(item => (
                     <tr key={item.id} className="hover:bg-slate-50/50">
                       <td className="px-4 py-3 text-slate-800 font-medium">{item.material_name}</td>
                       <td className="px-4 py-3 text-slate-600">{item.description || '—'}</td>
@@ -801,6 +803,7 @@ export default function MaterialsCataloguePage() {
                 </tbody>
               </table>
             </div>
+            <PaginationScrollIndicator {...stockPager.barProps} itemName="stock items" />
           </div>
         )}
       </main>

@@ -81,25 +81,27 @@ const getSupplierHistory = async (req, res) => {
 };
 
 // GET /api/suppliers/history
+// Supplier matched by id (indexed); name match is only the fallback for POs without supplier_id.
 const getAllSupplierHistory = async (_req, res) => {
   try {
     const { rows } = await db.query(`
       SELECT po.id, po.po_number, po.title, po.date_of_po, po.status,
              po.net_amount, po.vat, po.gross_amount, po.supplier_id,
              po.supplier_name AS po_supplier_name,
-             s.name AS supplier_record_name, s.category AS supplier_category,
-             CONCAT_WS(', ', s.city, s.county) AS supplier_location,
+             COALESCE(sid.name, sname.name) AS supplier_record_name,
+             COALESCE(sid.category, sname.category) AS supplier_category,
+             CONCAT_WS(', ', COALESCE(sid.city, sname.city), COALESCE(sid.county, sname.county)) AS supplier_location,
              p.id AS production_id, p.name AS production_name, p.status AS production_status
       FROM purchase_orders po
       JOIN productions p ON p.id = po.production_id
+      LEFT JOIN suppliers sid ON sid.id = po.supplier_id
       LEFT JOIN LATERAL (
-        SELECT s.*
+        SELECT s.name, s.category, s.city, s.county
         FROM suppliers s
-        WHERE s.id = po.supplier_id
-           OR (po.supplier_id IS NULL AND LOWER(BTRIM(po.supplier_name)) = LOWER(BTRIM(s.name)))
-        ORDER BY (s.id = po.supplier_id) DESC, s.id
+        WHERE po.supplier_id IS NULL AND LOWER(BTRIM(po.supplier_name)) = LOWER(BTRIM(s.name))
+        ORDER BY s.id
         LIMIT 1
-      ) s ON TRUE
+      ) sname ON TRUE
       ORDER BY po.date_of_po DESC, po.created_at DESC
     `);
     res.json(rows.map(row => ({

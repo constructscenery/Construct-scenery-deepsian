@@ -419,7 +419,7 @@ export type PortalSubmission = {
 };
 export type PortalWeek = { submission: PortalSubmission | null; days: PortalDay[]; editable: boolean; locked_reason: string | null };
 export type PortalInvoice = PortalSubmission & { invoice_number: string | null; amount: string | null; file_name: string };
-export type PortalOutstandingInvoice = { production_id: string; production_name: string; week_ending_date: string; grand_total: string };
+export type PortalOutstandingInvoice = { production_id: string; production_name: string; week_ending_date: string; grand_total: string; gross_total: string | null; vat: string | null };
 export type PortalPoll = {
   id: string;
   title: string;

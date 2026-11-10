@@ -23,8 +23,7 @@ import {
 } from 'lucide-react';
 import { EmptyStateRow } from '@/components/EmptyState';
 import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
-
-const PAGE_SIZE = 10;
+import { usePageSize } from '@/hooks/usePagination';
 
 const inputCls =
   'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -108,7 +107,11 @@ export default function SuppliersPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [history, setHistory] = useState<SupplierPurchaseOrder[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [historyError, setHistoryError] = useState('');
   const [historyPage, setHistoryPage] = useState(1);
+  const [pageSize, setPageSize] = usePageSize('suppliers');
+  const [historyPageSize, setHistoryPageSize] = usePageSize('supplier-history');
   const [historySearch, setHistorySearch] = useState('');
   const [historyCategory, setHistoryCategory] = useState('');
   const [historyLocation, setHistoryLocation] = useState('');
@@ -129,26 +132,40 @@ export default function SuppliersPage() {
   const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
   const [sort, setSort] = useState<SortState>({ key: '', dir: null });
 
+  // PO history covers every PO, so it is only fetched when its tab is opened.
+  async function loadHistory() {
+    setHistoryLoading(true);
+    setHistoryError('');
+    try {
+      setHistory(await supplierApi.getAllHistory());
+      setHistoryLoaded(true);
+    } catch (err: unknown) {
+      setHistoryError(err instanceof Error ? err.message : 'Unable to load PO history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  function showHistoryTab() {
+    setActiveTab('history');
+    if (!historyLoaded && !historyLoading) loadHistory();
+  }
+
   async function openHistory(item: Supplier) {
     setSelectedSupplier(item);
-    setActiveTab('history');
+    showHistoryTab();
   }
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      setHistoryLoading(true);
-      const [itemList, historyList] = await Promise.all([
-        supplierApi.list({ include_archived: 'true' }),
-        supplierApi.getAllHistory()
-      ]);
-      setItems(itemList);
-      setHistory(historyList);
+      setItems(await supplierApi.list({ include_archived: 'true' }));
+      // Supplier edits change names/categories shown in history — refetch on next open.
+      setHistoryLoaded(false);
     } catch {
       // silently fail
     } finally {
       setLoading(false);
-      setHistoryLoading(false);
     }
   }, []);
 
@@ -230,13 +247,13 @@ export default function SuppliersPage() {
     });
   }, [filtered, sort]);
 
-  const totalPages = Math.max(1, Math.ceil(sortedSuppliers.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(sortedSuppliers.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pagedSuppliers = sortedSuppliers.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pagedSuppliers = sortedSuppliers.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  const totalHistoryPages = Math.max(1, Math.ceil(historyRows.length / PAGE_SIZE));
+  const totalHistoryPages = Math.max(1, Math.ceil(historyRows.length / historyPageSize));
   const safeHistoryPage = Math.min(historyPage, totalHistoryPages);
-  const pagedHistoryRows = historyRows.slice((safeHistoryPage - 1) * PAGE_SIZE, safeHistoryPage * PAGE_SIZE);
+  const pagedHistoryRows = historyRows.slice((safeHistoryPage - 1) * historyPageSize, safeHistoryPage * historyPageSize);
 
   function openAdd() {
     setEditItem(null);
@@ -365,7 +382,7 @@ export default function SuppliersPage() {
 
         <div className="flex items-center gap-1 border-b border-slate-200">
           <button onClick={() => setActiveTab('suppliers')} className={`px-4 py-2.5 text-sm font-normal border-b-2 ${activeTab === 'suppliers' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600'}`}>Supplier Database</button>
-          <button onClick={() => setActiveTab('history')} className={`px-4 py-2.5 text-sm font-normal border-b-2 ${activeTab === 'history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600'}`}>PO History & Production Links</button>
+          <button onClick={showHistoryTab} className={`px-4 py-2.5 text-sm font-normal border-b-2 ${activeTab === 'history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600'}`}>PO History & Production Links</button>
         </div>
 
         {activeTab === 'history' ? (
@@ -379,7 +396,7 @@ export default function SuppliersPage() {
               <select value={historyCategory} onChange={e => setHistoryCategory(e.target.value)} className={inputCls + ' sm:w-48'}><option value="">All categories</option>{historyCategories.map(category => <option key={category} value={category}>{category}</option>)}</select>
               <input value={historyLocation} onChange={e => setHistoryLocation(e.target.value)} placeholder="Filter location" className={inputCls + ' sm:w-48'} />
             </div>
-            {historyLoading ? <div className="px-5 py-12 text-center text-slate-400">Loading PO history…</div> : historyRows.length === 0 ? <div className="px-5 py-12 text-center text-slate-500">No purchase order connections match these filters.</div> : (
+            {historyLoading ? <div className="px-5 py-12 text-center text-slate-400">Loading PO history…</div> : historyError ? <div className="px-5 py-12 text-center text-red-600"><AlertCircle size={14} className="inline mr-1" />{historyError} <button onClick={loadHistory} className="ml-2 text-blue-600 hover:underline">Retry</button></div> : historyRows.length === 0 ? <div className="px-5 py-12 text-center text-slate-500">No purchase order connections match these filters.</div> : (
               <>
                 <div className="overflow-x-auto"><table className="w-full text-sm min-w-[1000px]"><thead><tr className="bg-slate-50 text-left border-b border-slate-100">{['Supplier', 'Category', 'Location', 'PO Number', 'Title', 'Production', 'Date', 'Status', 'Net', 'Gross'].map(h => <th key={h} className="px-4 py-3 text-xs font-semibold text-slate-500">{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{pagedHistoryRows.map(po => <tr key={po.id}><td className="px-4 py-3 text-slate-800 font-medium">{po.supplier_name}</td><td className="px-4 py-3 text-slate-600">{po.supplier_category || '—'}</td><td className="px-4 py-3 text-slate-600">{po.supplier_location || '—'}</td><td className="px-4 py-3 text-slate-800 font-medium">{po.po_number}</td><td className="px-4 py-3 text-slate-600">{po.title || '—'}</td><td className="px-4 py-3 text-slate-700"><Link href={`/productions/${po.production_id}`} className="text-blue-600 hover:underline">{po.production_name}</Link><div className="text-xs text-slate-400">{po.production_status}</div></td><td className="px-4 py-3 text-slate-600">{new Date(po.date_of_po).toLocaleDateString('en-GB')}</td><td className="px-4 py-3 text-slate-600 capitalize">{po.status.replace(/_/g, ' ')}</td><td className="px-4 py-3 text-slate-700">£{Number(po.net_amount).toFixed(2)}</td><td className="px-4 py-3 text-slate-700">£{Number(po.gross_amount).toFixed(2)}</td></tr>)}</tbody></table></div>
                 {/* Pagination */}
@@ -388,7 +405,8 @@ export default function SuppliersPage() {
                   totalPages={totalHistoryPages}
                   onPageChange={setHistoryPage}
                   totalItems={historyRows.length}
-                  pageSize={PAGE_SIZE}
+                  pageSize={historyPageSize}
+                  onPageSizeChange={(size) => { setHistoryPageSize(size); setHistoryPage(1); }}
                   itemName="purchase orders"
                 />
               </>
@@ -607,7 +625,8 @@ export default function SuppliersPage() {
               totalPages={totalPages}
               onPageChange={setPage}
               totalItems={filtered.length}
-              pageSize={PAGE_SIZE}
+              pageSize={pageSize}
+              onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
               itemName="suppliers"
             />
           </div>

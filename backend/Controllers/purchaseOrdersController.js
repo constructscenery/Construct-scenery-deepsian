@@ -28,6 +28,9 @@ const buildPoFilterConditions = (query) => {
   if (query.amount_max)    { conditions.push(`po.gross_amount <= $${i++}`);        params.push(query.amount_max); }
   if (query.net_amount_min){ conditions.push(`po.net_amount >= $${i++}`);          params.push(query.net_amount_min); }
   if (query.net_amount_max){ conditions.push(`po.net_amount <= $${i++}`);          params.push(query.net_amount_max); }
+  // ProductionStatus.COMPLETE — opt-in split so historical POs are only loaded when asked for
+  if (query.production_scope === 'current')   { conditions.push(`p.status != $${i++}`); params.push('complete'); }
+  if (query.production_scope === 'completed') { conditions.push(`p.status = $${i++}`);  params.push('complete'); }
 
   if (query.search) {
     conditions.push(`(
@@ -392,24 +395,19 @@ const updatePO = async (req, res) => {
 };
 
 // ─── POST /api/purchase-orders/:id/issue ─────────────────────────────────────
-// Sends PO to supplier via email with PDF attachment; advances draft → issued.
+// Manual, user-triggered send of an APPROVED PO to the supplier. Status is unchanged.
 const issuePO = async (req, res) => {
-  const client = await db.connect();
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'Invalid purchase order id' });
   try {
-    await client.query('BEGIN');
-
-    const { rows: [po] } = await client.query(
+    const { rows: [po] } = await db.query(
       `${ENRICHED_PO_SELECT} WHERE po.id = $1`,
       [req.params.id]
     );
-    if (!po)                     { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Purchase order not found' }); }
-    if (po.status !== 'draft')   { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Only draft POs can be issued' }); }
-    if (!po.supplier_email)      { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Supplier email is required to issue a PO' }); }
+    if (!po)                      return res.status(404).json({ error: 'Purchase order not found' });
+    if (po.status !== 'approved') return res.status(409).json({ error: 'Only approved purchase orders can be sent to the supplier' });
+    if (!po.supplier_email)       return res.status(400).json({ error: 'Supplier email is required to send a PO' });
 
-    // Generate PDF
     const pdfBuffer = await generatePoPdf(po, po.prod_name);
-
-    // Send email with PDF attachment
     const { subject, html } = templates.poIssued(po, po.prod_name);
     await sendEmail({
       to:      po.supplier_email,
@@ -418,26 +416,25 @@ const issuePO = async (req, res) => {
       attachments: [{ filename: `${po.po_number}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }],
     });
 
-    // Advance status
-    const { rows: [updated] } = await client.query(
-      `UPDATE purchase_orders SET status = 'issued' WHERE id = $1 RETURNING *`,
-      [req.params.id]
-    );
-    await logStatusTransition(client, po.id, po.production_id, 'draft', 'issued', req.user.id);
-
-    await client.query('COMMIT');
-    res.json({ message: 'PO issued to supplier', purchase_order: updated });
+    await logAudit({
+      userId: req.user.id,
+      productionId: po.production_id,
+      category: 'financial',
+      action: 'po_issued',
+      entityType: 'purchase_order',
+      entityId: po.id,
+      details: `Sent ${po.po_number} to supplier (${po.supplier_email})`,
+      metadata: { po_id: po.id, po_number: po.po_number, to: po.supplier_email },
+    });
+    res.json({ message: `PO sent to ${po.supplier_email}` });
   } catch (err) {
-    await client.query('ROLLBACK');
     console.error('issuePO:', err);
-    res.status(500).json({ error: err.message });
-  } finally {
-    client.release();
+    res.status(500).json({ error: 'Failed to send PO to supplier. Please try again.' });
   }
 };
 
 // ─── POST /api/purchase-orders/:id/submit ────────────────────────────────────
-// Advances draft → submitted and emails the PO PDF to the supplier if an email is set.
+// Advances draft → submitted for internal approval. Nothing is sent to the supplier.
 const submitPO = async (req, res) => {
   const client = await db.connect();
   try {
@@ -458,22 +455,6 @@ const submitPO = async (req, res) => {
     await logStatusTransition(client, po.id, po.production_id, 'draft', newStatus, req.user.id);
 
     await client.query('COMMIT');
-
-    // Send PO to supplier email in the background (non-blocking)
-    if (po.supplier_email) {
-      generatePoPdf(po, po.prod_name)
-        .then(pdfBuffer => {
-          const { subject, html } = templates.poIssued(po, po.prod_name);
-          return sendEmail({
-            to: po.supplier_email,
-            subject,
-            html,
-            attachments: [{ filename: `${po.po_number}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }],
-          });
-        })
-        .catch(emailErr => console.error('submitPO email failed:', emailErr.message));
-    }
-
     res.json({ message: 'PO submitted for approval', purchase_order: updated });
   } catch (err) {
     await client.query('ROLLBACK');

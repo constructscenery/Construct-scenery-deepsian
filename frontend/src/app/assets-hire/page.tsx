@@ -21,6 +21,8 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useUIPreferences } from '@/contexts/UIPreferencesContext';
 import { EmptyStateRow } from '@/components/EmptyState';
+import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
+import { usePagedList } from '@/hooks/usePagination';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -157,6 +159,9 @@ export default function AssetsHirePage() {
       return bDate - aDate;
     });
   }, [hireList, hSearch, hStatusFilter, hProdFilter]);
+
+  const vehiclesPager = usePagedList(filteredVehicles, 'assets-vehicles');
+  const hirePager = usePagedList(filteredHireList, 'assets-hire');
 
   // ─── Actions ────────────────────────────────────────────────────────────────
 
@@ -549,7 +554,7 @@ export default function AssetsHirePage() {
                         />
                       )
                     ) : (
-                      filteredVehicles.map(v => (
+                      vehiclesPager.pageItems.map(v => (
                         <tr key={v.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="px-4 py-3">
                             <div className="text-slate-800">{v.registration_number}</div>
@@ -624,6 +629,7 @@ export default function AssetsHirePage() {
                   </tbody>
                 </table>
               </div>
+              {!loading && <PaginationScrollIndicator {...vehiclesPager.barProps} itemName="vehicles" />}
             </div>
           </div>
         )}
@@ -748,7 +754,7 @@ export default function AssetsHirePage() {
                         />
                       )
                     ) : (
-                      filteredHireList.map(h => (
+                      hirePager.pageItems.map(h => (
                         <tr key={h.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="px-4 py-3">
                             <div className="font-bold text-slate-900 text-sm">{h.equipment_type}</div>
@@ -838,6 +844,7 @@ export default function AssetsHirePage() {
                   </tbody>
                 </table>
               </div>
+              {!loading && <PaginationScrollIndicator {...hirePager.barProps} itemName="hire items" />}
             </div>
           </div>
         )}

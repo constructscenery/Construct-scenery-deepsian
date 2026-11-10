@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Monitor, Plus, Pencil, Trash2, Search, Key, X, AlertCircle, Eye, Copy, Check } from 'lucide-react';
 import { itResourcesApi, ITResource } from '@/lib/api';
+import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
+import { usePagedList } from '@/hooks/usePagination';
 
 const fmtDate = (d: string | null | undefined) =>
   d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -186,6 +188,7 @@ export default function ITResourcesTab({ isCoordinatorOrMD }: { isCoordinatorOrM
     const bDate = new Date(b.renewal_date || b.subscription_start || b.created_at || 0).getTime();
     return bDate - aDate;
   });
+  const pager = usePagedList(filteredResources, 'assets-it');
 
   return (
     <div className="space-y-4">
@@ -251,7 +254,7 @@ export default function ITResourcesTab({ isCoordinatorOrMD }: { isCoordinatorOrM
                   </td>
                 </tr>
               ) : (
-                filteredResources.map(r => (
+                pager.pageItems.map(r => (
                   <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-4 py-3">
                       <div className="font-bold text-slate-900 text-sm">{r.name}</div>
@@ -309,6 +312,7 @@ export default function ITResourcesTab({ isCoordinatorOrMD }: { isCoordinatorOrM
             </tbody>
           </table>
         </div>
+        {!loading && <PaginationScrollIndicator {...pager.barProps} itemName="IT resources" />}
       </div>
 
       {/* Add / Edit IT Resource Modal */}

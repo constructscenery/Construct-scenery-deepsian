@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { laddersApi, Ladder, LadderReminder } from '@/lib/api';
 import { EmptyStateRow } from '@/components/EmptyState';
+import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
+import { usePagedList } from '@/hooks/usePagination';
 
 const fmtDate = (d: string | null | undefined) =>
   d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -387,6 +389,8 @@ export default function LaddersTab({ isCoordinatorOrMD }: { isCoordinatorOrMD: b
     );
   };
 
+  const pager = usePagedList(filteredLadders, 'assets-ladders');
+
   return (
     <div className="space-y-4">
       {/* Toast Notification */}
@@ -581,7 +585,7 @@ export default function LaddersTab({ isCoordinatorOrMD }: { isCoordinatorOrMD: b
                   />
                 )
               ) : (
-                filteredLadders.map(l => (
+                pager.pageItems.map(l => (
                   <tr
                     key={l.id}
                     className={`hover:bg-slate-50/80 transition-colors ${
@@ -725,6 +729,7 @@ export default function LaddersTab({ isCoordinatorOrMD }: { isCoordinatorOrMD: b
             </tbody>
           </table>
         </div>
+        {!loading && <PaginationScrollIndicator {...pager.barProps} itemName="ladders" />}
       </div>
 
       {/* ─── MODAL 1: ADD / EDIT LADDER ────────────────────────────────────── */}

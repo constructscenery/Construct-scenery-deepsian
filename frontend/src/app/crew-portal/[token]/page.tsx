@@ -349,7 +349,12 @@ function InvoiceSection({ token, home, initialProduction, initialWeek, onChanged
               <li key={`${o.production_id}${o.week_ending_date}`}>
                 <button onClick={() => { setProductionId(o.production_id); setWeek(o.week_ending_date); setAmount(Number(o.grand_total).toFixed(2)); }} className="w-full flex items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-left text-sm">
                   <span className="min-w-0 truncate">w/e {fmtDate(o.week_ending_date)} · {o.production_name}</span>
-                  <span className="font-semibold text-amber-900">£{Number(o.grand_total).toFixed(2)}</span>
+                  <span className="text-right shrink-0">
+                    <span className="block font-semibold text-amber-900">£{Number(o.grand_total).toFixed(2)} to invoice</span>
+                    {Number(o.vat) > 0 && (
+                      <span className="block text-xs text-amber-800">Timesheet £{Number(o.gross_total).toFixed(2)} + VAT £{Number(o.vat).toFixed(2)}</span>
+                    )}
+                  </span>
                 </button>
               </li>
             ))}

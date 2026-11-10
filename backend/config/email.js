@@ -217,9 +217,15 @@ const templates = {
   /**
    * Invoice chase reminder (self-employed crew only).
    */
-  invoiceChase: (crewName, weekEndingDate, grandTotal) => ({
-    subject: `Reminder: Invoice Required — Week Ending ${weekEndingDate}`,
-    html: `
+  invoiceChase: (crewName, weekEndingDate, grandTotal, options = {}) => {
+    const grossTotalToInvoice = parseFloat(grandTotal || 0);
+    const vatAmount           = parseFloat(options.vatAmount || 0);
+    const timesheetTotal      = options.timesheetTotal !== undefined && options.timesheetTotal !== null
+      ? parseFloat(options.timesheetTotal || 0)
+      : grossTotalToInvoice - vatAmount;
+    return {
+      subject: `Reminder: Invoice Required — Week Ending ${weekEndingDate}`,
+      html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
         <div style="background:#0f172a;padding:16px 24px;margin-bottom:24px">
           <span style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1px">Construct Scenery</span>
@@ -229,13 +235,29 @@ const templates = {
         <p style="color:#64748b;margin:0 0 20px">Week ending: <strong>${weekEndingDate}</strong></p>
         <p>Dear ${crewName},</p>
         <p>We have not yet received your invoice for the week ending <strong>${weekEndingDate}</strong>.</p>
-        <p>Your timesheet total is <strong>£${parseFloat(grandTotal || 0).toFixed(2)}</strong>. Please submit your invoice for this amount as soon as possible so we can process your payment promptly.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;background:#f8fafc;border-radius:6px">
+          <tr>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0"><strong>Timesheet total</strong></td>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0">£${timesheetTotal.toFixed(2)}</td>
+          </tr>
+          ${vatAmount > 0 ? `
+          <tr>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0"><strong>VAT Amount (20%)</strong></td>
+            <td style="padding:10px 16px;border-bottom:1px solid #e2e8f0">£${vatAmount.toFixed(2)}</td>
+          </tr>` : ''}
+          <tr>
+            <td style="padding:10px 16px"><strong>Gross total to invoice</strong></td>
+            <td style="padding:10px 16px"><strong>£${grossTotalToInvoice.toFixed(2)}</strong></td>
+          </tr>
+        </table>
+        <p>Please submit your invoice for the <strong>gross total</strong> above as soon as possible so we can process your payment promptly.</p>
         <p>Please reply to this email with your invoice attached. If you have already sent it, please disregard this message.</p>
         <br/>
         <p style="color:#666;font-size:13px">Regards,<br/><strong>Construct Scenery Limited</strong><br/>invoice@constructscenery.co.uk</p>
       </div>
     `,
-  }),
+    };
+  },
 
   /**
    * Handover alert — sent to coordinators + MD at 14-day and 7-day marks

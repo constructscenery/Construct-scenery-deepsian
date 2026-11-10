@@ -608,6 +608,8 @@ export const purchaseOrdersApi = {
     request<{ message: string; purchase_order: PurchaseOrder }>(`/api/purchase-orders/${id}/revert-to-draft`, {
       method: 'POST', body: {},
     }),
+  sendToSupplier: (id: string) =>
+    request<{ message: string }>(`/api/purchase-orders/${id}/issue`, { method: 'POST', body: {} }),
   void: (id: string, reason: string) =>
     request<{ message: string; purchase_order: PurchaseOrder }>(`/api/purchase-orders/${id}/void`, {
       method: 'POST', body: { reason },

@@ -949,7 +949,7 @@ const chaseInvoices = async (req, res) => {
     if (week_ending_date) { conditions.push(`t.week_ending_date = $1`); params.push(week_ending_date); }
 
     const { rows } = await db.query(
-      `SELECT t.id, t.week_ending_date, t.grand_total,
+      `SELECT t.id, t.week_ending_date, t.grand_total, t.gross_total, t.vat,
               cm.first_name, cm.last_name, cm.email
        FROM timesheets t
        JOIN crew_members cm ON t.crew_member_id = cm.id
@@ -981,7 +981,7 @@ const chaseInvoices = async (req, res) => {
         await sendEmail({
           replyTo: 'invoice@constructscenery.co.uk',
           to:      t.email,
-          ...templates.invoiceChase(crewName, t.week_ending_date, t.grand_total),
+          ...templates.invoiceChase(crewName, t.week_ending_date, t.grand_total, { timesheetTotal: t.gross_total, vatAmount: t.vat }),
         });
         await logEmail('invoice_chase', t.id, t.email, crewName, true);
         results.sent.push(crewName);

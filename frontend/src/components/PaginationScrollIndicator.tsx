@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { PAGE_SIZE_OPTIONS } from '@/hooks/usePagination';
 
 interface PaginationScrollIndicatorProps {
   page: number;
@@ -9,6 +10,8 @@ interface PaginationScrollIndicatorProps {
   onPageChange: (newPage: number) => void;
   totalItems: number;
   pageSize: number;
+  /** When provided, shows a rows-per-page selector (10 / 25 / 50 / 100). */
+  onPageSizeChange?: (size: number) => void;
   itemName?: string;
   className?: string;
 }
@@ -19,6 +22,7 @@ export default function PaginationScrollIndicator({
   onPageChange,
   totalItems,
   pageSize,
+  onPageSizeChange,
   itemName = 'items',
   className = '',
 }: PaginationScrollIndicatorProps) {
@@ -112,9 +116,25 @@ export default function PaginationScrollIndicator({
       className={`px-4 py-2 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3 ${className}`}
     >
       {/* Item count summary */}
-      <span className="text-slate-400 text-xs font-normal">
-        Showing {startItem}–{endItem} of {totalItems} {itemName}
-      </span>
+      <div className="flex items-center gap-3">
+        <span className="text-slate-400 text-xs font-normal">
+          Showing {startItem}–{endItem} of {totalItems} {itemName}
+        </span>
+        {onPageSizeChange && (
+          <label className="flex items-center gap-1.5 text-xs text-slate-400 font-normal">
+            Rows per page
+            <select
+              value={pageSize}
+              onChange={(e) => onPageSizeChange(Number(e.target.value))}
+              className="bg-white border border-slate-200 rounded-md px-1.5 py-0.5 text-xs text-slate-700 outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
 
       {/* Sleek Pagination Controls */}
       <div className="flex items-center gap-1.5">

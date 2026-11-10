@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { containersApi, Container, ContainerInput, ContainerStatus, ContainerOwnership, ContainerCondition, Production } from '@/lib/api';
 import AttachedDocuments from '@/components/AttachedDocuments';
+import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
+import { usePagedList } from '@/hooks/usePagination';
 
 const fmtDate = (d: string | null | undefined) =>
   d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -230,6 +232,8 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
     return bDate - aDate;
   });
 
+  const pager = usePagedList(filtered, 'assets-containers');
+
   // KPI Metrics
   const totalCount = containers.length;
   const availableCount = containers.filter(c => c.status === 'available').length;
@@ -420,7 +424,7 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
                   </td>
                 </tr>
               ) : (
-                filtered.map(c => {
+                pager.pageItems.map(c => {
                   const statusInfo = STATUS_CONFIG[c.status] || STATUS_CONFIG.available;
                   const condInfo = CONDITION_CONFIG[c.condition] || CONDITION_CONFIG.good;
 
@@ -558,6 +562,7 @@ export default function ContainersTab({ isCoordinatorOrMD, productions }: Contai
             </tbody>
           </table>
         </div>
+        {!loading && <PaginationScrollIndicator {...pager.barProps} itemName="containers" />}
       </div>
 
       {/* Add / Edit Container Modal */}

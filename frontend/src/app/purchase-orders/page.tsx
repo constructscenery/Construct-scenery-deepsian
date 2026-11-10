@@ -39,6 +39,7 @@ import {
   RotateCcw,
   Ban,
   History as HistoryIcon,
+  Send as SendIcon,
   ChevronDown,
   Building2,
   Paperclip,
@@ -46,8 +47,7 @@ import {
 import { EmptyStateRow } from '@/components/EmptyState';
 import AttachedDocuments from '@/components/AttachedDocuments';
 import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
-
-const PAGE_SIZE = 10;
+import { usePageSize } from '@/hooks/usePagination';
 
 const CSV_HEADERS = [
   'PO Number',
@@ -135,7 +135,7 @@ function getTrafficLight(status: string) {
 const PO_HISTORY_LABEL: Record<string, string> = {
   po_created: 'Raised',
   po_submitted: 'Submitted',
-  po_issued: 'Issued to supplier',
+  po_issued: 'Sent to supplier',
   po_invoice_received: 'Submitted (invoice attached)',
   po_approved: 'Approved',
   po_reverted_to_draft: 'Reverted to draft',
@@ -385,12 +385,13 @@ export default function PurchaseOrdersPage() {
 
   const [statusFilter, setStatusFilter] = useState<TabFilter>(isMD ? 'approved' : 'all');
   const [actionError, setActionError] = useState<{ id: string; msg: string } | null>(null);
+  const [loadError, setLoadError] = useState('');
   const [permanentDeletePO, setPermanentDeletePO] = useState<PurchaseOrder | null>(null);
   const [permanentDeletingPO, setPermanentDeletingPO] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortState>({ key: '', dir: null });
-  const pageSize = PAGE_SIZE;
+  const [pageSize, setPageSize] = usePageSize('purchase-orders');
   const [openActionDropdownId, setOpenActionDropdownId] = useState<string | null>(null);
   const [actionMenuPos, setActionMenuPos] = useState<{ top?: number; bottom?: number; right: number; maxHeight: number } | null>(null);
   const [selectedPoIds, setSelectedPoIds] = useState<Set<string>>(new Set());
@@ -463,6 +464,7 @@ export default function PurchaseOrdersPage() {
   }, [showAllProductionsInRaiseModal, activeProductions, productions]);
 
   const [viewMode, setViewMode] = useState<'purchasing' | 'accounting'>('purchasing');
+  const [poScope, setPoScope] = useState<'current' | 'completed'>('current');
   const [viewFullPO, setViewFullPO] = useState<PurchaseOrder | null>(null);
   const [supplierOverviewModal, setSupplierOverviewModal] = useState<string | null>(null);
 
@@ -801,6 +803,9 @@ export default function PurchaseOrdersPage() {
       if (poFilters.supplier_name) params.supplier_name = poFilters.supplier_name;
       if (statusFilter === 'archived') {
         params.archived_only = 'true';
+      } else if (!poFilters.production_id) {
+        // Completed productions hold thousands of historical POs — only fetched on that sub-tab.
+        params.production_scope = poScope;
       }
 
       const [poList, prodList] = await Promise.all([
@@ -809,11 +814,13 @@ export default function PurchaseOrdersPage() {
       ]);
       setPos(poList);
       setProductions(prodList);
-    } catch {
+      setLoadError('');
+    } catch (err: unknown) {
+      setLoadError(err instanceof Error ? err.message : 'Unable to load purchase orders');
     } finally {
       setLoading(false);
     }
-  }, [poFilters, statusFilter]);
+  }, [poFilters, statusFilter, poScope]);
 
   useEffect(() => {
     loadData();
@@ -1007,6 +1014,20 @@ export default function PurchaseOrdersPage() {
       await loadData();
     } catch (err: unknown) {
       setActionError({ id, msg: err instanceof Error ? err.message : 'Approval failed' });
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleSendToSupplier(po: PurchaseOrder) {
+    if (!confirm(`Send ${po.po_number} to ${po.supplier_email || 'the supplier email on file'}?\n\nThe PO PDF will be emailed to the supplier now.`)) return;
+    setActionLoading(po.id + ':send');
+    setActionError(null);
+    try {
+      const { message } = await purchaseOrdersApi.sendToSupplier(po.id);
+      alert(message);
+    } catch (err: unknown) {
+      setActionError({ id: po.id, msg: err instanceof Error ? err.message : 'Send to supplier failed' });
     } finally {
       setActionLoading(null);
     }
@@ -1542,6 +1563,20 @@ export default function PurchaseOrdersPage() {
                   )}
                 </button>
               )}
+              {/* Production scope: current vs completed (historical) */}
+              {statusFilter !== 'archived' && !poFilters.production_id && (
+                <div className="flex items-center bg-slate-200/50 rounded-lg p-1">
+                  {([['current', 'Current Productions'], ['completed', 'Completed Productions']] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      onClick={() => { setPoScope(value); setPage(1); }}
+                      className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${poScope === value ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
               {/* View Toggle */}
               <div className="flex items-center bg-slate-200/50 rounded-lg p-1 ml-auto">
                 <button
@@ -1891,6 +1926,15 @@ export default function PurchaseOrdersPage() {
               <tbody className="divide-y divide-slate-100">
                 {loading
                   ? Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
+                  : loadError
+                    ? (
+                      <tr>
+                        <td colSpan={10} className="px-5 py-12 text-center text-sm text-red-600">
+                          <AlertCircle size={14} className="inline mr-1" />Couldn&apos;t load purchase orders: {loadError}
+                          <button type="button" onClick={loadData} className="ml-2 text-blue-600 hover:underline">Retry</button>
+                        </td>
+                      </tr>
+                    )
                   : pagePos.length === 0
                     ? (
                       pos.length === 0 ? (
@@ -2204,6 +2248,19 @@ export default function PurchaseOrdersPage() {
                                         <button
                                           type="button"
                                           disabled={!!busy}
+                                          onClick={() => { setOpenActionDropdownId(null); handleSendToSupplier(po); }}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-blue-700 hover:bg-blue-50 font-normal transition-colors disabled:opacity-50"
+                                        >
+                                          {busy && actionLoading === po.id + ':send'
+                                            ? <Loader2 size={13} className="animate-spin text-blue-600" />
+                                            : <SendIcon size={13} className="text-blue-600" />}
+                                          <span>Send to Supplier</span>
+                                        </button>
+                                      )}
+                                      {po.status === 'approved' && (
+                                        <button
+                                          type="button"
+                                          disabled={!!busy}
                                           onClick={() => { setOpenActionDropdownId(null); handleRevertToDraft(po); }}
                                           className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-amber-700 hover:bg-amber-50 font-normal transition-colors disabled:opacity-50"
                                         >
@@ -2439,6 +2496,7 @@ export default function PurchaseOrdersPage() {
             onPageChange={setPage}
             totalItems={filteredPos.length}
             pageSize={pageSize}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
             itemName="purchase orders"
           />
         </div>

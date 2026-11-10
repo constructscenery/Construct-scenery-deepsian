@@ -19,6 +19,8 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useUIPreferences } from '@/contexts/UIPreferencesContext';
 import { EmptyStateRow } from '@/components/EmptyState';
+import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
+import { usePagedList } from '@/hooks/usePagination';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -1179,6 +1181,9 @@ export default function CrewPage() {
     );
   });
 
+  const crewPager = usePagedList(crew, 'crew');
+  const requestsPager = usePagedList(filteredRequests, 'crew-requests');
+
   return (
     <>
       {showModal && (
@@ -1532,7 +1537,7 @@ export default function CrewPage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredRequests.map((r, idx) => {
+                    requestsPager.pageItems.map((r, idx) => {
                       const colorClass = AVATAR_COLORS[idx % AVATAR_COLORS.length];
                       return (
                         <tr
@@ -1681,7 +1686,7 @@ export default function CrewPage() {
                       />
                     )
                   ) : (
-                    crew.map((c, idx) => {
+                    crewPager.pageItems.map((c, idx) => {
                       const colorClass = AVATAR_COLORS[idx % AVATAR_COLORS.length];
                       return (
                         <tr key={c.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => router.push(`/crew/${c.id}`)}>
@@ -1861,17 +1866,15 @@ export default function CrewPage() {
             </div>
           )}
 
-          {activeTab !== 'freelancers' && !isRoleContactTab(activeTab) && <div className="px-5 py-3 border-t border-slate-100 bg-slate-50">
-            <span className="text-slate-400 text-xs">
-              {activeTab === 'requests'
-                ? loadingRequests
-                  ? 'Loading requests…'
-                  : `${filteredRequests.length} request${filteredRequests.length !== 1 ? 's' : ''} listed`
-                : loading
-                ? 'Loading…'
-                : `${crew.length} crew member${crew.length !== 1 ? 's' : ''} found`}
-            </span>
-          </div>}
+          {activeTab === 'requests' ? (
+            loadingRequests
+              ? <div className="px-5 py-3 border-t border-slate-100 bg-slate-50"><span className="text-slate-400 text-xs">Loading requests…</span></div>
+              : <PaginationScrollIndicator {...requestsPager.barProps} itemName="requests" />
+          ) : activeTab !== 'freelancers' && activeTab !== 'import' && !isRoleContactTab(activeTab) && (
+            loading
+              ? <div className="px-5 py-3 border-t border-slate-100 bg-slate-50"><span className="text-slate-400 text-xs">Loading…</span></div>
+              : <PaginationScrollIndicator {...crewPager.barProps} itemName="crew members" />
+          )}
         </div>
       </main>
 

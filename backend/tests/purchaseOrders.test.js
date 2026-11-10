@@ -15,6 +15,13 @@ jest.mock('../services/costReportService', () => ({
   recordSupplierCost: jest.fn().mockResolvedValue(undefined),
   softDeleteEntry:    jest.fn().mockResolvedValue(undefined),
 }));
+jest.mock('../services/poPdfService', () => ({
+  ...jest.requireActual('../services/poPdfService'),
+  generatePoPdf: jest.fn().mockResolvedValue(Buffer.from('%PDF')),
+}));
+
+const { sendEmail, templates } = require('../config/email');
+templates.poIssued = () => ({ subject: 'PO', html: '<p>po</p>' });
 
 const poRouter = require('../routes/purchaseOrders');
 const app = makeApp(['/api/purchase-orders', poRouter]);
@@ -41,6 +48,24 @@ describe('GET /api/purchase-orders', () => {
   test('No auth → 401', async () => {
     const res = await request(app).get('/api/purchase-orders');
     expect(res.status).toBe(401);
+  });
+
+  test.each([
+    ['current',   /p\.status != \$\d+/],
+    ['completed', /p\.status = \$\d+/],
+  ])('production_scope=%s filters by completed productions', async (scope, re) => {
+    dbMock.respond([SAMPLE_PO]);
+    const res = await request(app).get(`/api/purchase-orders?production_scope=${scope}`).set(authHeader('md'));
+    expect(res.status).toBe(200);
+    const { sql, params } = dbMock.queries[0];
+    expect(sql).toMatch(re);
+    expect(params).toContain('complete');
+  });
+
+  test('No production_scope → no completed-production filter (other callers unchanged)', async () => {
+    dbMock.respond([SAMPLE_PO]);
+    await request(app).get('/api/purchase-orders?status=submitted').set(authHeader('md'));
+    expect(dbMock.queries[0].params).not.toContain('complete');
   });
 });
 
@@ -181,6 +206,51 @@ describe('POST /api/purchase-orders/:id/submit', () => {
   test('No auth → 401', async () => {
     const res = await request(app).post('/api/purchase-orders/po-001/submit');
     expect(res.status).toBe(401);
+  });
+
+  test('Submitting never emails the supplier', async () => {
+    sendEmail.mockClear();
+    const withEmail = { ...SAMPLE_PO, status: 'draft', supplier_email: 'sales@treeline.co.uk' };
+    dbMock.respond({ rows: [], rowCount: 0 });                  // BEGIN
+    dbMock.respond([withEmail]);                                // SELECT
+    dbMock.respond([{ ...withEmail, status: 'submitted' }]);    // UPDATE RETURNING
+    dbMock.respond({ rows: [], rowCount: 1 });                  // logStatusTransition INSERT
+    dbMock.respond({ rows: [], rowCount: 0 });                  // COMMIT
+    const res = await request(app).post('/api/purchase-orders/po-001/submit').set(authHeader('coordinator'));
+    expect(res.status).toBe(200);
+    await new Promise(r => setImmediate(r));
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+});
+
+// ─── POST /api/purchase-orders/:id/issue (manual send to supplier) ───────────────
+describe('POST /api/purchase-orders/:id/issue', () => {
+  const PO_ID = '11111111-1111-4111-8111-111111111111';
+  const base  = { ...SAMPLE_PO, id: PO_ID, supplier_email: 'sales@treeline.co.uk' };
+
+  beforeEach(() => sendEmail.mockClear());
+
+  test.each(['draft', 'submitted', 'invoice_received', 'voided'])('%s PO cannot be sent — 409, no email', async (status) => {
+    dbMock.respond([{ ...base, status }]);
+    const res = await request(app).post(`/api/purchase-orders/${PO_ID}/issue`).set(authHeader('md'));
+    expect(res.status).toBe(409);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  test('Approved PO is emailed once and its status is not changed', async () => {
+    dbMock.respond([{ ...base, status: 'approved' }]);
+    const res = await request(app).post(`/api/purchase-orders/${PO_ID}/issue`).set(authHeader('md'));
+    expect(res.status).toBe(200);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(sendEmail.mock.calls[0][0].to).toBe('sales@treeline.co.uk');
+    expect(dbMock.queries.some(q => /UPDATE\s+purchase_orders/i.test(q.sql))).toBe(false);
+  });
+
+  test('Approved PO without a supplier email — 400', async () => {
+    dbMock.respond([{ ...base, status: 'approved', supplier_email: null }]);
+    const res = await request(app).post(`/api/purchase-orders/${PO_ID}/issue`).set(authHeader('md'));
+    expect(res.status).toBe(400);
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 });
 

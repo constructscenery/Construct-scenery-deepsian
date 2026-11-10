@@ -17,6 +17,8 @@ import {
 } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyStateRow } from '@/components/EmptyState';
+import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
+import { usePagedList } from '@/hooks/usePagination';
 
 // ─── Inline API helpers ───────────────────────────────────────────────────────
 
@@ -1043,6 +1045,7 @@ export default function TimesheetsPage() {
     if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
     return 0;
   });
+  const sheetsPager = usePagedList(sortedSheets, 'timesheets');
 
   // Reset selection on week or production change
   useEffect(() => {
@@ -1689,7 +1692,7 @@ export default function TimesheetsPage() {
                   onClick={selectAllVisible}
                   className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors font-normal"
                 >
-                  All Visible ({sortedSheets.length})
+                  All Matching ({sortedSheets.length})
                 </button>
                 {selectedIds.size > 0 && (
                   <>
@@ -1749,8 +1752,8 @@ export default function TimesheetsPage() {
                         }}
                         onChange={toggleSelectAllVisible}
                         className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer align-middle"
-                        title="Select all visible timesheets"
-                        aria-label="Select all visible timesheets"
+                        title="Select all matching timesheets (all pages)"
+                        aria-label="Select all matching timesheets (all pages)"
                       />
                     </th>
                   )}
@@ -1822,7 +1825,7 @@ export default function TimesheetsPage() {
                     />
                   )
                 ) : (
-                  sortedSheets.map((ts, idx) => {
+                  sheetsPager.pageItems.map((ts, idx) => {
                     const colorClass = AVATAR_COLORS[idx % AVATAR_COLORS.length];
                     const badge = STATUS_BADGE[ts.status] ?? STATUS_BADGE.draft;
                     const invoiced = hasInvoice(ts);
@@ -2190,6 +2193,7 @@ export default function TimesheetsPage() {
               </tbody>
             </table>
           </div>
+          {!loading && <PaginationScrollIndicator {...sheetsPager.barProps} itemName="timesheets" />}
 
           <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
             <span className="text-slate-400 text-xs">
