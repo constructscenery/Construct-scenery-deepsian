@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   title: "Construct Scenery Database",
   description: "Construct Scenery Database management platform",
   icons: {
-    icon: "/theoffice_logo_square.jpeg",
+    icon: "/theoffice_logo_square.png",
     apple: "/theoffice_apple_icon.png",
   },
 };

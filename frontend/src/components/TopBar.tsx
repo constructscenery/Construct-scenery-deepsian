@@ -30,7 +30,7 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
     <>
       <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center px-4 md:px-6 gap-3 sticky top-0 z-20">
         {/* Mobile: logo */}
-        <img src="/theoffice_logo_square.jpeg" alt="TheOffice" className="md:hidden w-7 h-7 rounded-full object-contain flex-shrink-0" />
+        <img src="/theoffice_logo_square.png" alt="TheOffice" className="md:hidden w-7 h-7 rounded-full object-contain flex-shrink-0" />
 
         {/* Desktop: Sidebar quick expand triggers if flap 1 or flap 2 is closed */}
         {!flap1Open ? (
@@ -40,7 +40,7 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
             title="Open Sidebar (Flap 1)"
             aria-label="Open Sidebar"
           >
-            <img src="/theoffice_logo_square.jpeg" alt="" className="w-4 h-4 rounded-full object-contain" />
+            <img src="/theoffice_logo_square.png" alt="" className="w-4 h-4 rounded-full object-contain" />
             <span>Open Sidebar</span>
           </button>
         ) : !flap2Open ? (

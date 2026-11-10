@@ -33,7 +33,7 @@ export default function ForgotPasswordPage() {
       {/* Logo */}
       <div className="flex justify-center mb-8">
         <div className="flex items-center gap-3">
-          <img src="/theoffice_logo_square.jpeg" alt="TheOffice" className="w-10 h-10 rounded-full object-contain shadow-lg flex-shrink-0" />
+          <img src="/theoffice_logo_square.png" alt="TheOffice" className="w-10 h-10 rounded-full object-contain shadow-lg flex-shrink-0" />
           <div>
             <p className="text-slate-900 font-bold text-lg leading-tight">Construct Scenery Database</p>
           </div>

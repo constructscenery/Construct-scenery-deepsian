@@ -133,7 +133,7 @@ export default function Sidebar() {
           aria-label="Open Sidebar"
         >
           <img
-            src="/theoffice_logo_square.jpeg"
+            src="/theoffice_logo_square.png"
             alt=""
             className="w-5 h-5 rounded-full object-contain flex-shrink-0"
           />
@@ -157,7 +157,7 @@ export default function Sidebar() {
             aria-label="Toggle navigation drawer"
           >
             <img
-              src="/theoffice_logo_square.jpeg"
+              src="/theoffice_logo_square.png"
               alt="TheOffice"
               className="w-8 h-8 object-contain rounded-full"
             />
@@ -220,7 +220,7 @@ export default function Sidebar() {
         <div className="p-3 border-b border-blue-900/40">
           <div className="relative rounded-xl bg-[#092247]/90 border border-transparent p-2.5 flex items-center justify-between">
             <img
-              src="/theoffice_logo_wide.jpeg"
+              src="/theoffice_logo_wide.png"
               alt="TheOffice — Construct Scenery Limited"
               className="h-11 w-auto max-w-[calc(100%-1.75rem)] object-contain rounded-full"
             />
