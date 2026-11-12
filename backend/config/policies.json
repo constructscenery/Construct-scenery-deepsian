@@ -1319,16 +1319,7 @@
       "POST /api/forecasting/labour-flows/:id/version",
       "PUT /api/forecasting/cost-forecasts/:id",
       "PUT /api/forecasting/labour-flows/:id",
-      "GET /api/quotes",
-      "GET /api/quotes/:id",
-      "GET /api/quotes/:id/pdf",
-      "GET /api/sales/invoices",
-      "GET /api/sales/invoices/export",
-      "GET /api/sales/invoices/:id",
-      "GET /api/sales/summary",
-      "GET /api/sales/unallocated-reminder",
-      "GET /api/xero/status",
-      "GET /api/sales/invoices/:id/notes"
+      "GET /api/xero/status"
     ]
   }
 }
