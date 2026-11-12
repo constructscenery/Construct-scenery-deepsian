@@ -16,6 +16,7 @@ All authenticated application roles have full access to every application module
 |-------|-----------------|
 | `crew_members` | `home_address`, `account_name`, `account_number`, `sort_code`, `emergency_contact_phone` |
 | `pay_run_items` | `sort_code`, `account_number`, `account_name` |
+| `xero_connection` | `access_token`, `refresh_token` |
 
 **How to encrypt (JavaScript controllers):**
 ```js
@@ -70,6 +71,15 @@ All status values, types, and roles are defined in `backend/src/enums/index.ts`.
 | `CrewDocumentType` | `GOVERNMENT_ID`, `CONTRACT`, `OTHER` |
 | `PaidFrom` | `SUPPLIER_ACCOUNT`, `ARBUTHNOT_CURRENT_ACCOUNT`, `CHARGE_CARD`, `PLEO_CHARGE_CARD` |
 | `DayOfWeek` | `MONDAY` … `SUNDAY` |
+| `QuoteStatus` | `DRAFT`, `SENT`, `APPROVED`, `DECLINED`, `AWAITING_PO_REF`, `INVOICE_RAISED` |
+| `QuoteRecipientType` | `INTERNAL`, `EXTERNAL` |
+| `QuoteLineType` | `LABOUR_GRADE`, `LABOUR_DEPARTMENT`, `MATERIALS`, `PLANT_HIRE`, `MISC` |
+| `VatTreatment` | `STANDARD`, `ZERO`, `EXEMPT` |
+| `DiscountType` | `PERCENT`, `FIXED` |
+| `QuoteSendMethod` | `EMAIL`, `DOWNLOAD`, `LINK` |
+| `XeroInvoiceStatus` | `DRAFT`, `SUBMITTED`, `AUTHORISED`, `PAID`, `VOIDED`, `DELETED` |
+| `XeroConnectionStatus` | `CONNECTED`, `NEEDS_RECONNECT`, `DISCONNECTED` |
+| `SalesInvoiceStatus` (derived, not stored) | `OUTSTANDING`, `OVERDUE`, `PAID` |
 
 **In JavaScript controllers**, use the string values directly but document the enum reference with a comment:
 ```js

@@ -453,6 +453,7 @@ type AvailableWeek = {
   week_ending_date: string;
   timesheet_count: number;
   total_ex_vat: number;
+  total_incl_vat: number;
   pay_run_id: string | null;
   pay_run_status: string | null;
   processed_at: string | null;
@@ -562,7 +563,7 @@ function AvailableWeeksTab({ productionId, refreshSignal, canWrite, onOpenPrevie
                       {fmtGBP(Number(week.total_ex_vat) || 0)}
                     </td>
                     <td className="px-4 py-3.5 text-right text-slate-900 font-medium text-sm whitespace-nowrap">
-                      {fmtGBP(Math.round((Number(week.total_ex_vat) || 0) * 1.2 * 100) / 100)}
+                      {fmtGBP(Number(week.total_incl_vat) || 0)}
                     </td>
                     <td className="px-4 py-3.5">
                       <StatusBadge status={badgeStatus} />

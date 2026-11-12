@@ -1546,7 +1546,7 @@ export type PayRunPreview = {
 };
 export const payRunsApi = {
   getAvailableWeeks: (production_id: string) =>
-    request<Array<{ week_ending_date: string; timesheet_count: number; total_ex_vat: number; pay_run_id: string | null; pay_run_status: string | null; processed_at: string | null }>>(
+    request<Array<{ week_ending_date: string; timesheet_count: number; total_ex_vat: number; total_incl_vat: number; pay_run_id: string | null; pay_run_status: string | null; processed_at: string | null }>>(
       `/api/pay-runs/available-weeks?production_id=${production_id}`
     ),
   getPreview: (production_id: string, week_ending_date: string) =>
@@ -2642,3 +2642,259 @@ export const unitListsApi = {
 };
 
 
+
+// ── Addendum 6 — Sales (Xero invoices) ──
+export type SalesInvoiceStatus = 'outstanding' | 'overdue' | 'paid';
+
+export type SalesInvoice = {
+  id: string;
+  xero_invoice_id: string;
+  invoice_number: string | null;
+  contact_name: string | null;
+  invoice_date: string | null;
+  due_date: string | null;
+  sub_total: string;
+  total_tax: string;
+  total: string;
+  amount_paid: string;
+  amount_credited: string;
+  amount_due: string;
+  currency_code: string;
+  xero_status: string;
+  reference: string | null;
+  production_id: string | null;
+  production_name: string | null;
+  production_code: string | null;
+  allocated_at: string | null;
+  first_synced_at: string;
+  sales_status: SalesInvoiceStatus;
+};
+
+export type SalesInvoiceDetail = SalesInvoice & {
+  suggested_production: { id: string; name: string; production_code: string | null } | null;
+  suggestion_count: number;
+};
+
+export type SalesSummaryRow = {
+  production_id: string | null;
+  production_name: string | null;
+  production_code: string | null;
+  invoice_count: number;
+  total_invoiced: number;
+  received: number;
+  outstanding: number;
+  overdue: number;
+};
+
+export type SalesSummary = {
+  productions: SalesSummaryRow[];
+  totals: Omit<SalesSummaryRow, 'production_id' | 'production_name' | 'production_code'>;
+};
+
+export type SalesInvoiceNote = { text: string; user: string | null; date: string | null };
+
+export type SalesInvoiceFilters = {
+  status?: string;
+  production_id?: string;
+  date_from?: string;
+  date_to?: string;
+  search?: string;
+};
+
+const salesQuery = (filters?: SalesInvoiceFilters) => {
+  const params = new URLSearchParams();
+  Object.entries(filters || {}).forEach(([k, v]) => { if (v) params.set(k, v); });
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+};
+
+export const salesApi = {
+  listInvoices: (filters?: SalesInvoiceFilters) =>
+    request<SalesInvoice[]>(`/api/sales/invoices${salesQuery(filters)}`, { cache: 'no-store' }),
+  getInvoice: (id: string) => request<SalesInvoiceDetail>(`/api/sales/invoices/${id}`, { cache: 'no-store' }),
+  getNotes: (id: string) =>
+    request<{ available: boolean; notes: SalesInvoiceNote[] }>(`/api/sales/invoices/${id}/notes`, { cache: 'no-store' }),
+  allocate: (id: string, production_id: string | null) =>
+    request<SalesInvoice>(`/api/sales/invoices/${id}/allocation`, { method: 'PATCH', body: { production_id } }),
+  summary: () => request<SalesSummary>('/api/sales/summary', { cache: 'no-store' }),
+  unallocatedReminder: () => request<{ count: number; days: number }>('/api/sales/unallocated-reminder', { cache: 'no-store' }),
+  exportCsv: async (filters?: SalesInvoiceFilters) => {
+    const res = await documentFetch(`/api/sales/invoices/export${salesQuery(filters)}`);
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const name = /filename="([^"]+)"/.exec(disposition)?.[1] || 'sales-invoices.csv';
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+};
+
+// ── Addendum 6 — Xero connection ──
+export type XeroConnectionStatus = 'connected' | 'needs_reconnect' | 'disconnected' | 'not_connected';
+
+export type XeroStatus = {
+  configured: boolean;
+  status: XeroConnectionStatus;
+  tenant_name: string | null;
+  connected_at: string | null;
+  connected_by_name: string | null;
+  last_synced_at: string | null;
+  last_sync_attempt_at: string | null;
+  last_sync_status: 'success' | 'failed' | null;
+  last_sync_error: string | null;
+  last_sync_count: number | null;
+};
+
+export type XeroSyncResult = { ran: boolean; reason?: string; count?: number; status: XeroStatus };
+
+export const xeroApi = {
+  status: () => request<XeroStatus>('/api/xero/status', { cache: 'no-store' }),
+  connectUrl: () => request<{ url: string }>('/api/xero/connect', { cache: 'no-store' }),
+  sync: (mode: 'auto' | 'manual') => request<XeroSyncResult>('/api/xero/sync', { method: 'POST', body: { mode } }),
+  disconnect: () => request<XeroStatus>('/api/xero/connection', { method: 'DELETE' }),
+};
+
+// ── Addendum 6 — Quotes ──
+export type QuoteStatus = 'draft' | 'sent' | 'approved' | 'declined' | 'awaiting_po_ref' | 'invoice_raised';
+export type QuoteRecipientType = 'internal' | 'external';
+export type QuoteLineType = 'labour_grade' | 'labour_department' | 'materials' | 'plant_hire' | 'misc';
+export type VatTreatment = 'standard' | 'zero' | 'exempt';
+export type DiscountType = 'percent' | 'fixed';
+
+export type QuoteLine = {
+  id: string;
+  quote_id: string;
+  line_type: QuoteLineType;
+  sort_order: number;
+  description: string;
+  bectu_rate_id: string | null;
+  quantity: string;
+  unit: string | null;
+  unit_rate: string;
+  line_total: string;
+  note: string | null;
+};
+
+export type Quote = {
+  id: string;
+  reference: string;
+  title: string;
+  quote_date: string;
+  valid_until: string;
+  recipient_type: QuoteRecipientType;
+  production_id: string | null;
+  production_name: string | null;
+  production_code: string | null;
+  department: string | null;
+  recipient_name: string | null;
+  recipient_company: string | null;
+  recipient_email: string | null;
+  introduction: string | null;
+  footer_notes: string | null;
+  discount_type: DiscountType | null;
+  discount_value: string;
+  vat_treatment: VatTreatment;
+  subtotal: string;
+  discount_amount: string;
+  vat_amount: string;
+  total: string;
+  status: QuoteStatus;
+  status_note: string | null;
+  po_reference: string | null;
+  revision: number;
+  /** Only in the response to a send by link — never in list/detail reads. */
+  share_token?: string | null;
+  sent_at: string | null;
+  approved_at: string | null;
+  declined_at: string | null;
+  invoice_raised_at: string | null;
+  created_by: string | null;
+  created_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type QuoteSendMethod = 'email' | 'download' | 'link';
+
+/** One send of a quote — the history list on the quote page. */
+export type QuoteSend = {
+  id: string;
+  revision: number;
+  method: QuoteSendMethod;
+  sent_to: string | null;
+  sent_at: string;
+  sent_by_name: string | null;
+};
+
+export type QuoteDetail = Quote & { lines: QuoteLine[]; sends: QuoteSend[] };
+
+export type QuoteHeaderInput = Partial<Pick<Quote,
+  'title' | 'quote_date' | 'valid_until' | 'recipient_type' | 'production_id' | 'department' |
+  'recipient_name' | 'recipient_company' | 'recipient_email' | 'introduction' | 'footer_notes' |
+  'discount_type' | 'vat_treatment'>> & { discount_value?: number | string };
+
+export type QuoteLineInput = {
+  line_type?: QuoteLineType;
+  description?: string;
+  bectu_rate_id?: string | null;
+  quantity?: number | string;
+  unit?: string | null;
+  unit_rate?: number | string;
+  note?: string | null;
+};
+
+export type QuoteFilters = {
+  status?: string;
+  production_id?: string;
+  recipient_type?: string;
+  date_from?: string;
+  date_to?: string;
+  search?: string;
+};
+
+export const quotesApi = {
+  list: (filters?: QuoteFilters) => {
+    const params = new URLSearchParams();
+    Object.entries(filters || {}).forEach(([k, v]) => { if (v) params.set(k, v); });
+    const qs = params.toString();
+    return request<Quote[]>(`/api/quotes${qs ? `?${qs}` : ''}`, { cache: 'no-store' });
+  },
+  get: (id: string) => request<QuoteDetail>(`/api/quotes/${id}`, { cache: 'no-store' }),
+  create: (body: QuoteHeaderInput) => request<QuoteDetail>('/api/quotes', { method: 'POST', body }),
+  update: (id: string, body: QuoteHeaderInput) => request<QuoteDetail>(`/api/quotes/${id}`, { method: 'PATCH', body }),
+  delete: (id: string) => request<void>(`/api/quotes/${id}`, { method: 'DELETE' }),
+  addLine: (id: string, body: QuoteLineInput) => request<QuoteDetail>(`/api/quotes/${id}/lines`, { method: 'POST', body }),
+  updateLine: (id: string, lineId: string, body: QuoteLineInput) =>
+    request<QuoteDetail>(`/api/quotes/${id}/lines/${lineId}`, { method: 'PATCH', body }),
+  deleteLine: (id: string, lineId: string) =>
+    request<QuoteDetail>(`/api/quotes/${id}/lines/${lineId}`, { method: 'DELETE' }),
+  reorderLines: (id: string, line_ids: string[]) =>
+    request<QuoteDetail>(`/api/quotes/${id}/lines/reorder`, { method: 'PUT', body: { line_ids } }),
+  changeStatus: (id: string, body: { status: QuoteStatus; po_reference?: string; note?: string }) =>
+    request<QuoteDetail>(`/api/quotes/${id}/status`, { method: 'POST', body }),
+  /** Email, download or share by link. Moves a Draft to Sent; on a Sent quote it is a re-send. */
+  send: (id: string, body: { method: QuoteSendMethod; to?: string }) =>
+    request<QuoteDetail>(`/api/quotes/${id}/send`, { method: 'POST', body }),
+  /** Reopen a Sent quote as the next revision (Draft). */
+  revise: (id: string) => request<QuoteDetail>(`/api/quotes/${id}/revise`, { method: 'POST', body: {} }),
+  /** Download the quote PDF — the current version, or a past send exactly as it went out. */
+  downloadPdf: async (id: string, sendId?: string) => {
+    const res = await documentFetch(`/api/quotes/${id}/pdf${sendId ? `?send_id=${sendId}` : ''}`);
+    const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || 'quote.pdf';
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+  /** Public preview link for a quote that has been shared by link. */
+  shareUrl: (token: string) => `${window.location.origin}/api/public/quotes/${token}`,
+};

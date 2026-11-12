@@ -200,3 +200,68 @@ export enum AvailabilityResponse {
   PARTIAL = 'partial',
   UNAVAILABLE = 'unavailable',
 }
+
+// ─── Addendum 6 — Sales & Quotes ─────────────────────────────────────────────
+
+export enum QuoteStatus {
+  DRAFT = 'draft',
+  SENT = 'sent',
+  APPROVED = 'approved',
+  DECLINED = 'declined',
+  AWAITING_PO_REF = 'awaiting_po_ref',
+  INVOICE_RAISED = 'invoice_raised',
+}
+
+export enum QuoteRecipientType {
+  INTERNAL = 'internal',
+  EXTERNAL = 'external',
+}
+
+export enum QuoteLineType {
+  LABOUR_GRADE = 'labour_grade',
+  LABOUR_DEPARTMENT = 'labour_department',
+  MATERIALS = 'materials',
+  PLANT_HIRE = 'plant_hire',
+  MISC = 'misc',
+}
+
+export enum VatTreatment {
+  STANDARD = 'standard',
+  ZERO = 'zero',
+  EXEMPT = 'exempt',
+}
+
+export enum DiscountType {
+  PERCENT = 'percent',
+  FIXED = 'fixed',
+}
+
+/** How a quote was sent (Addendum 6 §8.2). */
+export enum QuoteSendMethod {
+  EMAIL = 'email',
+  DOWNLOAD = 'download',
+  LINK = 'link',
+}
+
+/** Status of the invoice in Xero (stored lower-case). */
+export enum XeroInvoiceStatus {
+  DRAFT = 'draft',
+  SUBMITTED = 'submitted',
+  AUTHORISED = 'authorised',
+  PAID = 'paid',
+  VOIDED = 'voided',
+  DELETED = 'deleted',
+}
+
+export enum XeroConnectionStatus {
+  CONNECTED = 'connected',
+  NEEDS_RECONNECT = 'needs_reconnect',
+  DISCONNECTED = 'disconnected',
+}
+
+/** Sales view status — derived from amount due and due date, never stored. */
+export enum SalesInvoiceStatus {
+  OUTSTANDING = 'outstanding',
+  OVERDUE = 'overdue',
+  PAID = 'paid',
+}

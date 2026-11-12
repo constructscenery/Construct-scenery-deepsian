@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Clapperboard, ShoppingCart, Users,
-  ClipboardList, BarChart2, TrendingUp, MoreHorizontal, X, LogOut, Upload, Archive,
+  ClipboardList, BarChart2, TrendingUp, MoreHorizontal, X, LogOut, Archive, Receipt, ScrollText,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -36,6 +36,8 @@ const FULL_NAV_ITEMS: NavItem[] = [
   { href: '/purchase-orders', label: 'Purchase Orders',    icon: ShoppingCart },
   { href: '/cost-report',     label: 'Live Cost Report',   icon: BarChart2 },
   { href: '/historical-cost-reports', label: 'Report Archive', icon: Archive },
+  { href: '/sales',           label: 'Sales',              icon: Receipt },
+  { href: '/quotes',          label: 'Quotes',             icon: ScrollText },
   { href: '/forecasting',     label: 'Forecasting',        icon: TrendingUp },
   { href: '/crew',            label: 'Crew',               icon: Users },
   { href: '/timesheets',      label: 'Timesheets',         icon: ClipboardList },

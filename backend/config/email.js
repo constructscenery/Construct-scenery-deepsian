@@ -132,6 +132,48 @@ const templates = {
   },
 
   /**
+   * Quote sent to its recipient (POST /api/quotes/:id/send, method email). PDF is attached.
+   */
+  quoteSent: (quote) => {
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const money = n => `£${(Number(n) || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const date = d => (d ? new Date(`${String(d).slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : '—');
+    const rev = Number(quote.revision) > 1 ? ` (Rev ${quote.revision})` : '';
+    const greeting = quote.recipient_type === 'external' && quote.recipient_name ? `Dear ${esc(quote.recipient_name)},` : 'Hello,';
+    const row = (label, value, shade) => `<tr${shade ? ' style="background:#f8fafc"' : ''}><td style="padding:8px 12px;border:1px solid #e2e8f0;width:35%"><strong>${label}</strong></td><td style="padding:8px 12px;border:1px solid #e2e8f0">${value}</td></tr>`;
+    return {
+      subject: `Quote ${quote.reference}${rev} — ${String(quote.title).replace(/\s+/g, ' ')} — Construct Scenery Limited`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#0f172a;line-height:1.5">
+          <div style="background:#0f172a;padding:20px 24px;border-radius:6px 6px 0 0;border-bottom:3px solid #b8962e">
+            <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:1px">Construct Scenery</span>
+            <span style="color:#94a3b8;font-size:12px;margin-left:12px">Construct Scenery Limited</span>
+          </div>
+          <div style="border:1px solid #e2e8f0;border-top:none;padding:24px;background:#ffffff;border-radius:0 0 6px 6px">
+            <h2 style="color:#0f172a;margin:0 0 18px;font-size:20px">Quote ${esc(quote.reference)}${rev}</h2>
+            <p>${greeting}</p>
+            <p>Please find attached our quote <strong>${esc(quote.reference)}</strong> for <strong>${esc(quote.title)}</strong>.</p>
+            <table style="width:100%;border-collapse:collapse;margin:18px 0;font-size:13px">
+              ${row('Quote reference', `<strong>${esc(quote.reference)}${rev}</strong>`, true)}
+              ${row('Quote date', date(quote.quote_date))}
+              ${row('Valid until', date(quote.valid_until), true)}
+              ${quote.production_name ? row('Production', esc(quote.production_name)) : ''}
+              <tr style="background:#0f172a;color:#ffffff"><td style="padding:10px 12px;border:1px solid #0f172a"><strong>Total</strong></td><td style="padding:10px 12px;border:1px solid #0f172a"><strong>${money(quote.total)}</strong></td></tr>
+            </table>
+            <p>If you have any questions, or would like to go ahead, just reply to this email.</p>
+            <p style="font-size:13px;color:#64748b;margin-top:24px">
+              Regards,<br/>
+              <strong>Construct Scenery Limited</strong><br/>
+              Unit 4C Canal Wharf, Station Road, Langley, SL3 6EG<br/>
+              <a href="mailto:info@constructscenery.co.uk" style="color:#2563eb">info@constructscenery.co.uk</a>
+            </p>
+          </div>
+        </div>
+      `,
+    };
+  },
+
+  /**
    * Timesheet distributed to crew member.
    */
   timesheetDistributed: (crewName, weekEndingDate, productionName, daysWorked, grandTotal, options = {}) => {

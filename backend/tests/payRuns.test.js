@@ -101,7 +101,7 @@ describe('POST /api/pay-runs', () => {
     dbMock.respond({ rows: [], rowCount: 0 });  // BEGIN
     dbMock.respond([]);                           // no existing processed pay run
     dbMock.respond([{                             // verified timesheets
-      ...SAMPLE_TIMESHEET, status: 'verified', crew_member_id: 'cm-001',
+      ...SAMPLE_TIMESHEET, status: 'finalised', crew_member_id: 'cm-001', // TimesheetStatus.FINALISED
     }]);
     dbMock.respond([{ id: 'pr-001', production_id: 'prod-1', week_ending_date: '2026-06-01', status: 'draft', created_by: 'user-acc-001' }]); // INSERT pay_run
     dbMock.respond({ rows: [], rowCount: 1 });   // INSERT pay_run_items
@@ -118,7 +118,13 @@ describe('POST /api/pay-runs', () => {
   });
 
   test('Coordinator creates pay run — 201', async () => {
-    dbMock.respond([{ id: 'pr-002', production_id: 'prod-1', status: 'draft', week_ending_date: '2026-06-01' }]);
+    dbMock.respond({ rows: [], rowCount: 0 });  // BEGIN
+    dbMock.respond([]);                           // no existing processed pay run
+    dbMock.respond([{ ...SAMPLE_TIMESHEET, status: 'finalised', crew_member_id: 'cm-001' }]); // finalised timesheets
+    dbMock.respond([{ id: 'pr-002', production_id: 'prod-1', status: 'draft', week_ending_date: '2026-06-01' }]); // INSERT pay_run
+    dbMock.respond({ rows: [], rowCount: 1 });   // INSERT pay_run_items
+    dbMock.respond({ rows: [], rowCount: 0 });   // COMMIT
+    dbMock.respond([]);                           // SELECT items for response
     const res = await request(app)
       .post('/api/pay-runs')
       .set(authHeader('coordinator'))

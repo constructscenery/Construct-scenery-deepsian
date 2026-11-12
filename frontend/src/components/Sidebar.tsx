@@ -8,7 +8,7 @@ import {
   Banknote, ShieldCheck, Truck,
   HeartPulse, Archive, Building2, Package, TrendingUp, History,
   Layers, Users2, ShoppingBag, SlidersHorizontal, ChevronsLeft, ChevronsRight,
-  PanelLeftClose, PanelLeftOpen, LineChart, FileText, Mail,
+  PanelLeftClose, PanelLeftOpen, LineChart, FileText, Mail, Receipt, ScrollText, PoundSterling,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUIPreferences } from '@/contexts/UIPreferencesContext';
@@ -53,6 +53,15 @@ const NAV_GROUPS = [
       { href: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingCart, roles: ALL_ROLES },
       { href: '/suppliers', label: 'Suppliers', icon: Building2, roles: ALL_ROLES },
       { href: '/materials-catalogue', label: 'Materials & Stock', icon: Package, roles: ALL_ROLES },
+    ],
+  },
+  {
+    key: 'sales',
+    label: 'Sales & Quotes',
+    icon: PoundSterling,
+    items: [
+      { href: '/sales', label: 'Sales', icon: Receipt, roles: ALL_ROLES },
+      { href: '/quotes', label: 'Quotes', icon: ScrollText, roles: ALL_ROLES },
     ],
   },
   {

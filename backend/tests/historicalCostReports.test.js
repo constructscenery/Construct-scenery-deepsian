@@ -231,7 +231,7 @@ describe('initial production status', () => {
     const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
     await productions.createProduction({ body: { name: 'Example', contract_type: 'on_a_price', status }, user: { id: 'user-1' } }, res);
     expect(res.status).toHaveBeenCalledWith(201);
-    expect(db.query.mock.calls[0][1][7]).toBe(initialStatus);
+    expect(db.query.mock.calls[0][1][8]).toBe(initialStatus); // $9 = status (production_code is $2)
   });
 });
 

@@ -140,7 +140,7 @@ describe('PATCH /api/percentometer/ratios/:id', () => {
   test('Coordinator updates ratio — 200', async () => {
     dbMock.respond({ rows: [], rowCount: 0 });  // BEGIN
     dbMock.respond([SAMPLE_RATIOS[0]]);          // find current ratio
-    dbMock.respond(SAMPLE_RATIOS);               // find all other active ratios (for sum check)
+    dbMock.respond(SAMPLE_RATIOS.slice(1).map(r => ({ percentage: r.percentage }))); // the OTHER active ratios (for sum check)
     dbMock.respond({ rows: [], rowCount: 1 });  // UPDATE old row (effective_to)
     dbMock.respond([{ ...SAMPLE_RATIOS[0], id: 'r-new', percentage: '0.4200', effective_to: null }]); // INSERT new row
     dbMock.respond({ rows: [], rowCount: 0 });  // COMMIT

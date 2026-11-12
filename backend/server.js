@@ -84,6 +84,8 @@ app.get('/', (req, res) => {
       'Module 5: Percentometer     → /api/percentometer',
       'Module 6: Dashboard         → /api/dashboard',
       'Module 7: Productions       → /api/productions',
+      'Addendum 6: Sales           → /api/sales',
+      'Addendum 6: Quotes          → /api/quotes',
     ],
   });
 });
@@ -97,6 +99,8 @@ app.use('/api/public/crew', require('./routes/publicCrew'));
 app.use('/api/public/safety-health', require('./routes/publicSafetyHealth'));
 app.use('/api/public/crew-portal', require('./routes/crewPortal'));
 app.use('/api/public/email-events', require('./routes/sesWebhook'));
+app.use('/api/public/xero', require('./routes/xeroPublic'));
+app.use('/api/public/quotes', require('./routes/quotesPublic'));
 
 // ─── GLOBAL MIDDLEWARE (applied to every route BELOW this line) ───────────────
 // 1. Verify JWT access token → populates req.user
@@ -135,6 +139,9 @@ app.use('/api/expenditure-types',   require('./routes/expenditureTypes'));
 app.use('/api/audit-log',           require('./routes/auditLog'));
 app.use('/api/data-sync',           require('./routes/dataSync'));
 app.use('/api/emailing',            require('./routes/emailing'));
+app.use('/api/sales',               require('./routes/sales'));
+app.use('/api/quotes',              require('./routes/quotes'));
+app.use('/api/xero',                require('./routes/xero'));
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
@@ -452,6 +459,19 @@ async function start() {
     }
   }, { timezone: 'UTC' });
   console.log('✅ Cron: weekly database S3 sync scheduled at 02:00 UTC every Sunday');
+
+  // ── Nightly Xero sales-invoice sync — 02:30 UK time ─────────────────────────
+  // Keeps Sales current and stops the Xero refresh token lapsing (60 days unused).
+  const { runScheduledSync } = require('./services/xeroService');
+  cron.schedule('30 2 * * *', async () => {
+    try {
+      const result = await runScheduledSync();
+      if (!result.ran) console.log(`[CRON] Xero sync skipped: ${result.reason}`);
+    } catch (err) {
+      console.error('[CRON] Xero sync failed:', err.message);
+    }
+  }, { timezone: 'Europe/London' });
+  console.log('✅ Cron: Xero sales-invoice sync scheduled at 02:30 Europe/London daily');
 
   // -- Crew emailing: create tables if the migration has not been run, then start worker --
   await require('./services/emailing/schemaGuard').ensureEmailingTables();

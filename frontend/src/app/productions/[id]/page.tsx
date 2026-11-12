@@ -16,6 +16,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import ProductionHireEquipmentPanel from '@/components/ProductionHireEquipmentPanel';
 import ProductionForecastingPanel from '@/components/forecasting/ProductionForecastingPanel';
+import ProductionFinancePanel from '@/components/ProductionFinancePanel';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1624,6 +1625,9 @@ export default function ProductionDetailPage() {
             })()}
           </div>
         </div>
+
+        {/* Finance — quotes and Xero invoices (Addendum 6 §10.2) */}
+        <ProductionFinancePanel productionId={id} />
 
         {/* Forecasting & Labour Flow (Module 5 & Addendum 4) */}
         <ProductionForecastingPanel

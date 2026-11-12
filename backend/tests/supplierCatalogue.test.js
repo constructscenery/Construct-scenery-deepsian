@@ -189,11 +189,20 @@ describe('POST /api/materials-catalogue/import', () => {
     expect(res.status).toBe(400);
   });
 
-  test('Accountant → 403', async () => {
+  test('Accountant can import (all staff roles have full access) → 201', async () => {
     const csv = Buffer.from('Supplier Name,Product Description,Unit of Measure,Unit Price\nW,P,m,5');
     const res = await request(app)
       .post('/api/materials-catalogue/import')
       .set(authHeader('accountant'))
+      .attach('csv', csv, 'x.csv');
+    expect(res.status).toBe(201);
+  });
+
+  test('Guest (read-only) → 403', async () => {
+    const csv = Buffer.from('Supplier Name,Product Description,Unit of Measure,Unit Price\nW,P,m,5');
+    const res = await request(app)
+      .post('/api/materials-catalogue/import')
+      .set(authHeader('guest'))
       .attach('csv', csv, 'x.csv');
     expect(res.status).toBe(403);
   });

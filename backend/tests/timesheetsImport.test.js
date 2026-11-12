@@ -95,11 +95,11 @@ describe('Timesheets CSV Import API', () => {
       expect(row.daily_rate).toBe(300);
       expect(row.weekly_rate).toBe(1500); // 5 std days * 300
       expect(row.overtime_amount).toBe(90); // 2 hrs * 45
-      expect(row.meal_allowance_total).toBe(70); // 5 lunches * 14.00 = 70.00
+      expect(row.meal_allowance_total).toBe(50); // 5 lunches * 10.00 (MEAL_RATES.lunch) = 50.00
       expect(row.mileage_and_travel).toBe(10); // travel 10.00
-      expect(row.gross_total).toBe(1670); // 1500 + 90 + 70 + 10 = 1670
-      expect(row.vat).toBe(334); // 20% VAT on 1670 = 334
-      expect(row.grand_total).toBe(2004); // 1670 + 334
+      expect(row.gross_total).toBe(1650); // 1500 + 90 + 50 + 10 = 1650
+      expect(row.vat).toBe(330); // 20% VAT on 1650 = 330
+      expect(row.grand_total).toBe(1980); // 1650 + 330
     });
 
     test('flags invalid rows with clear error messages (non-Sunday date, inactive crew, unknown production)', async () => {

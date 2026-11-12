@@ -2026,6 +2026,79 @@ One photo per stock item (shown in the Photo column of Materials → Current Hel
 
 ---
 
+## ADDENDUM 6 — QUOTES
+
+All three staff roles have full access; Guest can only `GET`. Header and lines can only change while the quote is **Draft** (otherwise **409**). Totals (`subtotal`, `discount_amount`, `vat_amount`, `total`) are always recalculated by the server.
+
+- **GET** `{{baseUrl}}/api/quotes?status=draft,sent&production_id=<uuid>&recipient_type=internal&date_from=2026-11-01&date_to=2026-11-30&search=CSL-Q-00` → **200** list (all filters optional; `search` matches reference or title)
+- **GET** `{{baseUrl}}/api/quotes/<id>` → **200** quote with `lines[]` in display order, `sends[]` (send history, newest first), `revision`, `share_token` · **404**
+- **POST** `{{baseUrl}}/api/quotes` → **201** quote with a new `reference` (`CSL-Q-0001` …)
+  ```json
+  { "title": "Scenic Construction — Les Mis UK Tour", "recipient_type": "internal",
+    "production_id": "<uuid>", "department": "Scenic", "introduction": "Scope summary" }
+  ```
+  External: `"recipient_type": "external", "recipient_name", "recipient_company", "recipient_email"` (all required), `production_id` optional.
+  Optional: `quote_date` (default today), `valid_until` (default +30 days), `footer_notes`, `vat_treatment` (`standard` | `zero` | `exempt`), `discount_type` (`percent` | `fixed`) + `discount_value`.
+- **PATCH** `{{baseUrl}}/api/quotes/<id>` → **200** any header field(s) · **409** if not Draft
+- **DELETE** `{{baseUrl}}/api/quotes/<id>` → **204** · **409** if not Draft, or if it has been sent before (a revision)
+- **POST** `{{baseUrl}}/api/quotes/<id>/lines` → **201** full quote
+  ```json
+  { "line_type": "labour_grade", "description": "Carpenter", "bectu_rate_id": "<uuid>",
+    "quantity": 5, "unit": "day", "unit_rate": 312.50, "note": "optional" }
+  ```
+  `line_type`: `labour_grade` | `labour_department` | `materials` | `plant_hire` | `misc` (misc: `quantity` defaults to 1, `unit_rate` = lump sum)
+- **PATCH** `{{baseUrl}}/api/quotes/<id>/lines/<lineId>` → **200** full quote
+- **DELETE** `{{baseUrl}}/api/quotes/<id>/lines/<lineId>` → **200** full quote
+- **PUT** `{{baseUrl}}/api/quotes/<id>/lines/reorder` `{ "line_ids": ["<uuid>", "<uuid>"] }` → **200** (must list every line once)
+- **POST** `{{baseUrl}}/api/quotes/<id>/send` → **200** full quote. Draft → Sent; on a Sent quote it is a re-send. Needs ≥ 1 line. Stores a snapshot of what went out in the send history.
+  - `{ "method": "email", "to": "pm@production.co.uk" }` — emails the PDF (`to` defaults to the external recipient's email) · **502** if the email fails (nothing is recorded)
+  - `{ "method": "download" }` — records the send; then download with `GET /pdf`
+  - `{ "method": "link" }` — sets `share_token`; the recipient opens `{{baseUrl}}/api/public/quotes/<share_token>`
+  - **409** if the quote is Approved / Declined / Awaiting PO Ref / Invoice Raised
+- **POST** `{{baseUrl}}/api/quotes/<id>/revise` → **200** Sent quote back to Draft as `revision + 1` (history kept) · **409** unless Sent
+- **GET** `{{baseUrl}}/api/quotes/<id>/pdf` → **200** PDF of the current quote · `?send_id=<uuid>` → the PDF exactly as that send went out · **404**
+- **GET** `{{baseUrl}}/api/public/quotes/<share_token>` → **200** PDF (inline, no login) of the latest sent version · **404** unknown token
+- **POST** `{{baseUrl}}/api/quotes/<id>/status` `{ "status": "approved", "note": "optional" }` → **200** · **409** for a move not allowed
+  Allowed: `sent → approved | declined` · `approved → awaiting_po_ref` · `awaiting_po_ref → invoice_raised` (needs `po_reference`, e.g. `{ "status": "invoice_raised", "po_reference": "PO-7781" }`). `sent` is reached only through `/send` (**400** here).
+
+## ADDENDUM 6 — SALES
+
+Reads the local copy of Xero sales invoices (`xero_invoices`). Only Xero `AUTHORISED` and `PAID` invoices are shown. `sales_status` is derived: `paid` (nothing due) · `overdue` (amount due, past due date) · `outstanding` (amount due, not yet due). Guest can `GET`; only the three staff roles can allocate.
+
+- **GET** `{{baseUrl}}/api/sales/invoices?status=overdue,outstanding&production_id=unallocated&date_from=2026-10-01&date_to=2026-10-31&search=0041` → **200** (`production_id` = a uuid or `unallocated`; date range is on invoice date; `search` = invoice number)
+- **GET** `{{baseUrl}}/api/sales/invoices/export?<same filters>` → **200** CSV download `sales-invoices-YYYY-MM-DD.csv`
+- **GET** `{{baseUrl}}/api/sales/invoices/<id>` → **200** invoice + `suggested_production` (set when exactly one production code appears in the Xero reference) + `suggestion_count`
+- **PATCH** `{{baseUrl}}/api/sales/invoices/<id>/allocation` `{ "production_id": "<uuid>" }` → **200** · `{ "production_id": null }` unallocates · **400** unknown production
+- **GET** `{{baseUrl}}/api/sales/summary` → **200** `{ productions: [...], totals: {...} }` — one row per production with allocated invoices: `total_invoiced`, `received`, `outstanding`, `overdue` (unallocated invoices are in the Unallocated filter)
+- **GET** `{{baseUrl}}/api/sales/invoices/<id>/notes` → **200** `{ available, notes: [{ text, user, date }] }` — comments left on the invoice in Xero, read live; `available: false` when Xero can't be asked right now
+- **GET** `{{baseUrl}}/api/sales/unallocated-reminder` → **200** `{ "count": 3, "days": 7 }` (invoices unallocated for over 7 days since first synced)
+
+---
+
+## ADDENDUM 6 — XERO CONNECTION & SYNC
+
+**Setup (once).** In the Xero developer portal create a *Web app* and add the redirect URI. Then set on the backend:
+
+| Variable | Example | Notes |
+| --- | --- | --- |
+| `XERO_CLIENT_ID` | `ABC123…` | From the Xero app |
+| `XERO_CLIENT_SECRET` | `…` | From the Xero app — keep secret |
+| `XERO_REDIRECT_URI` | `https://<frontend-domain>/api/public/xero/callback` | Must match the Xero app exactly |
+| `XERO_SCOPES` | *(optional)* | Default `offline_access accounting.invoices.read`. Apps created before 2 March 2026 may use `offline_access accounting.transactions.read` |
+| `FRONTEND_URL` | `https://<frontend-domain>` | Optional — the browser returns to `<FRONTEND_URL>/sales` after connecting (defaults to the redirect URI's origin) |
+
+Tokens are stored AES-256-GCM encrypted (`ENCRYPTION_KEY`). The state parameter is signed with `JWT_SECRET`.
+
+- **GET** `{{baseUrl}}/api/xero/status` → **200** `{ configured, status: connected | needs_reconnect | disconnected | not_connected, tenant_name, connected_at, connected_by_name, last_synced_at, last_sync_attempt_at, last_sync_status, last_sync_error, last_sync_count }` — all roles; never returns tokens
+- **GET** `{{baseUrl}}/api/xero/connect` → **200** `{ url }` (Managing Director only) — open `url` in the browser to reach Xero's consent screen
+- **GET** `/api/public/xero/callback?code=…&state=…` — Xero redirects the browser here (no token needed); redirects on to `/sales?xero=connected` (or `cancelled` / `error&message=…`) and starts the first full sync in the background
+- **POST** `{{baseUrl}}/api/xero/sync` `{ "mode": "manual" }` → **200** `{ ran: true, count, status }` · `{ ran: false, reason: "already_running" }` · **409** not connected / connection expired · **502** Xero error (cached data kept). `"mode": "auto"` is what the Sales page sends on open: it does nothing if Xero is not connected or a sync ran in the last 5 minutes. Staff roles only.
+- **DELETE** `{{baseUrl}}/api/xero/connection` → **200** status (Managing Director only) — revokes the token at Xero, stops syncing; synced invoices and allocations stay
+
+**Sync rules.** Only sales invoices (`Type == "ACCREC"`) are pulled, 1,000 per page. After the first full sync, only invoices changed since the last successful sync are requested (`If-Modified-Since`). One sync runs at a time. A nightly sync runs at 02:30 UK time so the Xero refresh token never lapses (it expires after 60 days unused). If Xero rejects the refresh token the status becomes `needs_reconnect` and the Managing Director reconnects from the Xero line on the Sales page.
+
+---
+
 ## COMMON ERRORS REFERENCE
 
 | Error | Status | Cause |
