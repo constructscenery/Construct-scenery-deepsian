@@ -62,26 +62,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       : 'md:pl-[68px]'
     : 'md:pl-0';
 
-  const watermarkLeft = flap1Open
-    ? flap2Open
-      ? 'md:left-[292px]'
-      : 'md:left-[68px]'
-    : 'md:left-0';
-
   return (
     <>
       {/* Desktop two-flap sidebar — hidden on mobile */}
       <Sidebar />
-
-      {/* Watermark — floats above tables/content, below modals/dropdowns */}
-      <div className={`pointer-events-none select-none fixed inset-0 ${watermarkLeft} z-20 flex items-center justify-center transition-all duration-300 ease-in-out`}>
-        <img
-          src="/construct scenery logo.png"
-          alt=""
-          aria-hidden="true"
-          className="w-[80%] h-[80%] object-cover opacity-[0.03] dark:opacity-[0.04] dark:invert"
-        />
-      </div>
 
       {/* Main content: dynamic left padding for two-flap sidebar */}
       <div className={`${desktopPadding} min-h-screen flex flex-col pb-16 md:pb-0 transition-all duration-300 ease-in-out`}>

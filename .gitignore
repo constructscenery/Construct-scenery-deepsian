@@ -54,3 +54,8 @@ yarn-debug.log*
 yarn-error.log*
 .DS_Store
 Thumbs.db
+
+# ─── Local reference / chat exports ─────────────────────────────────────────
+WhatsApp Chat - TheOffice*/
+TheOffice Chats/
+

@@ -40,9 +40,11 @@ export default function RootLayout({
                 var theme = localStorage.getItem('cs_theme');
                 if (theme === 'light') {
                   document.documentElement.classList.remove('dark');
+                  document.documentElement.setAttribute('data-cms-theme', 'day');
                   document.documentElement.style.colorScheme = 'light';
                 } else {
                   document.documentElement.classList.add('dark');
+                  document.documentElement.removeAttribute('data-cms-theme');
                   document.documentElement.style.colorScheme = 'dark';
                 }
               } catch (_) {}

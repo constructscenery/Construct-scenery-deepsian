@@ -86,13 +86,13 @@ export default function BottomNav() {
   return (
     <>
       {/* Bottom nav bar */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-slate-900 border-t border-slate-700/60 flex items-center safe-area-bottom">
+      <nav className="cms-sidebar md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#302824] dark:bg-slate-900 border-t border-[#443833] dark:border-slate-700/60 flex items-center safe-area-bottom">
         {primary.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}
             className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] transition-colors ${
-              href === activePrimaryHref ? 'text-blue-400' : 'text-slate-400'
+              href === activePrimaryHref ? 'text-white bg-[#69466F] dark:bg-transparent dark:text-blue-400' : 'text-[#C9C5BF] dark:text-slate-400'
             }`}
           >
             <Icon size={20} />

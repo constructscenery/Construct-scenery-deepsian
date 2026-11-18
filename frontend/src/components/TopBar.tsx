@@ -28,7 +28,7 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
 
   return (
     <>
-      <header className="h-14 md:h-16 bg-white border-b border-slate-200 flex items-center px-4 md:px-6 gap-3 sticky top-0 z-20">
+      <header className="cms-topbar h-14 md:h-16 bg-white border-b border-slate-200 flex items-center px-4 md:px-6 gap-3 sticky top-0 z-20">
         {/* Mobile: logo */}
         <img src="/theoffice_logo_square.png" alt="TheOffice" className="md:hidden w-7 h-7 rounded-full object-contain flex-shrink-0" />
 
@@ -36,7 +36,7 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
         {!flap1Open ? (
           <button
             onClick={() => setFlap1Open(true)}
-            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-xs font-semibold transition-all cursor-pointer mr-1"
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#F0E6F2] dark:bg-blue-50 text-[#55385B] dark:text-blue-700 hover:bg-[#E5D4E8] dark:hover:bg-blue-100 border border-[#69466F]/30 dark:border-blue-200 text-xs font-semibold transition-all cursor-pointer mr-1"
             title="Open Sidebar (Flap 1)"
             aria-label="Open Sidebar"
           >
@@ -50,7 +50,7 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
             title="Expand Navigation Menu (Flap 2)"
             aria-label="Expand Navigation Menu"
           >
-            <span className="text-xs font-semibold uppercase tracking-wider text-blue-600">Drawer &gt;</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#69466F] dark:text-blue-600">Drawer &gt;</span>
           </button>
         ) : null}
 
@@ -65,11 +65,11 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
           <button
             id="topbar-sync-btn"
             onClick={() => setSyncOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-normal text-slate-700 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200 rounded-lg transition-all"
+            className="cms-button-secondary flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-normal text-slate-700 bg-white dark:bg-slate-100 hover:bg-[#F8F4EF] dark:hover:bg-blue-50 dark:hover:text-blue-700 dark:hover:border-blue-200 border border-[#85786F] dark:border-slate-200 rounded-lg transition-all"
             title="Export database to Excel & sync to S3"
             aria-label="Export and sync to S3"
           >
-            <Cloud size={14} className="text-blue-600 flex-shrink-0" />
+            <Cloud size={14} className="text-[#69466F] dark:text-blue-600 flex-shrink-0" />
             <span className="hidden sm:inline">Export / Sync</span>
           </button>
         )}
@@ -132,11 +132,11 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
           {/* Notifications */}
           <button
             id="topbar-notifications-btn"
-            className="relative p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+            className="cms-icon-button relative p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
             aria-label="Notifications"
           >
             <Bell size={18} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full" />
+            <span className="cms-unread absolute top-1.5 right-1.5 w-2 h-2 bg-[#69466F] dark:bg-orange-500 rounded-full" />
           </button>
 
           {/* Settings button */}
@@ -144,7 +144,7 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
             <button
               id="topbar-settings-btn"
               onClick={() => setSettingsOpen(true)}
-              className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+              className="cms-icon-button p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
               aria-label="Account settings"
               title="Account settings"
             >
@@ -156,7 +156,7 @@ export default function TopBar({ title, subtitle }: TopBarProps) {
           <button
             id="topbar-avatar-btn"
             onClick={() => setSettingsOpen(true)}
-            className="ml-1 w-8 h-8 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center flex-shrink-0 hover:ring-2 hover:ring-blue-400 transition-all cursor-pointer"
+            className="ml-1 w-8 h-8 rounded-full overflow-hidden bg-[#69466F] dark:bg-blue-500 flex items-center justify-center flex-shrink-0 hover:ring-2 hover:ring-[#69466F] dark:hover:ring-blue-400 transition-all cursor-pointer"
             title={user?.full_name ? `${user.full_name} (Settings)` : 'Account settings'}
             aria-label="Account settings"
           >

@@ -34,7 +34,7 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <div className={`flex flex-col items-center justify-center text-center p-8 sm:p-12 max-w-lg mx-auto ${className}`}>
-      <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-100/80 flex items-center justify-center text-amber-600 mb-4 shadow-sm">
+      <div className="w-14 h-14 rounded-2xl bg-[#F0E6F2] dark:bg-amber-50 border border-[#69466F]/25 dark:border-amber-100/80 flex items-center justify-center text-[#69466F] dark:text-amber-600 mb-4 shadow-sm">
         <Icon className="w-7 h-7" strokeWidth={1.75} />
       </div>
 
@@ -48,7 +48,7 @@ export function EmptyState({
 
       {recommendation && (
         <div className="flex items-start gap-2 bg-slate-50 border border-slate-200/80 rounded-lg px-3.5 py-2.5 my-3 text-left w-full">
-          <div className="text-xs font-semibold text-amber-700 bg-amber-100/70 px-1.5 py-0.5 rounded shrink-0 mt-0.5">
+          <div className="text-xs font-semibold text-[#55385B] dark:text-amber-700 bg-[#F0E6F2] dark:bg-amber-100/70 px-1.5 py-0.5 rounded shrink-0 mt-0.5">
             Next Step
           </div>
           <p className="text-xs text-slate-600 leading-relaxed">
@@ -63,7 +63,7 @@ export function EmptyState({
             action.href ? (
               <Link
                 href={action.href}
-                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 active:bg-amber-800 rounded-lg shadow-sm transition-colors"
+                className="cms-button-primary inline-flex items-center gap-2 px-4 py-2 text-xs font-medium text-white bg-[#69466F] hover:bg-[#55385B] dark:bg-amber-600 dark:hover:bg-amber-700 rounded-lg shadow-sm transition-colors"
               >
                 {action.icon && <action.icon className="w-3.5 h-3.5" />}
                 <span>{action.label}</span>
@@ -73,7 +73,7 @@ export function EmptyState({
               <button
                 type="button"
                 onClick={action.onClick}
-                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 active:bg-amber-800 rounded-lg shadow-sm transition-colors"
+                className="cms-button-primary inline-flex items-center gap-2 px-4 py-2 text-xs font-medium text-white bg-[#69466F] hover:bg-[#55385B] dark:bg-amber-600 dark:hover:bg-amber-700 rounded-lg shadow-sm transition-colors"
               >
                 {action.icon && <action.icon className="w-3.5 h-3.5" />}
                 <span>{action.label}</span>

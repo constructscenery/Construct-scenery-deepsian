@@ -80,9 +80,11 @@ export function UIPreferencesProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement;
     if (theme === 'dark') {
       root.classList.add('dark');
+      root.removeAttribute('data-cms-theme');
       root.style.colorScheme = 'dark';
     } else {
       root.classList.remove('dark');
+      root.setAttribute('data-cms-theme', 'day');
       root.style.colorScheme = 'light';
     }
     try {
