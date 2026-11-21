@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
+import ProductionPLCard from '@/components/dashboard/ProductionPLCard';
 import {
   dashboardApi, dashboardNewApi,
   type DashboardData, type CostSummaryItem, type ForecastVarianceItem, type WeeklyPLProduction,
@@ -43,9 +44,6 @@ const phaseColor: Record<string, string> = {
   strike: 'bg-amber-100 text-amber-700', complete: 'bg-green-100 text-green-700',
   archived: 'bg-slate-100 text-slate-400',
 };
-const ragClass: Record<string, string>  = { green: 'bg-green-500', amber: 'bg-amber-400', red: 'bg-red-500', unknown: 'bg-slate-300' };
-const ragLabel: Record<string, string>  = { green: 'On Track', amber: 'Monitor', red: 'At Risk', unknown: 'No Budget' };
-const ragBadge: Record<string, string>  = { green: 'bg-green-100 text-green-700', amber: 'bg-amber-100 text-amber-700', red: 'bg-red-100 text-red-700', unknown: 'bg-slate-100 text-slate-500' };
 
 function Skeleton({ className }: { className: string }) {
   return <div className={`animate-pulse bg-slate-200 rounded ${className}`} />;
@@ -169,65 +167,11 @@ export default function MDDashboard() {
             ))}
         </div>
 
-        {/* ── Budget Summary + Labour Costs ────────────────────────────────── */}
+        {/* ── Production P&L + Labour Costs ────────────────────────────────── */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Budget Summary (cost-summary endpoint) */}
-          <div className="xl:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-              <div>
-                <h2 className="text-slate-900 font-semibold text-sm">Budget Summary — Active Productions</h2>
-                <p className="text-slate-400 text-xs mt-0.5">Live costs vs budget with RAG status</p>
-              </div>
-              <Link href="/cost-report" className="text-blue-600 text-xs font-medium flex items-center gap-1 hover:underline">
-                Cost Report <ArrowUpRight size={12} />
-              </Link>
-            </div>
-            <div className="divide-y divide-slate-100">
-              {loading
-                ? Array(3).fill(0).map((_, i) => (
-                  <div key={i} className="px-5 py-4 space-y-2"><Skeleton className="h-4 w-40" /><Skeleton className="h-2 w-full" /></div>
-                ))
-                : !costSummary?.length
-                  ? <p className="px-5 py-8 text-slate-400 text-sm text-center">No active productions</p>
-                  : costSummary.map((p) => (
-                    <div key={p.production_id} className="px-5 py-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <span className="text-slate-900 text-sm font-semibold">{p.production_name}</span>
-                          <span className="ml-2 text-xs text-slate-400">{p.contract_type === 'cost_plus' ? 'Cost Plus' : 'On a Price'}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-slate-500 text-xs">
-                            {fmt(p.total_costs_to_date)}{p.total_budget ? ` / ${fmt(p.total_budget)}` : ''}
-                          </span>
-                          {p.total_budget ? (
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ragBadge[p.rag_status]}`}>
-                              <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${ragClass[p.rag_status]}`} />
-                              {ragLabel[p.rag_status]}
-                            </span>
-                          ) : (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">Budget not set</span>
-                          )}
-                        </div>
-                      </div>
-                      {p.total_budget ? (
-                        <>
-                          <div className="w-full bg-slate-100 rounded-full h-2">
-                            <div className={`h-2 rounded-full ${ragClass[p.rag_status]}`} style={{ width: `${Math.min(p.budget_utilisation_pct ?? 0, 100)}%` }} />
-                          </div>
-                          <div className="flex justify-between mt-1">
-                            <span className="text-slate-400 text-xs">{fmt(p.amount_remaining ?? 0)} remaining</span>
-                            <span className="text-slate-400 text-xs">{(p.budget_utilisation_pct ?? 0).toFixed(1)}% used</span>
-                          </div>
-                        </>
-                      ) : (
-                        <p className="text-slate-400 text-xs mt-1">Set a budget in the Cost Report to enable tracking</p>
-                      )}
-                    </div>
-                  ))
-              }
-            </div>
-          </div>
+          {/* CS-01 — Production P&L (live, five headings). Replaces the Budget Summary card;
+              /api/dashboard/cost-summary still feeds the Active Productions stat card. */}
+          <ProductionPLCard />
 
           {/* Labour Costs for the selected week */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">

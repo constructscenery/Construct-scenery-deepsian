@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { logAudit } = require('../services/auditService');
 
 const ALLOWED_ROLES = new Set(['managing_director', 'construction_coordinator', 'construction_accountant']);
 
@@ -32,6 +33,12 @@ const patchSetting = async (req, res) => {
       return res.status(400).json({ error: 'handover_alert_days must be an array of positive integers, e.g. [14, 7]' });
   }
 
+  // CS-08: commercial rate uplift — a percentage from 0 to 100 (e.g. 10 = rate card + 10%)
+  if (key === 'commercial_rate_uplift_pct') {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100)
+      return res.status(400).json({ error: 'commercial_rate_uplift_pct must be a number from 0 to 100' });
+  }
+
   try {
     const { rows: [row] } = await db.query(
       `INSERT INTO app_settings (key, value, updated_by, updated_at)
@@ -43,6 +50,14 @@ const patchSetting = async (req, res) => {
        RETURNING key, value, updated_at`,
       [key, JSON.stringify(value), req.user.id]
     );
+    if (key === 'commercial_rate_uplift_pct') {
+      await logAudit({
+        userId: req.user.id, userName: req.user.full_name, userRole: req.user.role,
+        category: 'rate_card', action: 'commercial_rate_uplift_changed', entityType: 'app_setting', entityId: key,
+        details: `Commercial rate uplift set to ${value}%. Applies to timesheets saved or recalculated from now on.`,
+        metadata: { value },
+      });
+    }
     res.json(row);
   } catch (err) {
     console.error('patchSetting:', err);

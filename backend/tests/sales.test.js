@@ -78,6 +78,15 @@ describe('invoice list', () => {
     expect(q.params).toEqual([['overdue', 'outstanding'], '2026-10-01', '2026-10-31', '%0041%']);
   });
 
+  test('CS-07: search matches invoice number, customer (contact) or Xero reference', async () => {
+    routeSql([[/FROM inv/, []]]);
+    const res = await request(app).get('/api/sales/invoices?search=Netflix').set(authHeader('md'));
+    expect(res.status).toBe(200);
+    const q = ran(/FROM inv/);
+    expect(q.sql).toContain('invoice_number ILIKE $1 OR contact_name ILIKE $1 OR reference ILIKE $1');
+    expect(q.params).toEqual(['%Netflix%']);
+  });
+
   test.each([
     ['status=draft', /Status must be/],
     ['production_id=nope', /Invalid production filter/],
@@ -120,7 +129,7 @@ describe('allocation', () => {
   test('suggests the production whose code is in the Xero reference', async () => {
     routeSql([
       [/FROM inv WHERE id/, [invoice({ reference: 'PO 778 / phan-uk' })]],
-      [/POSITION\(LOWER/, [{ id: PROD_ID, name: 'Phantom – UK Tour', production_code: 'PHAN-UK' }]],
+      [/FROM productions\s+WHERE deleted_at IS NULL/, [{ id: PROD_ID, name: 'Phantom – UK Tour', production_code: 'PHAN-UK' }]],
     ]);
     const res = await request(app).get(`/api/sales/invoices/${INV_ID}`).set(authHeader('coordinator'));
     expect(res.status).toBe(200);
@@ -131,7 +140,7 @@ describe('allocation', () => {
   test('no single suggestion when several productions match', async () => {
     routeSql([
       [/FROM inv WHERE id/, [invoice()]],
-      [/POSITION\(LOWER/, [{ id: PROD_ID }, { id: 'other' }]],
+      [/FROM productions\s+WHERE deleted_at IS NULL/, [{ id: PROD_ID, production_code: 'PHAN-UK' }, { id: 'other', production_code: 'PHAN' }]],
     ]);
     const res = await request(app).get(`/api/sales/invoices/${INV_ID}`).set(authHeader('coordinator'));
     expect(res.body.suggested_production).toBeNull();
@@ -163,6 +172,22 @@ describe('allocation', () => {
     const res = await request(app).patch(`/api/sales/invoices/${INV_ID}/allocation`).set(authHeader('md')).send({ production_id: PROD_ID });
     expect(res.status).toBe(400);
     expect(ran(/UPDATE xero_invoices/)).toBeFalsy();
+  });
+
+  test('CS-06: code only matches as a whole token (CS1 does not match CS10)', async () => {
+    routeSql([
+      [/FROM inv WHERE id/, [invoice({ reference: 'CS10 build week 3' })]],
+      [/FROM productions\s+WHERE deleted_at IS NULL/, [{ id: PROD_ID, name: 'One', production_code: 'CS1' }, { id: 'p10', name: 'Ten', production_code: 'CS10' }]],
+    ]);
+    const res = await request(app).get(`/api/sales/invoices/${INV_ID}`).set(authHeader('md'));
+    expect(res.body.suggested_production).toMatchObject({ id: 'p10' });
+    expect(res.body.suggestion_count).toBe(1);
+  });
+
+  test('CS-06: a manual allocate or unallocate marks the invoice as manual', async () => {
+    routeSql([[/FROM xero_invoices xi LEFT JOIN productions/, [{ id: INV_ID, invoice_number: 'INV-0041', production_id: PROD_ID, production_name: 'Phantom' }]]]);
+    await request(app).patch(`/api/sales/invoices/${INV_ID}/allocation`).set(authHeader('md')).send({ production_id: null });
+    expect(ran(/UPDATE xero_invoices/).sql).toContain("allocation_source = 'manual'");
   });
 
   test('guest cannot allocate', async () => {
@@ -208,5 +233,65 @@ describe('unallocated reminder', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ count: 3, days: 7 });
     expect(ran(/first_synced_at/).sql).toContain("INTERVAL '7 days'");
+  });
+});
+
+describe('CS-06 auto-allocate', () => {
+  const prods = [
+    { id: PROD_ID, name: 'Phantom – UK Tour', production_code: 'PHAN-UK' },
+    { id: '77777777-7777-7777-7777-777777777777', name: 'Addlestone', production_code: '129' },
+    { id: '88888888-8888-8888-8888-888888888888', name: 'Short', production_code: '12' },
+  ];
+  const unallocated = [
+    { id: 'i1', invoice_number: 'INV-1', reference: 'PHAN-UK week 2' },      // one match → auto
+    { id: 'i2', invoice_number: 'INV-2', reference: 'Job 129 / PHAN-UK' },   // two matches → left alone
+    { id: 'i3', invoice_number: 'INV-3', reference: 'Job 1290' },            // no whole-token match
+    { id: 'i4', invoice_number: 'INV-4', reference: 'Paid 12/11/2026' },     // code "12" too short to auto-link
+  ];
+
+  test('links only single, whole-token matches and audits each one', async () => {
+    routeSql([
+      [/FROM productions\s+WHERE deleted_at IS NULL/, prods],
+      [/FROM xero_invoices\s+WHERE production_id IS NULL/, unallocated],
+      [/UPDATE xero_invoices xi/, (sql, params) => params[0].map((id, i) => ({ id, invoice_number: 'INV-1', production_id: params[1][i] }))],
+    ]);
+    const res = await request(app).post('/api/sales/auto-allocate').set(authHeader('coordinator'));
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ allocated: 1 });
+    const upd = ran(/UPDATE xero_invoices xi/);
+    expect(upd.params).toEqual([['i1'], [PROD_ID]]);
+    expect(upd.sql).toContain('xi.allocation_source IS NULL');
+    expect(upd.sql).toContain('xi.production_id IS NULL');
+    expect(ran(/INSERT INTO audit_log/).params).toContain('sales_invoice_auto_allocated');
+  });
+
+  test('only considers never-touched invoices', async () => {
+    routeSql([[/FROM productions\s+WHERE deleted_at IS NULL/, prods]]);
+    await request(app).post('/api/sales/auto-allocate').set(authHeader('md'));
+    const sel = ran(/FROM xero_invoices\s+WHERE production_id IS NULL/);
+    expect(sel.sql).toContain('allocation_source IS NULL');
+    expect(ran(/UPDATE xero_invoices xi/)).toBeFalsy();
+  });
+
+  test('guest cannot run auto-allocate', async () => {
+    const res = await request(app).post('/api/sales/auto-allocate').set(authHeader('guest'));
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('CS-06 matcher', () => {
+  const { referenceContainsCode } = require('../services/salesAllocationService');
+  test.each([
+    ['CS1 wk3', 'CS1', true],
+    ['ref: cs1/2', 'CS1', true],
+    ['CS10', 'CS1', false],
+    ['Job 129', '129', true],
+    ['Job 1290', '129', false],
+    ['A.B build', 'A.B', true],
+    ['AxB build', 'A.B', false],
+    ['', 'CS1', false],
+    ['CS1', '  ', false],
+  ])('%s contains %s → %s', (ref, code, expected) => {
+    expect(referenceContainsCode(ref, code)).toBe(expected);
   });
 });

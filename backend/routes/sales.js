@@ -11,6 +11,7 @@ router.get('/invoices/export', ctrl.exportInvoicesCsv);
 router.get('/invoices/:id', ctrl.getInvoiceById);
 router.get('/invoices/:id/notes', ctrl.getInvoiceComments);
 router.patch('/invoices/:id/allocation', requireRole(...WRITE_ROLES), ctrl.allocateInvoice);
+router.post('/auto-allocate', requireRole(...WRITE_ROLES), ctrl.runAutoAllocate);
 router.get('/summary', ctrl.getSummary);
 router.get('/unallocated-reminder', ctrl.getUnallocatedReminder);
 

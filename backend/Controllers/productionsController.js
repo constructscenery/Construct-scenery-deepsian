@@ -1,4 +1,9 @@
 const db          = require('../config/db');
+const { logAudit } = require('../services/auditService');
+const { recalculateAndStore, storedTotalsReproducible } = require('../services/timesheetCalc');
+
+// RateCardType.STANDARD / RateCardType.COMMERCIAL (CS-08)
+const RATE_CARD_TYPES = ['standard', 'commercial'];
 const { withFinalCostReport } = require('../services/historicalCostReportService');
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -104,11 +109,13 @@ const createProduction = async (req, res) => {
     supervising_art_director, supervising_art_director_mobile, supervising_art_director_email,
     financial_controller, financial_controller_mobile, financial_controller_email,
     art_dept_coordinator, art_dept_coordinator_mobile, art_dept_coordinator_email,
-    notes,
+    notes, rate_card_type,
   } = req.body;
 
   if (!name || !contract_type)
     return res.status(400).json({ error: 'name and contract_type are required' });
+  if (rate_card_type !== undefined && !RATE_CARD_TYPES.includes(rate_card_type))
+    return res.status(400).json({ error: `rate_card_type must be one of: ${RATE_CARD_TYPES.join(', ')}` });
 
   // ProductionStatus.PRE_PRODUCTION / ProductionStatus.ACTIVE_BUILD
   const initialStatus = status ?? 'pre_production';
@@ -123,8 +130,8 @@ const createProduction = async (req, res) => {
           supervising_art_director, supervising_art_director_mobile, supervising_art_director_email,
           financial_controller, financial_controller_mobile, financial_controller_email,
           art_dept_coordinator, art_dept_coordinator_mobile, art_dept_coordinator_email,
-          notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+          notes, rate_card_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
        RETURNING *`,
       [
         name, production_code || null, production_company || null, production_designer || null, production_type || null,
@@ -135,6 +142,7 @@ const createProduction = async (req, res) => {
         financial_controller || null, financial_controller_mobile || null, financial_controller_email || null,
         art_dept_coordinator || null, art_dept_coordinator_mobile || null, art_dept_coordinator_email || null,
         notes || null,
+        rate_card_type || 'standard', // RateCardType.STANDARD
       ]
     );
     res.status(201).json(rows[0]);
@@ -192,13 +200,15 @@ const updateProduction = async (req, res) => {
     'supervising_art_director', 'supervising_art_director_mobile', 'supervising_art_director_email',
     'financial_controller', 'financial_controller_mobile', 'financial_controller_email',
     'art_dept_coordinator', 'art_dept_coordinator_mobile', 'art_dept_coordinator_email',
-    'notes',
+    'notes', 'rate_card_type',
   ];
   const updates = {};
   allowed.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
 
   if (!Object.keys(updates).length)
     return res.status(400).json({ error: 'No updatable fields provided' });
+  if (updates.rate_card_type !== undefined && !RATE_CARD_TYPES.includes(updates.rate_card_type))
+    return res.status(400).json({ error: `rate_card_type must be one of: ${RATE_CARD_TYPES.join(', ')}` });
 
   try {
     // Contract type lock: block change if linked POs or timesheets exist
@@ -223,6 +233,13 @@ const updateProduction = async (req, res) => {
       }
     }
 
+    // CS-08: remember the rate card before the change so it can be audited
+    let previousRateCard = null;
+    if (updates.rate_card_type !== undefined) {
+      const { rows: [curr] } = await db.query('SELECT rate_card_type FROM productions WHERE id = $1', [req.params.id]);
+      previousRateCard = curr?.rate_card_type ?? null;
+    }
+
     const fields     = Object.keys(updates);
     const values     = Object.values(updates);
     const setClause  = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
@@ -232,10 +249,69 @@ const updateProduction = async (req, res) => {
       [...values, req.params.id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Production not found' });
+    if (updates.rate_card_type !== undefined && previousRateCard !== updates.rate_card_type) {
+      await logAudit({
+        userId: req.user?.id, userName: req.user?.full_name, userRole: req.user?.role, productionId: req.params.id,
+        category: 'rate_card', action: 'production_rate_card_changed', entityType: 'production', entityId: req.params.id,
+        details: `Rate card for ${rows[0].name} changed from ${previousRateCard || 'standard'} to ${updates.rate_card_type}. Existing timesheets keep their rates until recalculated or re-saved.`,
+        metadata: { from: previousRateCard, to: updates.rate_card_type },
+      });
+    }
     res.json(rows[0]);
   } catch (err) {
     console.error('updateProduction:', err);
     res.status(500).json({ error: err.message });
+  }
+};
+
+// POST /api/productions/:id/recalculate-timesheets  — CS-08
+// Re-prices every unfinalised timesheet on the production with its current rate card (e.g. after
+// switching to Commercial). Finalised timesheets are never touched; no emails are sent.
+const recalculateTimesheets = async (req, res) => {
+  const { rows: [prod] } = await db.query('SELECT id, name, status FROM productions WHERE id = $1', [req.params.id]);
+  if (!prod) return res.status(404).json({ error: 'Production not found' });
+  if (prod.status === 'archived') return res.status(400).json({ error: 'Archived productions are read-only' });
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    // TimesheetStatus.FINALISED is locked
+    const { rows: timesheets } = await client.query(
+      `SELECT t.id, t.week_ending_date, cm.first_name, cm.last_name
+       FROM timesheets t JOIN crew_members cm ON cm.id = t.crew_member_id
+       WHERE t.production_id = $1 AND t.status <> 'finalised'
+       ORDER BY t.week_ending_date, cm.last_name
+       FOR UPDATE OF t`,
+      [req.params.id]
+    );
+    let changed = 0;
+    const skipped = [];
+    for (const t of timesheets) {
+      // Never overwrite totals we can't reproduce from the entries (e.g. CSV-imported allowances).
+      if (!(await storedTotalsReproducible(client, t.id))) {
+        skipped.push({
+          timesheet_id: t.id, week_ending_date: t.week_ending_date, name: `${t.first_name} ${t.last_name}`,
+          reason: 'Stored total does not match its daily entries (e.g. imported allowances) — open and save it to re-price.',
+        });
+        continue;
+      }
+      const result = await recalculateAndStore(client, t.id);
+      if (result?.after && Number(result.after.grand_total) !== Number(result.before.grand_total)) changed++;
+    }
+    await client.query('COMMIT');
+    await logAudit({
+      userId: req.user?.id, userName: req.user?.full_name, userRole: req.user?.role, productionId: prod.id,
+      category: 'rate_card', action: 'production_timesheets_recalculated', entityType: 'production', entityId: prod.id,
+      details: `Recalculated ${timesheets.length - skipped.length} unfinalised timesheet(s) on ${prod.name}; ${changed} changed, ${skipped.length} skipped for review.`,
+      metadata: { skipped },
+    });
+    res.json({ recalculated: timesheets.length - skipped.length, changed, skipped });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('recalculateTimesheets:', err);
+    res.status(500).json({ error: 'Unable to recalculate timesheets' });
+  } finally {
+    client.release();
   }
 };
 
@@ -564,11 +640,11 @@ const getSets = async (req, res) => {
               COALESCE(po_links.cnt, 0)::int AS linked_po_count
        FROM   sets s
        LEFT JOIN (
-         SELECT set_code, COUNT(*)::int AS cnt
+         SELECT LOWER(TRIM(set_code)) AS set_key, COUNT(*)::int AS cnt
          FROM   purchase_orders
          WHERE  production_id = $1 AND set_code IS NOT NULL
-         GROUP  BY set_code
-       ) po_links ON po_links.set_code = s.set_number
+         GROUP  BY LOWER(TRIM(set_code))
+       ) po_links ON po_links.set_key = LOWER(TRIM(s.set_number))
        WHERE  s.production_id = $1
        ORDER  BY s.shoot_week NULLS LAST, s.handover_date ASC NULLS LAST`,
       [req.params.id]
@@ -580,12 +656,28 @@ const getSets = async (req, res) => {
   }
 };
 
+// CS-03: sets are unique per production by trimmed, case-insensitive set number (uq_sets_production_set_number)
+const DUPLICATE_SET_MESSAGE = 'A set with this set number already exists on this production.';
+const isUniqueViolation = err => err && err.code === '23505';
+const findDuplicateSet = async (productionId, setNumber, excludeSetId = null) => {
+  if (setNumber == null || !String(setNumber).trim()) return false;
+  const { rows } = await db.query(
+    `SELECT 1 FROM sets
+     WHERE production_id = $1 AND LOWER(TRIM(set_number)) = LOWER(TRIM($2))
+       AND ($3::uuid IS NULL OR id <> $3::uuid)
+     LIMIT 1`,
+    [productionId, String(setNumber), excludeSetId]
+  );
+  return rows.length > 0;
+};
+
 // POST /api/productions/:id/sets
 const createSet = async (req, res) => {
   const { set_number, set_name, shoot_week, handover_date, completion_status, notes } = req.body;
   if (!set_name) return res.status(400).json({ error: 'set_name is required' });
 
   try {
+    if (await findDuplicateSet(req.params.id, set_number)) return res.status(409).json({ error: DUPLICATE_SET_MESSAGE });
     const { rows } = await db.query(
       `INSERT INTO sets
          (production_id, set_number, set_name, shoot_week, handover_date, completion_status, notes)
@@ -595,6 +687,7 @@ const createSet = async (req, res) => {
     );
     res.status(201).json(rows[0]);
   } catch (err) {
+    if (isUniqueViolation(err)) return res.status(409).json({ error: DUPLICATE_SET_MESSAGE });
     console.error('createSet:', err);
     res.status(500).json({ error: err.message });
   }
@@ -614,6 +707,8 @@ const updateSet = async (req, res) => {
   const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
 
   try {
+    if (updates.set_number !== undefined && await findDuplicateSet(req.params.id, updates.set_number, req.params.setId))
+      return res.status(409).json({ error: DUPLICATE_SET_MESSAGE });
     const { rows } = await db.query(
       `UPDATE sets SET ${setClause}
        WHERE id = $${fields.length + 1} AND production_id = $${fields.length + 2}
@@ -623,6 +718,7 @@ const updateSet = async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: 'Set not found' });
     res.json(rows[0]);
   } catch (err) {
+    if (isUniqueViolation(err)) return res.status(409).json({ error: DUPLICATE_SET_MESSAGE });
     console.error('updateSet:', err);
     res.status(500).json({ error: err.message });
   }
@@ -657,7 +753,10 @@ const deleteSet = async (req, res) => {
 
     if (setRow.set_number) {
       const { rows: [linked] } = await db.query(
-        'SELECT COUNT(*) AS cnt FROM purchase_orders WHERE production_id = $1 AND set_code = $2',
+        `SELECT (SELECT COUNT(*) FROM purchase_orders
+                 WHERE production_id = $1 AND LOWER(TRIM(set_code)) = LOWER(TRIM($2)))
+              + (SELECT COUNT(*) FROM timesheet_entries te JOIN timesheets t ON t.id = te.timesheet_id
+                 WHERE t.production_id = $1 AND LOWER(TRIM(te.set_number)) = LOWER(TRIM($2))) AS cnt`,
         [req.params.id, setRow.set_number]
       );
       if (parseInt(linked.cnt, 10) > 0)
@@ -940,4 +1039,5 @@ module.exports = {
   sendHandoverAlerts, runHandoverAlerts,
   getDocuments, uploadDocument, deleteDocument, downloadDocument,
   getForecastVariance,
+  recalculateTimesheets,
 };

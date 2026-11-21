@@ -7,6 +7,7 @@ const { generatePoPdf, generatePoBackupPdf } = require('../services/poPdfService
 const { recordSupplierCost, softDeleteEntry } = require('../services/costReportService');
 const { generatePoListPdf }                   = require('../services/poPdfService');
 const { logAudit }                            = require('../services/auditService');
+const { unknownSetCodes, setCodeWarnings }   = require('../services/setCodeService');
 
 // ─── Helper: build shared WHERE conditions for PO list queries ────────────────
 const buildPoFilterConditions = (query) => {
@@ -235,6 +236,17 @@ const exportPDFList = async (req, res) => {
 };
 
 // ─── POST /api/purchase-orders ────────────────────────────────────────────────
+/** CS-04 — warnings (never errors) for a PO whose set code isn't in its production's set list. */
+const poSetCodeWarnings = async (po) => {
+  if (!po || !po.set_code || !String(po.set_code).trim()) return [];
+  try {
+    return setCodeWarnings(await unknownSetCodes(db, po.production_id, [po.set_code]));
+  } catch (err) {
+    console.error('PO set-code check failed (non-fatal):', err.message);
+    return [];
+  }
+};
+
 const createPO = async (req, res) => {
   const {
     supplier_id,
@@ -288,7 +300,9 @@ const createPO = async (req, res) => {
         notes || null
       ]
     );
-    res.status(201).json({ ...rows[0], message: 'Purchase order created successfully', purchase_order: rows[0] });
+    // CS-04: non-blocking warning when the set code isn't in the production's set list
+    const warnings = await poSetCodeWarnings(rows[0]);
+    res.status(201).json({ ...rows[0], message: 'Purchase order created successfully', purchase_order: rows[0], ...(warnings.length ? { warnings } : {}) });
 
     await logAudit({
       userId: req.user?.id,
@@ -387,7 +401,8 @@ const updatePO = async (req, res) => {
       `UPDATE purchase_orders SET ${setClause} WHERE id = $${fields.length + 1} RETURNING *`,
       [...values, req.params.id]
     );
-    res.json(rows[0]);
+    const warnings = (updates.set_code !== undefined || updates.production_id !== undefined) ? await poSetCodeWarnings(rows[0]) : [];
+    res.json(warnings.length ? { ...rows[0], warnings } : rows[0]);
   } catch (err) {
     console.error('updatePO:', err);
     res.status(500).json({ error: err.message });

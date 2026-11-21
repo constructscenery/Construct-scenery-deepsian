@@ -36,6 +36,17 @@ export enum ContractType {
   COST_PLUS = 'cost_plus',
 }
 
+/** CS-08 — which rate card a production pays. Commercial = every rate-card rate + commercial_rate_uplift_pct. */
+export enum RateCardType {
+  STANDARD = 'standard',
+  COMMERCIAL = 'commercial',
+}
+
+/** CS-03 — category of a universal (all-production) set code. */
+export enum SetCodeCategory {
+  MANAGEMENT = 'management',
+}
+
 export enum HistoricalCostReportType {
   TYPE_1 = 'type1',
   TYPE_2 = 'type2',
@@ -257,6 +268,12 @@ export enum XeroConnectionStatus {
   CONNECTED = 'connected',
   NEEDS_RECONNECT = 'needs_reconnect',
   DISCONNECTED = 'disconnected',
+}
+
+/** CS-06 — who linked a Xero invoice to its production. NULL = never linked by anyone. */
+export enum InvoiceAllocationSource {
+  AUTO = 'auto',
+  MANUAL = 'manual',
 }
 
 /** Sales view status — derived from amount due and due date, never stored. */

@@ -10,6 +10,12 @@
  *   gross_amount = timesheet.grand_total  (final pay inc. VAT)
  */
 
+const { applyMultiplier } = require('./timesheetCalc');
+const multiplierOf = ts => {
+  const m = parseFloat(ts.rate_multiplier);
+  return Number.isFinite(m) && m > 0 ? m : 1;
+};
+
 // BECTU rate years run 1 July → 30 June
 const getRateYear = (weekEndingDate) => {
   const d     = new Date(weekEndingDate + 'T00:00:00Z');
@@ -31,7 +37,7 @@ const DAY_MAP = {
 const recordWeeklyLabour = async (weekEndingDate, productionId, client) => {
   const { rows: timesheets } = await client.query(
     `SELECT t.id, t.production_id, t.crew_member_id, t.week_ending_date,
-            t.gross_total, t.vat, t.grand_total,
+            t.gross_total, t.vat, t.grand_total, t.rate_multiplier,
             cm.crew_trade, cm.crew_rank, cm.account_code
      FROM timesheets t
      JOIN crew_members cm ON t.crew_member_id = cm.id
@@ -105,8 +111,9 @@ const recordWeeklyLabour = async (weekEndingDate, productionId, client) => {
         dayFlags.day_monday, dayFlags.day_tuesday, dayFlags.day_wednesday, dayFlags.day_thursday,
         dayFlags.day_friday, dayFlags.day_saturday, dayFlags.day_sunday,
         totalDays, Math.round(otHours * 100) / 100,
-        parseFloat(rateRow?.daily_rate    || 0),
-        parseFloat(rateRow?.overtime_rate || 0),
+        // CS-08: show the rate actually paid on commercial productions (money columns already come from the timesheet)
+        applyMultiplier(parseFloat(rateRow?.daily_rate    || 0), multiplierOf(ts)),
+        applyMultiplier(parseFloat(rateRow?.overtime_rate || 0), multiplierOf(ts)),
         parseFloat(ts.gross_total  || 0),
         parseFloat(ts.vat          || 0),
         parseFloat(ts.grand_total  || 0),

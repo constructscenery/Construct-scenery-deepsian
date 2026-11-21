@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { buildProductionPL, sumPL, ACTIVE_PRODUCTION_STATUSES: LIVE_ACTIVE_STATUSES } = require('../services/liveCostService');
 
 const pad = (n) => String(n).padStart(2, '0');
 const toLocalISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -677,9 +678,36 @@ const getWeeklyPL = async (req, res) => {
   }
 };
 
+// ─── GET /api/dashboard/production-pl ─────────────────────────────────────────
+// CS-01 — Warren's five headings for every active production: Budget/Rev, Labour Charged,
+// Materials Charged, Profit/Loss. Live figures (draft timesheets included), ex VAT.
+// Built on services/liveCostService (read-only); /cost-summary is unchanged.
+const getProductionPL = async (req, res) => {
+  try {
+    const { rows: productions } = await db.query(
+      `SELECT id, name, production_code, status, contract_type
+       FROM productions
+       WHERE status = ANY($1::text[]) AND deleted_at IS NULL
+       ORDER BY name`,
+      [LIVE_ACTIVE_STATUSES]
+    );
+    const rows = await buildProductionPL(db, productions);
+    res.json({
+      generated_at: new Date().toISOString(),
+      vat_basis:    'ex_vat',
+      productions:  rows,
+      totals:       sumPL(rows),
+    });
+  } catch (err) {
+    console.error('getProductionPL:', err);
+    res.status(500).json({ error: 'Unable to load production P&L' });
+  }
+};
+
 module.exports = {
   getDashboard, getDashboardPOSpend, getDashboardProductions,
   getCostSummary, getWeeklyPL,
   getLabourCosts, getCrewHeadcount, getDashboardForecastVariance,
   getAccountantOverview, getCoordinatorOverview,
+  getProductionPL,
 };

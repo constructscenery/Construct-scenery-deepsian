@@ -197,6 +197,27 @@ describe('sync', () => {
     expect(ran(/pg_advisory_unlock/)).toHaveLength(1);
   });
 
+  test('CS-06: auto-links invoices after pulling and reports how many', async () => {
+    syncSql(conn(), [
+      [/FROM productions\s+WHERE deleted_at IS NULL/, [{ id: 'p1', name: 'Phantom', production_code: 'PHAN-UK' }]],
+      [/FROM xero_invoices\s+WHERE production_id IS NULL/, [{ id: 'i1', invoice_number: 'INV-1', reference: 'PHAN-UK' }]],
+      [/UPDATE xero_invoices xi/, [{ id: 'i1', invoice_number: 'INV-1', production_id: 'p1' }]],
+    ]);
+    global.fetch.mockResolvedValueOnce(jsonResponse({ Invoices: [] }));
+    const result = await xero.syncInvoices();
+    expect(result).toMatchObject({ ran: true, auto_allocated: 1 });
+  });
+
+  test('CS-06: an auto-link failure never fails the sync', async () => {
+    syncSql(conn(), [[/FROM productions\s+WHERE deleted_at IS NULL/, () => { throw new Error('boom'); }]]);
+    global.fetch.mockResolvedValueOnce(jsonResponse({ Invoices: [] }));
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const result = await xero.syncInvoices();
+    spy.mockRestore();
+    expect(result).toMatchObject({ ran: true, auto_allocated: 0 });
+    expect(ran(/last_sync_status = 'success'/)).toHaveLength(1);
+  });
+
   test('later syncs only ask for invoices changed since the last successful sync', async () => {
     syncSql(conn({ last_synced_at: '2026-11-10T09:15:30.000Z' }));
     global.fetch.mockResolvedValueOnce(jsonResponse({ Invoices: [] }));

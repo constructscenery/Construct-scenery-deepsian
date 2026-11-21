@@ -80,6 +80,7 @@ const NAV_GROUPS = [
     icon: SlidersHorizontal,
     items: [
       { href: '/settings/rate-card', label: 'Rate Cards', icon: CreditCard, roles: ALL_ROLES },
+      { href: '/settings/set-codes', label: 'Set Codes', icon: Layers, roles: ALL_ROLES },
       { href: '/settings/users', label: 'Users & Roles', icon: ShieldCheck, roles: ['managing_director'] as UserRole[] },
       { href: '/audit-log', label: 'Audit Log', icon: History, roles: ALL_ROLES },
     ],

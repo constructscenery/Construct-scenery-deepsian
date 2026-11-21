@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
-import { crewRatesApi, type CrewRate } from '@/lib/api';
+import { crewRatesApi, settingsApi, type CrewRate } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Pencil, Check, X, Upload, Loader2, AlertCircle, RefreshCw,
@@ -207,6 +207,39 @@ export default function RateCardPage() {
   const canManage = true;
   const canWrite = true;
 
+  // CS-08: Standard / Commercial view. Commercial = every rate × (1 + uplift%), rounded per rate to the
+  // penny — the same rule timesheets use. Stored rates are never duplicated; edit the standard rates.
+  const [view, setView] = useState<'standard' | 'commercial'>('standard');
+  const [upliftPct, setUpliftPct] = useState<number>(10);
+  const [upliftDraft, setUpliftDraft] = useState('');
+  const [upliftSaving, setUpliftSaving] = useState(false);
+  const [upliftMsg, setUpliftMsg] = useState('');
+  useEffect(() => {
+    settingsApi.get().then(st => {
+      const v = Number(st['commercial_rate_uplift_pct']?.value);
+      if (Number.isFinite(v)) setUpliftPct(v);
+    }).catch(() => {});
+  }, []);
+  const show = (v: string | number | null | undefined) => {
+    if (view === 'standard' || v == null || v === '' || v === 'NaN') return fmt(v);
+    const n = typeof v === 'number' ? v : parseFloat(String(v));
+    if (isNaN(n)) return fmt(v);
+    const pence = Math.round(n * 100) * (1 + upliftPct / 100);
+    return fmt(Math.round(Number(pence.toPrecision(12))) / 100);
+  };
+  const saveUplift = async () => {
+    const v = Number(upliftDraft);
+    if (!upliftDraft.trim() || !Number.isFinite(v) || v < 0 || v > 100) { setUpliftMsg('Enter a percentage from 0 to 100'); return; }
+    setUpliftSaving(true); setUpliftMsg('');
+    try {
+      await settingsApi.patch('commercial_rate_uplift_pct', v);
+      setUpliftPct(v); setUpliftDraft('');
+      setUpliftMsg(`Saved. Commercial productions use +${v}% for timesheets saved or recalculated from now on.`);
+    } catch (err) {
+      setUpliftMsg(err instanceof Error ? err.message : 'Save failed');
+    } finally { setUpliftSaving(false); }
+  };
+
   // Guard: MD + Accountant only
   useEffect(() => {
     if (user && !canManage) router.replace('/overview');
@@ -317,6 +350,38 @@ export default function RateCardPage() {
           )}
         </div>
 
+        {/* CS-08: Standard / Commercial view */}
+        {activeTab === 'current' && (
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5" role="tablist" aria-label="Rate card view">
+                {(['standard', 'commercial'] as const).map(v => (
+                  <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => { setView(v); setEditingId(null); }}
+                    className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${view === v ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                    {v === 'standard' ? 'Standard' : `Commercial (+${upliftPct}%)`}
+                  </button>
+                ))}
+              </div>
+              {view === 'commercial' && (
+                <span className="text-xs text-slate-500">Every day, OT and weekly rate +{upliftPct}%. Read-only — edit the standard rates.</span>
+              )}
+            </div>
+            {canWrite && (
+              <div className="flex items-center gap-2 text-xs">
+                <label htmlFor="uplift-pct" className="text-slate-600">Commercial uplift %</label>
+                <input id="uplift-pct" type="number" min={0} max={100} step="0.5" placeholder={String(upliftPct)} value={upliftDraft}
+                  onChange={e => setUpliftDraft(e.target.value)}
+                  className="w-20 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <button type="button" onClick={saveUplift} disabled={upliftSaving || !upliftDraft.trim()}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50">
+                  {upliftSaving ? <Loader2 size={13} className="animate-spin" /> : 'Save'}
+                </button>
+              </div>
+            )}
+            {upliftMsg && <p className="w-full text-xs text-slate-600">{upliftMsg}</p>}
+          </div>
+        )}
+
         {/* History tab */}
         {activeTab === 'history' && (
           <div className="space-y-4">
@@ -399,8 +464,8 @@ export default function RateCardPage() {
                         className="w-24 border border-blue-300 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-400"
                       />
                     ) : (
-                      <span className={fmt(r.daily_rate) !== '—' ? 'text-slate-800 font-medium' : 'text-slate-300 italic'}>
-                        {fmt(r.daily_rate)}
+                      <span className={show(r.daily_rate) !== '—' ? 'text-slate-800 font-medium' : 'text-slate-300 italic'}>
+                        {show(r.daily_rate)}
                       </span>
                     )}
                   </td>
@@ -413,8 +478,8 @@ export default function RateCardPage() {
                         className="w-24 border border-blue-300 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-400"
                       />
                     ) : (
-                      <span className={fmt(r.overtime_rate) !== '—' ? 'text-slate-600' : 'text-slate-300 italic'}>
-                        {fmt(r.overtime_rate)}
+                      <span className={show(r.overtime_rate) !== '—' ? 'text-slate-600' : 'text-slate-300 italic'}>
+                        {show(r.overtime_rate)}
                       </span>
                     )}
                   </td>
@@ -432,7 +497,7 @@ export default function RateCardPage() {
                           <X size={13} />
                         </button>
                       </div>
-                    ) : canWrite ? (
+                    ) : canWrite && view === 'standard' ? (
                       <button onClick={() => startEdit(r)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                         <Pencil size={13} />
                       </button>
@@ -490,8 +555,8 @@ export default function RateCardPage() {
                             className="w-24 border border-blue-300 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-400"
                           />
                         ) : (
-                          <span className={fmt(r.daily_rate) !== '—' ? 'text-slate-800 font-medium' : 'text-slate-300 italic'}>
-                            {fmt(r.daily_rate)}
+                          <span className={show(r.daily_rate) !== '—' ? 'text-slate-800 font-medium' : 'text-slate-300 italic'}>
+                            {show(r.daily_rate)}
                           </span>
                         )}
                       </td>
@@ -504,8 +569,8 @@ export default function RateCardPage() {
                             className="w-24 border border-blue-300 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-400"
                           />
                         ) : (
-                          <span className={fmt(r.overtime_rate) !== '—' ? 'text-slate-600' : 'text-slate-300 italic'}>
-                            {fmt(r.overtime_rate)}
+                          <span className={show(r.overtime_rate) !== '—' ? 'text-slate-600' : 'text-slate-300 italic'}>
+                            {show(r.overtime_rate)}
                           </span>
                         )}
                       </td>
@@ -519,8 +584,8 @@ export default function RateCardPage() {
                             className="w-24 border border-blue-300 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-1 focus:ring-blue-400"
                           />
                         ) : (
-                          <span className={fmt(r.weekly_rate) !== '—' ? 'text-slate-500' : 'text-slate-300'}>
-                            {fmt(r.weekly_rate)}
+                          <span className={show(r.weekly_rate) !== '—' ? 'text-slate-500' : 'text-slate-300'}>
+                            {show(r.weekly_rate)}
                           </span>
                         )}
                       </td>
@@ -543,7 +608,7 @@ export default function RateCardPage() {
                               <X size={13} />
                             </button>
                           </div>
-                        ) : canWrite ? (
+                        ) : canWrite && view === 'standard' ? (
                           <div className="flex justify-end">
                             <button
                               onClick={() => startEdit(r)}

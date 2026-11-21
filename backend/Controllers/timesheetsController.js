@@ -6,6 +6,11 @@ const { generateVerificationPack } = require('../services/verificationPackServic
 const { generateTimesheetListPdf } = require('../services/timesheetListPdfService');
 const { logAudit }                 = require('../services/auditService');
 const csvParse                     = require('csv-parse/sync');
+const {
+  resolveRates, normaliseEntries, computeTotals, recalculateAndStore,
+  displayDailyRateSql, displayOvertimeRateSql, displayRateMultiplierSql, PRODUCTION_RATE_CARD_COLUMNS, rateMultiplierFor, applyMultiplier,
+} = require('../services/timesheetCalc');
+const { unknownSetCodes, setCodeWarnings } = require('../services/setCodeService');
 
 // ─── Helper: record an outbound email to email_log ────────────────────────────
 const logEmail = async (module, relatedRecordId, recipientEmail, recipientName, success, errorMessage = null) => {
@@ -177,14 +182,7 @@ const getAllTimesheets = async (req, res) => {
               , COALESCE(te_agg.ad_hoc_total, 0)         AS ad_hoc_total
               , COALESCE(te_agg.food_total, 0)           AS food_total
               , te_agg.attendance_days                   AS attendance_days
-              , (
-                  SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2))
-                  FROM bectu_rates br
-                  WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
-                     OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
-                  ORDER BY br.effective_from DESC NULLS LAST
-                  LIMIT 1
-                ) AS overtime_rate
+              , ${displayOvertimeRateSql()} AS overtime_rate
        FROM   timesheets t
        JOIN   crew_members cm ON t.crew_member_id = cm.id
        JOIN   productions p  ON t.production_id   = p.id
@@ -424,6 +422,9 @@ const createTimesheet = async (req, res) => {
              VALUES ${vph}`,
             flatValues
           );
+          // CS-02: price the copied days straight away so the new draft counts in live costs
+          // (previously it showed £0 until someone opened and saved it).
+          await recalculateAndStore(db, ts.id);
         }
       }
     } catch (rollErr) {
@@ -459,14 +460,9 @@ const getTimesheetById = async (req, res) => {
               cm.employment_status, cm.company_name, cm.paye_withholding_rate,
               cm.vat_registration_number,
               p.id AS prod_id, p.name AS prod_name,
-              (SELECT br.daily_rate   FROM bectu_rates br
-               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
-                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
-               ORDER BY br.effective_from DESC NULLS LAST LIMIT 1) AS daily_rate,
-              (SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2)) FROM bectu_rates br
-               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
-                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
-               ORDER BY br.effective_from DESC NULLS LAST LIMIT 1) AS overtime_rate
+              ${displayDailyRateSql()} AS daily_rate,
+              ${displayOvertimeRateSql()} AS overtime_rate,
+              ${displayRateMultiplierSql()} AS effective_rate_multiplier
        FROM   timesheets t
        JOIN   crew_members cm ON t.crew_member_id = cm.id
        JOIN   productions p  ON t.production_id   = p.id
@@ -508,11 +504,13 @@ const saveEntries = async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Get timesheet with crew details
+    // Get timesheet with crew details (+ CS-08 rate card of its production)
     const { rows: [ts] } = await client.query(
-      `SELECT t.*, cm.crew_trade, cm.crew_rank, cm.employment_status, cm.vat_registration_number, cm.email
+      `SELECT t.*, cm.crew_trade, cm.crew_rank, cm.employment_status, cm.vat_registration_number, cm.email,
+              ${PRODUCTION_RATE_CARD_COLUMNS}
        FROM timesheets t
        JOIN crew_members cm ON t.crew_member_id = cm.id
+       LEFT JOIN productions p ON p.id = t.production_id
        WHERE t.id = $1`,
       [req.params.id]
     );
@@ -531,58 +529,22 @@ const saveEntries = async (req, res) => {
       );
     }
 
-    // Rate resolution: rate_override → rank_override rate → default rank rate
-    let dailyRate, otRate;
-    if (rate_override != null) {
-      dailyRate = parseFloat(rate_override);
-      otRate    = dailyRate > 0 ? Math.round(dailyRate * 1.5 / 9.5 * 100) / 100 : 0;
-    } else {
-      const rateYear = getRateYear(ts.week_ending_date);
-      let { rows: [rateRow] } = await client.query(
-        `SELECT daily_rate, overtime_rate FROM bectu_rates
-         WHERE ((trade = $1 AND rank = $2)
-            OR (trade = 'Non-BECTU' AND (rank = $1 OR rank = $2)))
-           AND rate_year = $3
-         ORDER BY effective_from DESC NULLS LAST LIMIT 1`,
-        [ts.crew_trade, effectiveRank, rateYear]
-      );
-      if (!rateRow) {
-        ({ rows: [rateRow] } = await client.query(
-          `SELECT daily_rate, overtime_rate FROM bectu_rates
-           WHERE (trade = $1 AND rank = $2)
-              OR (trade = 'Non-BECTU' AND (rank = $1 OR rank = $2))
-           ORDER BY effective_from DESC NULLS LAST LIMIT 1`,
-          [ts.crew_trade, effectiveRank]
-        ));
-      }
-      dailyRate = parseFloat(rateRow?.daily_rate || 0);
-      otRate    = parseFloat(rateRow?.overtime_rate || 0);
-      // Non-BECTU roles often have no OT rate configured; derive from daily rate (daily / 9.5 × 1.5)
-      if (!otRate && dailyRate > 0) otRate = Math.round(dailyRate * 1.5 / 9.5 * 100) / 100;
-    }
+    // Rate resolution (TECH-01, services/timesheetCalc): rate_override → rank_override rate → default rank rate.
+    // Like before, only an override sent with THIS save is applied. CS-08: a commercial production
+    // multiplies the rate-card rates (never a manual rate_override).
+    const rateMultiplier = rateMultiplierFor(ts);
+    const { dailyRate, otRate } = await resolveRates(client, {
+      trade: ts.crew_trade,
+      rank: effectiveRank,
+      weekEndingDate: ts.week_ending_date,
+      rateOverride: rate_override != null ? rate_override : null,
+      multiplier: rateMultiplier,
+    });
 
     // Delete old entries and re-insert
     await client.query('DELETE FROM timesheet_entries WHERE timesheet_id = $1', [req.params.id]);
 
-    const rows = entries.map(e => ({
-      timesheet_id:              req.params.id,
-      date:                      e.date,
-      day_of_week:               e.day_of_week,
-      full_day_worked:           e.full_day_worked || false,
-      overtime_hours:            parseFloat(e.overtime_hours || 0),
-      set_number:                e.set_number || null,
-      site:                      e.site || null,
-      travel:                    parseFloat(e.travel || 0),
-      meal_breakfast:            e.meal_breakfast || false,
-      meal_lunch:                e.meal_lunch || false,
-      meal_supper:               e.meal_supper || false,
-      meal_allowance_breakfast:  e.meal_allowance_breakfast != null ? parseFloat(e.meal_allowance_breakfast) : null,
-      meal_allowance_lunch:      e.meal_allowance_lunch     != null ? parseFloat(e.meal_allowance_lunch)     : null,
-      meal_allowance_supper:     e.meal_allowance_supper    != null ? parseFloat(e.meal_allowance_supper)    : null,
-      mileage:                   parseFloat(e.mileage              || 0),
-      per_diem:                  parseFloat(e.per_diem             || 0),
-      ad_hoc_reimbursement:      parseFloat(e.ad_hoc_reimbursement || 0),
-    }));
+    const rows = normaliseEntries(req.params.id, entries);
 
     if (rows.length) {
       const valuePlaceholders = rows.map((_, idx) => {
@@ -606,42 +568,24 @@ const saveEntries = async (req, res) => {
       );
     }
 
-    // ─── Weekly totals ────────────────────────────────────────────────────────
-    const worked    = rows.filter(e => e.full_day_worked);
-    const sunday    = rows.find(e => e.day_of_week === 'Sunday' && e.full_day_worked);
-    // Saturday has no weekend premium; paid at normal day rate. Only Sunday has premium (double time).
-    const stdDays   = worked.filter(e => e.day_of_week !== 'Sunday').length;
-
-    const weeklyRate        = dailyRate * stdDays;
-    const sixthDayPayment   = 0;
-    const seventhDayPayment = sunday   ? dailyRate * 2.0 : 0;
-    const totalOT           = rows.reduce((s, e) => s + e.overtime_hours, 0);
-    const overtimeAmount    = totalOT * otRate;
-
-    // Gap 6: use explicit amounts if provided; fall back to legacy boolean+MEAL_RATES
-    const mealAllowance = rows.reduce((s, e) => {
-      const b = e.meal_allowance_breakfast != null ? e.meal_allowance_breakfast : (e.meal_breakfast ? MEAL_RATES.breakfast : 0);
-      const l = e.meal_allowance_lunch     != null ? e.meal_allowance_lunch     : (e.meal_lunch     ? MEAL_RATES.lunch     : 0);
-      const sup = e.meal_allowance_supper  != null ? e.meal_allowance_supper    : (e.meal_supper    ? MEAL_RATES.supper    : 0);
-      return s + b + l + sup;
-    }, 0);
-
-    const mileageAndTravel = rows.reduce((s, e) => s + e.travel + e.mileage + e.per_diem + e.ad_hoc_reimbursement, 0);
-    const grossTotal       = weeklyRate + sixthDayPayment + seventhDayPayment + overtimeAmount + mealAllowance + mileageAndTravel;
-    const vatRegistered    = ts.employment_status === 'self_employed' && !!ts.vat_registration_number;
-    const vat              = vatRegistered ? grossTotal * 0.20 : 0;
-    const grandTotal       = grossTotal + vat;
+    // ─── Weekly totals (TECH-01: services/timesheetCalc.computeTotals) ─────────
+    const {
+      weekly_rate: weeklyRate, sixth_day_payment: sixthDayPayment, seventh_day_payment: seventhDayPayment,
+      overtime_amount: overtimeAmount, meal_allowance_total: mealAllowance, mileage_and_travel: mileageAndTravel,
+      gross_total: grossTotal, vat, grand_total: grandTotal,
+    } = computeTotals(rows, { dailyRate, otRate }, ts);
 
     const { rows: [updated] } = await client.query(
       `UPDATE timesheets SET
          weekly_rate = $1, sixth_day_payment = $2, seventh_day_payment = $3,
          overtime_amount = $4, meal_allowance_total = $5, mileage_and_travel = $6,
          vat = $7, gross_total = $8, grand_total = $9,
+         rate_multiplier = $11,
          amended_at = CASE WHEN status = 'distributed' THEN NOW() ELSE amended_at END
        WHERE id = $10
        RETURNING *`,
       [weeklyRate, sixthDayPayment, seventhDayPayment, overtimeAmount,
-       mealAllowance, mileageAndTravel, vat, grossTotal, grandTotal, req.params.id]
+       mealAllowance, mileageAndTravel, vat, grossTotal, grandTotal, req.params.id, rateMultiplier]
     );
 
     await client.query('COMMIT');
@@ -665,7 +609,14 @@ const saveEntries = async (req, res) => {
         });
       }
     }
-    res.json(updated);
+    // CS-04: non-blocking warnings for set numbers not in the production's set list (saved anyway)
+    let warnings = [];
+    try {
+      warnings = setCodeWarnings(await unknownSetCodes(db, ts.production_id, rows.map(r => r.set_number)));
+    } catch (warnErr) {
+      console.error('saveEntries set-code check failed (non-fatal):', warnErr.message);
+    }
+    res.json(warnings.length ? { ...updated, warnings } : updated);
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('saveEntries:', err);
@@ -1104,14 +1055,8 @@ const generateVerificationPackPdf = async (req, res) => {
               cm.employment_status, cm.company_name, cm.crew_trade, cm.crew_rank,
               cm.vat_registration_number,
               p.name AS prod_name,
-              (SELECT br.daily_rate    FROM bectu_rates br
-               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
-                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
-               ORDER BY br.effective_from DESC NULLS LAST LIMIT 1) AS daily_rate,
-              (SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2)) FROM bectu_rates br
-               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
-                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
-               ORDER BY br.effective_from DESC NULLS LAST LIMIT 1) AS overtime_rate
+              ${displayDailyRateSql()} AS daily_rate,
+              ${displayOvertimeRateSql()} AS overtime_rate
        FROM timesheets t
        JOIN crew_members cm ON t.crew_member_id = cm.id
        JOIN productions p   ON t.production_id  = p.id
@@ -1309,18 +1254,8 @@ const generateVerificationPackCombinedPdf = async (req, res) => {
               cm.crew_number, cm.first_name, cm.last_name, cm.crew_trade, cm.crew_rank,
               cm.employment_status, cm.company_name, cm.paye_withholding_rate, cm.vat_registration_number,
               p.name AS prod_name,
-              (SELECT br.daily_rate
-               FROM bectu_rates br
-               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
-                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
-               ORDER BY br.effective_from DESC NULLS LAST
-               LIMIT 1) AS daily_rate,
-              (SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2))
-               FROM bectu_rates br
-               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
-                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
-               ORDER BY br.effective_from DESC NULLS LAST
-               LIMIT 1) AS overtime_rate
+              ${displayDailyRateSql()} AS daily_rate,
+              ${displayOvertimeRateSql()} AS overtime_rate
        FROM timesheets t
        JOIN crew_members cm ON t.crew_member_id = cm.id
        JOIN productions p   ON t.production_id  = p.id
@@ -1374,18 +1309,8 @@ const getTimesheetVerificationPack = async (req, res) => {
               cm.crew_number, cm.first_name, cm.last_name, cm.crew_trade, cm.crew_rank,
               cm.employment_status, cm.company_name, cm.paye_withholding_rate, cm.vat_registration_number,
               p.id AS prod_id, p.name AS prod_name,
-              (SELECT br.daily_rate
-               FROM bectu_rates br
-               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
-                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
-               ORDER BY br.effective_from DESC NULLS LAST
-               LIMIT 1) AS daily_rate,
-              (SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2))
-               FROM bectu_rates br
-               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
-                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
-               ORDER BY br.effective_from DESC NULLS LAST
-               LIMIT 1) AS overtime_rate
+              ${displayDailyRateSql()} AS daily_rate,
+              ${displayOvertimeRateSql()} AS overtime_rate
        FROM timesheets t
        JOIN crew_members cm ON t.crew_member_id = cm.id
        JOIN productions p   ON t.production_id   = p.id
@@ -1428,18 +1353,8 @@ const getDraftPdf = async (req, res) => {
               cm.crew_number, cm.first_name, cm.last_name, cm.crew_trade, cm.crew_rank,
               cm.employment_status, cm.company_name, cm.paye_withholding_rate, cm.vat_registration_number,
               p.id AS prod_id, p.name AS prod_name,
-              (SELECT br.daily_rate
-               FROM bectu_rates br
-               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
-                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
-               ORDER BY br.effective_from DESC NULLS LAST
-               LIMIT 1) AS daily_rate,
-              (SELECT COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2))
-               FROM bectu_rates br
-               WHERE (br.trade = cm.crew_trade AND br.rank = COALESCE(t.rank_override, cm.crew_rank))
-                  OR (br.trade = 'Non-BECTU' AND (br.rank = cm.crew_trade OR br.rank = COALESCE(t.rank_override, cm.crew_rank)))
-               ORDER BY br.effective_from DESC NULLS LAST
-               LIMIT 1) AS overtime_rate
+              ${displayDailyRateSql()} AS daily_rate,
+              ${displayOvertimeRateSql()} AS overtime_rate
        FROM timesheets t
        JOIN crew_members cm ON t.crew_member_id = cm.id
        JOIN productions p   ON t.production_id   = p.id
@@ -1914,6 +1829,12 @@ const parseImportTimesheetRow = (row, idx, context) => {
     ? resolveImportRate(context.bectuRates, crew.crew_trade, effectiveRank, rateYear)
     : { daily_rate: 0, overtime_rate: 0 };
 
+  // CS-08: commercial productions uplift rate-card rates (never a Rate Override)
+  const rateMultiplier = rateMultiplierFor(production);
+  if (rateMultiplier !== 1) {
+    rates.daily_rate = applyMultiplier(rates.daily_rate, rateMultiplier);
+    rates.overtime_rate = applyMultiplier(rates.overtime_rate, rateMultiplier);
+  }
   const dailyRate = rateOverride != null ? rateOverride : rates.daily_rate;
   const otRate = rates.overtime_rate || (dailyRate > 0 ? (dailyRate / 9.5 * 1.5) : 0);
 
@@ -1962,6 +1883,7 @@ const parseImportTimesheetRow = (row, idx, context) => {
     week_ending_date: wed || rawWed || '',
     rank_override: rankOverride,
     rate_override: rateOverride,
+    rate_multiplier: rateMultiplier,
     daily_rate: dailyRate,
     overtime_rate: otRate,
     days_worked: workedEntries.length,
@@ -2000,7 +1922,12 @@ const previewImport = async (req, res) => {
   }
   if (!records.length) return res.status(400).json({ error: 'CSV is empty' });
 
-  const { rows: productions } = await db.query('SELECT id, name, status FROM productions');
+  // CS-08: rate card + commercial uplift travel with each production (same single query)
+  const { rows: productions } = await db.query(
+    `SELECT id, name, status, rate_card_type,
+            (SELECT value FROM app_settings WHERE key = 'commercial_rate_uplift_pct') AS commercial_uplift_pct
+     FROM productions`
+  );
   const { rows: crewMembers } = await db.query(
     'SELECT id, crew_number, first_name, last_name, email, crew_trade, crew_rank, employment_status, vat_registration_number, is_active FROM crew_members'
   );
@@ -2050,7 +1977,12 @@ const importCSV = async (req, res) => {
   }
   if (!records.length) return res.status(400).json({ error: 'CSV is empty' });
 
-  const { rows: productions } = await db.query('SELECT id, name, status FROM productions');
+  // CS-08: rate card + commercial uplift travel with each production (same single query)
+  const { rows: productions } = await db.query(
+    `SELECT id, name, status, rate_card_type,
+            (SELECT value FROM app_settings WHERE key = 'commercial_rate_uplift_pct') AS commercial_uplift_pct
+     FROM productions`
+  );
   const { rows: crewMembers } = await db.query(
     'SELECT id, crew_number, first_name, last_name, email, crew_trade, crew_rank, employment_status, vat_registration_number, is_active FROM crew_members'
   );
@@ -2110,6 +2042,7 @@ const importCSV = async (req, res) => {
                weekly_rate = $3, sixth_day_payment = $4, seventh_day_payment = $5,
                overtime_amount = $6, meal_allowance_total = $7, mileage_and_travel = $8,
                vat = $9, gross_total = $10, grand_total = $11,
+               rate_multiplier = $13,
                updated_at = NOW()
              WHERE id = $12`,
             [
@@ -2117,7 +2050,7 @@ const importCSV = async (req, res) => {
               item.weekly_rate, item.sixth_day_payment, item.seventh_day_payment,
               item.overtime_amount, item.meal_allowance_total, item.mileage_and_travel,
               item.vat, item.gross_total, item.grand_total,
-              timesheetId,
+              timesheetId, item.rate_multiplier ?? 1,
             ]
           );
           await client.query('DELETE FROM timesheet_entries WHERE timesheet_id = $1', [timesheetId]);
@@ -2135,15 +2068,15 @@ const importCSV = async (req, res) => {
             `INSERT INTO timesheets
                (crew_member_id, production_id, week_ending_date, status, created_by,
                 rank_override, rate_override, weekly_rate, sixth_day_payment, seventh_day_payment,
-                overtime_amount, meal_allowance_total, mileage_and_travel, vat, gross_total, grand_total)
-             VALUES ($1,$2,$3,'draft',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+                overtime_amount, meal_allowance_total, mileage_and_travel, vat, gross_total, grand_total, rate_multiplier)
+             VALUES ($1,$2,$3,'draft',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
              RETURNING id`,
             [
               item.crew_member_id, item.production_id, item.week_ending_date, req.user?.id || null,
               item.rank_override, item.rate_override,
               item.weekly_rate, item.sixth_day_payment, item.seventh_day_payment,
               item.overtime_amount, item.meal_allowance_total, item.mileage_and_travel,
-              item.vat, item.gross_total, item.grand_total,
+              item.vat, item.gross_total, item.grand_total, item.rate_multiplier ?? 1,
             ]
           );
           timesheetId = newTs.id;

@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import TopBar from '@/components/TopBar';
-import { timesheetsApi, crewApi, type Timesheet } from '@/lib/api';
+import { timesheetsApi, crewApi, setCodesApi, type Timesheet, type SetCodeOption } from '@/lib/api';
+import SetCodeSelect from '@/components/SetCodeSelect';
 import { ChevronLeft, Save, Loader2, AlertCircle, Trash2 } from 'lucide-react';
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -82,6 +83,8 @@ export default function TimesheetDetailPage() {
   const [trades, setTrades]   = useState<{ bectu: Record<string, string[]>; non_bectu: string[] } | null>(null);
   const [entries, setEntries] = useState<DayEntry[]>([]);
   const [rankOverride, setRankOverride] = useState('');
+  // CS-04: production sets + universal codes for the Set No. dropdown (null → plain text box)
+  const [setOptions, setSetOptions] = useState<SetCodeOption[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
@@ -141,6 +144,7 @@ export default function TimesheetDetailPage() {
       setTs(ts);
       setTrades(tradesData);
       setRankOverride((ts.rank_override as string) ?? '');
+      setSetOptions(await setCodesApi.list(String(ts.production_id)).catch(() => null));
 
       const dates = getWeekDates(ts.week_ending_date);
       const existing = (ts.timesheet_entries as DayEntry[]) ?? [];
@@ -189,6 +193,14 @@ export default function TimesheetDetailPage() {
       next[idx] = { ...next[idx], [field]: value };
       return next;
     });
+  };
+
+  // CS-04: copy the first worked day's set to every worked day
+  const fillWorkedDaysSet = () => {
+    const first = entries.find(en => en.full_day_worked && en.set_number.trim());
+    if (!first) return;
+    setIsDirty(true);
+    setEntries(prev => prev.map(en => (en.full_day_worked ? { ...en, set_number: first.set_number } : en)));
   };
 
   const handleSave = async () => {
@@ -302,7 +314,8 @@ export default function TimesheetDetailPage() {
   const payeRate       = isPaye ? (parseFloat(String(ts?.paye_withholding_rate ?? '0')) || 0) : 0;
   const payeRateLabel  = Number.isInteger(payeRate) ? String(payeRate) : payeRate.toFixed(2).replace(/\.?0+$/, '');
 
-  // Rates from backend (fetched on load)
+  // Rates from backend (fetched on load) — already include the commercial uplift when it applies (CS-08)
+  const rateMultiplier = parseFloat(String(ts?.effective_rate_multiplier ?? '1')) || 1;
   const dailyRate = parseFloat(String(ts?.daily_rate    ?? '0')) || 0;
   const otRate    = parseFloat(String(ts?.overtime_rate ?? '0')) || 0;
 
@@ -445,7 +458,15 @@ export default function TimesheetDetailPage() {
         {/* Daily entries table */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100">
-            <h2 className="text-slate-900 font-semibold text-sm">Daily Entries</h2>
+            <h2 className="text-slate-900 font-semibold text-sm">
+              Daily Entries
+              {rateMultiplier > 1 && (
+                <span title="This production uses the commercial rate card: every day and OT rate is uplifted. Meals, mileage and travel are not."
+                  className="ml-2 align-middle text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+                  Commercial rate +{Math.round((rateMultiplier - 1) * 10000) / 100}%
+                </span>
+              )}
+            </h2>
             <p className="text-slate-400 text-xs mt-0.5">Tick days worked, set OT hours, site, and meal allowances</p>
           </div>
           <div className="overflow-x-auto">
@@ -455,7 +476,14 @@ export default function TimesheetDetailPage() {
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left w-28">Day</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-center w-20">Worked</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left w-24">OT Hrs</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">Set No.</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">
+                    Set No.
+                    {!isLocked && entries.some(en => en.full_day_worked && en.set_number.trim()) && (
+                      <button type="button" onClick={fillWorkedDaysSet}
+                        title="Copy the first worked day's set to every worked day"
+                        className="ml-2 font-medium text-blue-600 hover:underline normal-case">Fill worked days</button>
+                    )}
+                  </th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left">Site</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left w-20">Travel £</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500 text-left w-24">Mileage £</th>
@@ -494,12 +522,13 @@ export default function TimesheetDetailPage() {
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <input
-                          type="text" placeholder="—"
+                        <SetCodeSelect
                           value={e.set_number}
-                          onChange={ev => !isLocked && updateEntry(i, 'set_number', ev.target.value)}
+                          options={setOptions}
+                          ariaLabel={`Set for ${e.day_of_week}`}
+                          onChange={code => !isLocked && updateEntry(i, 'set_number', code)}
                           disabled={isLocked}
-                          className="w-24 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-36 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </td>
                       <td className="px-4 py-3">

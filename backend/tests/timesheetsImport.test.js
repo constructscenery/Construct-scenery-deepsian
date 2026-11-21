@@ -270,3 +270,33 @@ describe('Timesheets CSV Import API', () => {
     });
   });
 });
+
+describe('CS-08 — CSV import on a commercial production', () => {
+  const csv = (rateOverride = '') =>
+    'Production,Crew Number,First Name,Last Name,Week Ending Date,Rank Override,Rate Override,Mon Worked,Mon OT,Mon Set,Tue Worked,Tue OT,Tue Set,Wed Worked,Wed OT,Wed Set,Thu Worked,Thu OT,Thu Set,Fri Worked,Fri OT,Fri Set,Sat Worked,Sat OT,Sat Set,Sun Worked,Sun OT,Sun Set,Travel,Mileage,Per Diem,Ad Hoc Reimbursement,Meal Breakfast Count,Meal Lunch Count,Meal Supper Count,Notes\n' +
+    `"Gucci","CS-0001","John","Smith","2026-10-04","","${rateOverride}","Y","2.0","","Y","0","","N","0","","N","0","","N","0","","N","0","","N","0","","0","0","0","0","0","0","0",""`;
+  const respondContext = () => {
+    dbMock.respond([{ id: prodId, name: 'Gucci', status: 'active_build', rate_card_type: 'commercial', commercial_uplift_pct: 10 }]);
+    dbMock.respond([{ id: crewId, crew_number: 'CS-0001', first_name: 'John', last_name: 'Smith', crew_trade: 'Carpenters', crew_rank: 'Carpenter', employment_status: 'paye', is_active: true }]);
+    dbMock.respond([{ trade: 'Carpenters', rank: 'Carpenter', rate_year: '2026/27', daily_rate: 300.00, overtime_rate: 45.00, effective_from: '2026-07-01' }]);
+    dbMock.respond([]);
+    dbMock.respond([]);
+  };
+
+  test('rate-card rates are uplifted by the commercial %', async () => {
+    respondContext();
+    const res = await request(app).post('/api/timesheets/import/preview').set(authHeader('md')).attach('csv', Buffer.from(csv()), 'c.csv');
+    const row = res.body.preview[0];
+    expect(row.daily_rate).toBe(330);
+    expect(row.overtime_rate).toBe(49.5);
+    expect(row.weekly_rate).toBe(660);
+    expect(row.rate_multiplier).toBe(1.1);
+  });
+
+  test('a Rate Override is used exactly as entered', async () => {
+    respondContext();
+    const res = await request(app).post('/api/timesheets/import/preview').set(authHeader('md')).attach('csv', Buffer.from(csv('250')), 'c.csv');
+    expect(res.body.preview[0].daily_rate).toBe(250);
+    expect(res.body.preview[0].weekly_rate).toBe(500);
+  });
+});

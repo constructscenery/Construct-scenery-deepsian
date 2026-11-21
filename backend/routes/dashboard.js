@@ -17,5 +17,6 @@ router.get('/weekly-pl',          requireRole(...ALL_ROLES), ctrl.getWeeklyPL);
 router.get('/labour-costs',       requireRole(...ALL_ROLES), ctrl.getLabourCosts);
 router.get('/crew-headcount',     requireRole(...ALL_ROLES), ctrl.getCrewHeadcount);
 router.get('/forecast-variance',  requireRole(...ALL_ROLES), ctrl.getDashboardForecastVariance);
+router.get('/production-pl',      requireRole(...ALL_ROLES), ctrl.getProductionPL); // CS-01
 
 module.exports = router;

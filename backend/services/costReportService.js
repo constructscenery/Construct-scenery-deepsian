@@ -106,22 +106,25 @@ const getHireCosts = async (productionId, db) => {
     `SELECT * FROM hire_equipment WHERE production_id = $1 ORDER BY hire_start_date DESC`,
     [productionId]
   );
-  return rows.map(item => {
-    const start = new Date(item.hire_start_date);
-    const end = item.return_date ? new Date(item.return_date) : new Date();
-    start.setHours(0, 0, 0, 0);
-    end.setHours(0, 0, 0, 0);
-    const diffDays = Math.max(0, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
-    const weeksHired = diffDays === 0 ? 1 : Math.ceil(diffDays / 7);
-    const rate = parseFloat(item.weekly_hire_rate || 0);
-    const totalCost = Number((rate * weeksHired).toFixed(2));
-    return {
-      ...item,
-      days_hired: diffDays,
-      weeks_hired: weeksHired,
-      total_cost: totalCost,
-    };
-  });
+  return rows.map(calcHireItem);
+};
+
+/** Cost of one hire_equipment row to date (weekly rate × whole weeks, min 1). Shared with liveCostService. */
+const calcHireItem = item => {
+  const start = new Date(item.hire_start_date);
+  const end = item.return_date ? new Date(item.return_date) : new Date();
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  const diffDays = Math.max(0, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+  const weeksHired = diffDays === 0 ? 1 : Math.ceil(diffDays / 7);
+  const rate = parseFloat(item.weekly_hire_rate || 0);
+  const totalCost = Number((rate * weeksHired).toFixed(2));
+  return {
+    ...item,
+    days_hired: diffDays,
+    weeks_hired: weeksHired,
+    total_cost: totalCost,
+  };
 };
 
 // ─── Read: aggregated summary metrics ────────────────────────────────────────
@@ -202,4 +205,5 @@ const getAsAtSnapshot = async (productionId, asAtDate, db) => {
 module.exports = {
   recordSupplierCost, softDeleteEntry,
   getSupplierCosts, getLabourCosts, getHireCosts, getSummaryMetrics, getAsAtSnapshot,
+  calcHireItem,
 };

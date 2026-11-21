@@ -9,14 +9,18 @@ import {
   Phone, Mail, User,
 } from 'lucide-react';
 import {
-  productionsApi,
+  productionsApi, settingsApi,
   ProductionDetail, ProductionSet, ProductionDocument,
-  ProductionStatus, ContractType, SetStatus,
+  ProductionStatus, ContractType, SetStatus, RateCardType,
 } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import ProductionHireEquipmentPanel from '@/components/ProductionHireEquipmentPanel';
 import ProductionForecastingPanel from '@/components/forecasting/ProductionForecastingPanel';
 import ProductionFinancePanel from '@/components/ProductionFinancePanel';
+import SetImportModal from '@/components/production/SetImportModal';
+import RateCardSelector from '@/components/production/RateCardSelector';
+import ProductionHistoryTab from '@/components/production/ProductionHistoryTab';
+import ProductionPOsTab from '@/components/production/ProductionPOsTab';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -124,8 +128,18 @@ function EditProductionModal({ production, onClose, onSaved }: EditProductionMod
     start_date:                      production.start_date ? production.start_date.split('T')[0] : '',
     end_date:                        production.end_date   ? production.end_date.split('T')[0]   : '',
     contract_type:                   production.contract_type as ContractType | '',
+    rate_card_type:                  (production.rate_card_type ?? 'standard') as RateCardType,
   });
   const [saving, setSaving]               = useState(false);
+  // CS-08: after switching the rate card, offer to re-price unfinalised timesheets
+  const [recalc, setRecalc] = useState<{ updated: ProductionDetail; busy: boolean; result: Awaited<ReturnType<typeof productionsApi.recalculateTimesheets>> | null; error: string } | null>(null);
+  const [upliftPct, setUpliftPct] = useState<number | null>(null);
+  useEffect(() => {
+    settingsApi.get().then(st => {
+      const v = Number(st['commercial_rate_uplift_pct']?.value);
+      if (Number.isFinite(v)) setUpliftPct(v);
+    }).catch(() => {});
+  }, []);
   const [error, setError]                 = useState('');
   const [pendingContractType, setPendingContractType] = useState<ContractType | null>(null);
 
@@ -170,7 +184,12 @@ function EditProductionModal({ production, onClose, onSaved }: EditProductionMod
         art_dept_coordinator_email:     form.art_dept_coordinator_email || null,
         notes:                          form.notes || null,
       });
-      onSaved({ ...production, ...updated });
+      const merged = { ...production, ...updated };
+      if (form.rate_card_type !== (production.rate_card_type ?? 'standard') && production.has_linked_timesheets) {
+        setRecalc({ updated: merged, busy: false, result: null, error: '' });
+        return;
+      }
+      onSaved(merged);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -180,6 +199,56 @@ function EditProductionModal({ production, onClose, onSaved }: EditProductionMod
 
   return (
     <>
+      {/* CS-08: rate card changed — re-price unfinalised timesheets? */}
+      {recalc && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 space-y-4 text-sm">
+            <h3 className="text-slate-900 font-semibold text-lg">Rate card saved</h3>
+            {!recalc.result ? (
+              <>
+                <p className="text-slate-600">
+                  Re-price this production&apos;s unfinalised timesheets with the {form.rate_card_type === 'commercial' ? 'commercial' : 'standard'} rate card now?
+                  Finalised timesheets are never changed and no emails are sent. Anything else is re-priced the next time it&apos;s saved.
+                </p>
+                {recalc.error && <p className="text-red-600 text-xs">{recalc.error}</p>}
+                <div className="flex items-center justify-end gap-3">
+                  <button type="button" onClick={() => onSaved(recalc.updated)} className="px-4 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Not now</button>
+                  <button type="button" disabled={recalc.busy}
+                    onClick={async () => {
+                      setRecalc(r => r && { ...r, busy: true, error: '' });
+                      try {
+                        const result = await productionsApi.recalculateTimesheets(production.id);
+                        setRecalc(r => r && { ...r, busy: false, result });
+                      } catch (err) {
+                        setRecalc(r => r && { ...r, busy: false, error: err instanceof Error ? err.message : 'Recalculation failed' });
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-60">
+                    {recalc.busy && <Loader2 size={14} className="animate-spin" />} Recalculate
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-slate-700">{recalc.result.recalculated} timesheet(s) re-priced, {recalc.result.changed} changed.</p>
+                {recalc.result.skipped.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 space-y-1">
+                    <p className="font-semibold">{recalc.result.skipped.length} left unchanged for you to check:</p>
+                    <ul className="list-disc pl-4 max-h-32 overflow-y-auto">
+                      {recalc.result.skipped.map(sk => <li key={sk.timesheet_id}>{sk.name} — w/e {sk.week_ending_date}</li>)}
+                    </ul>
+                    <p>Their totals don&apos;t match their daily entries (e.g. imported allowances). Open each one and save it to re-price.</p>
+                  </div>
+                )}
+                <div className="flex justify-end">
+                  <button type="button" onClick={() => onSaved(recalc.updated)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Done</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Contract type change confirmation */}
       {pendingContractType && (
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
@@ -210,6 +279,7 @@ function EditProductionModal({ production, onClose, onSaved }: EditProductionMod
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Production Code</label>
               <input className={inputCls} placeholder="e.g. 101" value={form.production_code} onChange={set('production_code')} />
+              <p className="text-[11px] text-slate-400 mt-1">Put this code in the Xero invoice reference and Sales links the invoice to this production automatically.</p>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -232,6 +302,7 @@ function EditProductionModal({ production, onClose, onSaved }: EditProductionMod
             locked={isLocked}
             lockedReason="Locked — linked POs or timesheets exist"
           />
+          <RateCardSelector value={form.rate_card_type} upliftPct={upliftPct} onChange={v => setForm(f => ({ ...f, rate_card_type: v }))} />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Start Date</label>
@@ -338,8 +409,10 @@ function SetSlideOver({ initial = {}, existingSetNumbers, production, onSave, on
 
   const validateSetNumber = () => {
     if (!form.set_number.trim()) { setSetNumError(''); return; }
-    const others = existingSetNumbers.filter(n => n !== initial.set_number);
-    if (others.includes(form.set_number.trim())) {
+    // Same rule as the server (CS-03): trimmed, case-insensitive
+    const key = (v: string) => v.trim().toLowerCase();
+    const others = existingSetNumbers.filter(n => n !== initial.set_number).map(key);
+    if (others.includes(key(form.set_number))) {
       setSetNumError(`Set code "${form.set_number}" already exists in this production`);
     } else {
       setSetNumError('');
@@ -838,6 +911,8 @@ export default function ProductionDetailPage() {
   const [error, setError]             = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
   const [slideOver, setSlideOver]     = useState<'add' | ProductionSet | null>(null);
+  const [setImportOpen, setSetImportOpen] = useState(false); // CS-03
+  const [tab, setTab] = useState<'overview' | 'history' | 'pos'>('overview'); // CS-05
   const [deletingSetId, setDeletingSetId] = useState<string | null>(null);
   const [patchingSetId, setPatchingSetId] = useState<string | null>(null);
 
@@ -1222,6 +1297,20 @@ export default function ProductionDetailPage() {
       <TopBar title={production.name} subtitle={`${production.production_company ?? ''} · ${sc.label}`} />
       <main className="flex-1 p-4 md:p-6 space-y-4 md:space-y-5">
 
+        {/* CS-05 — tabs: Overview (everything that was here before) · Costs & History · Purchase Orders */}
+        <div role="tablist" aria-label="Production sections" className="flex gap-1 border-b border-slate-200">
+          {([['overview', 'Overview'], ['history', 'Costs & History'], ['pos', 'Purchase Orders']] as const).map(([key, text]) => (
+            <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
+              className={`px-3.5 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors ${tab === key ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+              {text}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'history' && <ProductionHistoryTab productionId={id} />}
+        {tab === 'pos' && <ProductionPOsTab productionId={id} />}
+
+        {tab === 'overview' && (<>
         {/* Archived read-only banner */}
         {isArchived && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
@@ -1455,6 +1544,14 @@ export default function ProductionDetailPage() {
           />
         )}
 
+        {setImportOpen && (
+          <SetImportModal
+            productionId={id}
+            onClose={() => setSetImportOpen(false)}
+            onImported={msg => { setSetImportOpen(false); showToast(msg); load(); }}
+          />
+        )}
+
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
             <div>
@@ -1470,6 +1567,15 @@ export default function ProductionDetailPage() {
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />7–14d</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />&lt;7d / Overdue</span>
               </div>
+              {canEdit && !isArchived && (
+                <button
+                  onClick={() => setSetImportOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  <Upload size={12} />
+                  Import
+                </button>
+              )}
               {canEdit && !isArchived && (
                 <button
                   onClick={() => setSlideOver('add')}
@@ -1655,6 +1761,7 @@ export default function ProductionDetailPage() {
             onDeleted={docId => setProduction(p => p ? { ...p, production_documents: p.production_documents.filter(d => d.id !== docId) } : p)}
           />
         </div>
+        </>)}
 
       </main>
     </>

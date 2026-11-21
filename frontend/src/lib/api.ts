@@ -202,6 +202,7 @@ export const profileApi = {
 // ─── Production types ──────────────────────────────────────────────────────────
 export type ProductionStatus = 'pre_production' | 'active_build' | 'strike' | 'complete' | 'archived';
 export type ContractType     = 'on_a_price' | 'cost_plus';
+export type RateCardType     = 'standard' | 'commercial';
 export type SetStatus        = 'not_started' | 'in_progress' | 'nearing_completion' | 'complete' | 'handed_over';
 
 export type Production = {
@@ -224,6 +225,8 @@ export type Production = {
   start_date: string | null;
   end_date: string | null;
   contract_type: ContractType;
+  /** CS-08 — commercial pays every rate-card rate + commercial_rate_uplift_pct */
+  rate_card_type?: RateCardType;
   status: ProductionStatus;
   created_by: string;
   created_at: string;
@@ -362,6 +365,10 @@ export const productionsApi = {
     request<ProductionDetail>(`/api/productions/${id}`),
   update: (id: string, data: Partial<Production>) =>
     request<Production>(`/api/productions/${id}`, { method: 'PUT', body: data }),
+  /** CS-08 — re-price unfinalised timesheets with the production's current rate card (no emails). */
+  recalculateTimesheets: (id: string) =>
+    request<{ recalculated: number; changed: number; skipped: Array<{ timesheet_id: string; name: string; week_ending_date: string; reason: string }> }>(
+      `/api/productions/${id}/recalculate-timesheets`, { method: 'POST' }),
   archivePreview: (id: string) =>
     request<{ production_name: string; po_count: number; timesheet_weeks: number; crew_count: number }>(
       `/api/productions/${id}/archive-preview`
@@ -1914,6 +1921,24 @@ export const dashboardNewApi = {
   forecastVariance: () => request<ForecastVarianceItem[]>('/api/dashboard/forecast-variance'),
   weeklyPL: () => request<WeeklyPLProduction[]>('/api/dashboard/weekly-pl'),
   poSpend: (weekEnding?: string) => request<DashboardPOSpend>(`/api/dashboard/po-spend${weekQS(weekEnding)}`),
+  productionPL: () => request<ProductionPLResponse>('/api/dashboard/production-pl', { cache: 'no-store' }),
+};
+
+// CS-01 — live production P&L (ex VAT; draft timesheets included). See services/liveCostService.js.
+export type ProductionPLItem = {
+  production_id: string; production_name: string; production_code: string | null;
+  status: string; contract_type: ContractType;
+  budget_revenue: number | null; invoiced_to_date: number;
+  labour_charged: number; labour_booked: number; labour_unbooked: number; draft_timesheets: number;
+  materials_charged: number; materials_po: number; materials_po_approved: number; materials_hire: number;
+  management_costs: number;
+  profit_loss: number | null; profit_pct: number | null;
+};
+export type ProductionPLTotals = {
+  budget_revenue: number; labour_charged: number; materials_charged: number; profit_loss: number; management_costs: number;
+};
+export type ProductionPLResponse = {
+  generated_at: string; vat_basis: 'ex_vat'; productions: ProductionPLItem[]; totals: ProductionPLTotals;
 };
 
 // ─── Extended Forecast API (link + forecast variance per production) ──────────
@@ -2666,6 +2691,8 @@ export type SalesInvoice = {
   production_name: string | null;
   production_code: string | null;
   allocated_at: string | null;
+  /** CS-06 — 'auto' = linked from the Xero reference; 'manual' = linked/unlinked by a person. */
+  allocation_source?: 'auto' | 'manual' | null;
   first_synced_at: string;
   sales_status: SalesInvoiceStatus;
 };
@@ -2718,6 +2745,7 @@ export const salesApi = {
     request<SalesInvoice>(`/api/sales/invoices/${id}/allocation`, { method: 'PATCH', body: { production_id } }),
   summary: () => request<SalesSummary>('/api/sales/summary', { cache: 'no-store' }),
   unallocatedReminder: () => request<{ count: number; days: number }>('/api/sales/unallocated-reminder', { cache: 'no-store' }),
+  autoAllocate: () => request<{ allocated: number }>('/api/sales/auto-allocate', { method: 'POST' }),
   exportCsv: async (filters?: SalesInvoiceFilters) => {
     const res = await documentFetch(`/api/sales/invoices/export${salesQuery(filters)}`);
     const disposition = res.headers.get('Content-Disposition') || '';
@@ -2750,7 +2778,7 @@ export type XeroStatus = {
   last_sync_count: number | null;
 };
 
-export type XeroSyncResult = { ran: boolean; reason?: string; count?: number; status: XeroStatus };
+export type XeroSyncResult = { ran: boolean; reason?: string; count?: number; auto_allocated?: number; status: XeroStatus };
 
 export const xeroApi = {
   status: () => request<XeroStatus>('/api/xero/status', { cache: 'no-store' }),
@@ -2897,4 +2925,88 @@ export const quotesApi = {
   },
   /** Public preview link for a quote that has been shared by link. */
   shareUrl: (token: string) => `${window.location.origin}/api/public/quotes/${token}`,
+};
+
+// ── CS-03 / CS-04 — set codes ──
+export type SetCodeOption = { code: string; name: string; source: 'production' | 'universal'; category: string };
+export type UniversalSetCode = {
+  id: string; code: string; name: string; category: 'management'; is_active: boolean; created_at: string; updated_at: string;
+};
+export type SetImportRow = {
+  row: number; valid: boolean; errors: string[]; action: 'create' | 'update'; existing_set_id: string | null;
+  set_number: string; set_name: string; shoot_week: string | null; handover_date: string | null;
+  completion_status: string | null; notes: string | null;
+};
+export type SetImportPlan = {
+  rows: SetImportRow[];
+  summary: { total_rows: number; create: number; update: number; invalid: number };
+};
+export type ImportResult = { created: number; updated: number; errors: Array<{ row: number; errors?: string[]; error?: string }> };
+
+const csvBody = (file: File) => { const body = new FormData(); body.append('csv', file); return body; };
+const downloadBlob = (blob: Blob, name: string) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+export const setCodesApi = {
+  /** Dropdown source: the production's sets + active universal codes. */
+  list: (productionId?: string | null) =>
+    request<SetCodeOption[]>(`/api/set-codes${productionId ? `?production_id=${encodeURIComponent(productionId)}` : ''}`, { cache: 'no-store' }),
+  listUniversal: (includeInactive = false) =>
+    request<UniversalSetCode[]>(`/api/universal-set-codes${includeInactive ? '?include_inactive=true' : ''}`, { cache: 'no-store' }),
+  createUniversal: (data: { code: string; name: string }) =>
+    request<UniversalSetCode>('/api/universal-set-codes', { method: 'POST', body: data }),
+  updateUniversal: (id: string, data: Partial<Pick<UniversalSetCode, 'code' | 'name' | 'is_active'>>) =>
+    request<UniversalSetCode>(`/api/universal-set-codes/${id}`, { method: 'PATCH', body: data }),
+  importUniversal: async (file: File): Promise<ImportResult> =>
+    (await documentFetch('/api/universal-set-codes/import', { method: 'POST', body: csvBody(file) })).json(),
+  previewSetImport: async (productionId: string, file: File): Promise<SetImportPlan> =>
+    (await documentFetch(`/api/productions/${productionId}/sets/import/preview`, { method: 'POST', body: csvBody(file) })).json(),
+  importSets: async (productionId: string, file: File): Promise<ImportResult> =>
+    (await documentFetch(`/api/productions/${productionId}/sets/import`, { method: 'POST', body: csvBody(file) })).json(),
+  downloadSetTemplate: async () =>
+    downloadBlob(await (await documentFetch('/api/productions/sets/import/template')).blob(), 'sets-import-template.csv'),
+};
+
+// ── CS-05 — production history (live costs, ex VAT) ──
+export type ProductionHistoryWeek = {
+  week_ending_date: string;
+  labour_total: number; labour_management: number; crew_count: number; timesheet_count: number; draft_count: number;
+  po_total: number; po_management: number; po_count: number; total: number;
+};
+export type ProductionHistory = {
+  production: { id: string; name: string; production_code: string | null; status: string; contract_type: ContractType };
+  summary: ProductionPLItem;
+  weeks: ProductionHistoryWeek[];
+};
+export type ProductionHistoryWeekDetail = {
+  week_ending_date: string;
+  timesheets: Array<{
+    timesheet_id: string; name: string; crew_number: string | null; trade: string | null; rank: string | null;
+    status: string; paid: boolean; days_worked: number; overtime_hours: number; sets: string | null;
+    net: number; management_share: number;
+  }>;
+  purchase_orders: Array<{
+    id: string; po_number: string; supplier_name: string; title: string | null; description: string | null;
+    set_code: string | null; date_of_po: string; status: POStatus; net_amount: number; counts_in_costs: boolean;
+  }>;
+  totals: { labour: number; purchase_orders: number };
+};
+export type ProductionSetCostRow = {
+  set_code: string | null; set_name: string; source: 'production' | 'management' | 'unknown' | 'unassigned';
+  labour: number; materials: number; total: number;
+};
+export const productionHistoryApi = {
+  get: (productionId: string) => request<ProductionHistory>(`/api/productions/${productionId}/history`, { cache: 'no-store' }),
+  week: (productionId: string, weekEnding: string) =>
+    request<ProductionHistoryWeekDetail>(`/api/productions/${productionId}/history/weeks/${weekEnding}`, { cache: 'no-store' }),
+  setCosts: (productionId: string) =>
+    request<{ rows: ProductionSetCostRow[]; totals: { labour: number; materials: number; total: number } }>(`/api/productions/${productionId}/set-costs`, { cache: 'no-store' }),
 };

@@ -142,6 +142,8 @@ app.use('/api/emailing',            require('./routes/emailing'));
 app.use('/api/sales',               require('./routes/sales'));
 app.use('/api/quotes',              require('./routes/quotes'));
 app.use('/api/xero',                require('./routes/xero'));
+app.use('/api/set-codes',           require('./routes/setCodes'));          // CS-03/04
+app.use('/api/universal-set-codes', require('./routes/universalSetCodes')); // CS-03
 
 // ─── 404 ──────────────────────────────────────────────────────────────────────
 app.use((req, res) => {

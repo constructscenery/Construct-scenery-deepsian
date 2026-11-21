@@ -1,6 +1,10 @@
 const express        = require('express');
 const router         = express.Router();
 const ctrl           = require('../Controllers/productionsController');
+const setCodesCtrl   = require('../Controllers/setCodesController');
+const historyCtrl    = require('../Controllers/productionHistoryController');
+const multer         = require('multer');
+const csvUpload      = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 const { upload, documentUpload } = require('../Middleware/upload');
 const { requireRole } = require('../Middleware/requireRole');
 
@@ -19,6 +23,7 @@ router.param('id', async (req, res, next, id) => {
 // Static routes before /:id to avoid route conflict
 router.get('/audit-log',                ctrl.getAuditLog);
 router.post('/handover-alerts',         requireRole(...ALL_ROLES), ctrl.sendHandoverAlerts);
+router.get('/sets/import/template',     setCodesCtrl.getSetImportTemplate); // CS-03
 
 // Productions
 router.get('/',                         ctrl.getAllProductions);
@@ -27,10 +32,16 @@ router.delete('/:id',                   requireRole(...ALL_ROLES), ctrl.deletePr
 router.get('/:id',                      ctrl.getProductionById);
 router.put('/:id',                      requireRole(...ALL_ROLES), ctrl.updateProduction);
 router.post('/:id/transition',          requireRole(...ALL_ROLES), ctrl.transitionStatus);
+router.post('/:id/recalculate-timesheets', requireRole(...ALL_ROLES), ctrl.recalculateTimesheets); // CS-08
 router.get('/:id/archive-preview',      ctrl.getArchivePreview);
 router.post('/:id/archive',             requireRole(...ALL_ROLES), ctrl.archiveProduction);
 router.post('/:id/unarchive',           requireRole(...ALL_ROLES), ctrl.unarchiveProduction);
 router.get('/:id/forecast-variance',    ctrl.getForecastVariance);
+
+// CS-05 — production history (read-only, live costs)
+router.get('/:id/history',                     historyCtrl.getHistory);
+router.get('/:id/history/weeks/:weekEnding',   historyCtrl.getHistoryWeek);
+router.get('/:id/set-costs',                   historyCtrl.getSetCosts);
 
 // Sets (set tracker)
 router.get('/:id/sets',            ctrl.getSets);
@@ -38,6 +49,9 @@ router.post('/:id/sets',           requireRole(...ALL_ROLES), ctrl.createSet);
 router.put('/:id/sets/:setId',     requireRole(...ALL_ROLES), ctrl.updateSet);
 router.patch('/:id/sets/:setId',   requireRole(...ALL_ROLES), ctrl.patchSet);
 router.delete('/:id/sets/:setId',  requireRole(...ALL_ROLES), ctrl.deleteSet);
+// CS-03 — import sets from CSV (adds new set numbers, updates matching ones, never deletes)
+router.post('/:id/sets/import/preview', csvUpload.single('csv'), requireRole(...ALL_ROLES), setCodesCtrl.previewSetImport);
+router.post('/:id/sets/import',         csvUpload.single('csv'), requireRole(...ALL_ROLES), setCodesCtrl.importSets);
 
 // Documents
 router.get('/:id/documents',                  ctrl.getDocuments);

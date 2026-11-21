@@ -8,7 +8,8 @@ import {
   Plus, Search, Calendar, CheckCircle2, Clock, AlertTriangle,
   ChevronLeft, ChevronRight, X, Loader2, Archive, ArchiveRestore, Trash2, Clapperboard,
 } from 'lucide-react';
-import { productionsApi, Production, ProductionStatus, ContractType } from '@/lib/api';
+import { productionsApi, Production, ProductionStatus, ContractType, RateCardType } from '@/lib/api';
+import RateCardSelector from '@/components/production/RateCardSelector';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyStateRow } from '@/components/EmptyState';
 import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
@@ -120,6 +121,7 @@ function NewProductionModal({ onClose, onCreated }: NewProductionModalProps) {
     name: '', production_code: '', production_company: '', production_designer: '', production_type: '',
     start_date: '', end_date: '',
     contract_type: '' as ContractType | '',
+    rate_card_type: 'standard' as RateCardType,
     status: 'pre_production' as ProductionStatus,
     supervising_art_director: '',
     supervising_art_director_mobile: '',
@@ -195,6 +197,7 @@ function NewProductionModal({ onClose, onCreated }: NewProductionModalProps) {
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Production Code</label>
               <input className={inputCls} placeholder="e.g. 129" value={form.production_code} onChange={set('production_code')} />
+              <p className="text-[11px] text-slate-400 mt-1">Put this code in the Xero invoice reference and Sales links the invoice to this production automatically.</p>
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -230,6 +233,7 @@ function NewProductionModal({ onClose, onCreated }: NewProductionModalProps) {
             value={form.contract_type as ContractType | ''}
             onChange={v => setForm(f => ({ ...f, contract_type: v }))}
           />
+          <RateCardSelector value={form.rate_card_type} onChange={v => setForm(f => ({ ...f, rate_card_type: v }))} />
 
           {/* Key Contacts */}
           <div className="pt-2 border-t border-slate-100 space-y-3">

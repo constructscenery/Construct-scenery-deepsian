@@ -14,7 +14,8 @@ import {
   type POHistoryEntry,
   type POStatus,
   type Production,
-  type ProductionSet,
+  type SetCodeOption,
+  setCodesApi,
   type ContractType,
   type ProductionStatus,
   type Supplier,
@@ -45,6 +46,7 @@ import {
   Paperclip,
 } from 'lucide-react';
 import { EmptyStateRow } from '@/components/EmptyState';
+import SetCodeSelect from '@/components/SetCodeSelect';
 import AttachedDocuments from '@/components/AttachedDocuments';
 import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
 import { usePageSize } from '@/hooks/usePagination';
@@ -366,7 +368,8 @@ export default function PurchaseOrdersPage() {
   const [productions, setProductions] = useState<Production[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
   const [suppliersList, setSuppliersList] = useState<Supplier[]>([]);
-  const [setsCache, setSetsCache] = useState<Record<string, ProductionSet[]>>({});
+  // CS-04: per-production set codes (production sets + universal codes) for the Set Code dropdown
+  const [setsCache, setSetsCache] = useState<Record<string, SetCodeOption[]>>({});
   const [accountCodes, setAccountCodes] = useState<string[]>([]);
   const [expenditureTypes, setExpenditureTypes] = useState<ExpenditureType[]>(EXPENDITURE_TYPES_DEFAULT);
   const [loading, setLoading] = useState(true);
@@ -714,8 +717,8 @@ export default function PurchaseOrdersPage() {
   const loadSetsForProduction = async (productionId: string) => {
     if (!productionId || setsCache[productionId]) return;
     try {
-      const sets = await productionsApi.getSets(productionId);
-      setSetsCache(c => ({ ...c, [productionId]: sets }));
+      const codes = await setCodesApi.list(productionId);
+      setSetsCache(c => ({ ...c, [productionId]: codes }));
     } catch { /* non-critical */ }
   };
 
@@ -2981,19 +2984,13 @@ export default function PurchaseOrdersPage() {
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-600 mb-1">Set Code</label>
-                        <input
-                          type="text"
-                          list="new-po-sets-list"
+                        <SetCodeSelect
                           value={newForm.set_code}
-                          onChange={(e) => updateField('set_code', e.target.value)}
+                          options={setsCache[newForm.production_id] ?? null}
+                          ariaLabel="Set code"
+                          onChange={(code) => updateField('set_code', code)}
                           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
-                          placeholder="e.g. S003"
                         />
-                        <datalist id="new-po-sets-list">
-                          {setsCache[newForm.production_id]?.filter(s => s.set_number).map(s => (
-                            <option key={s.id} value={s.set_number!}>{s.set_number} — {s.set_name}</option>
-                          ))}
-                        </datalist>
                       </div>
                       <div className="sm:col-span-2">
                         <label className="block text-xs font-medium text-slate-600 mb-1">Title <span className="text-red-500">*</span></label>
@@ -3876,12 +3873,13 @@ export default function PurchaseOrdersPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Set Code</label>
-                    <input list="edit-po-sets-list" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={editForm.set_code} onChange={e => setEditForm(f => ({ ...f, set_code: e.target.value }))} />
-                    <datalist id="edit-po-sets-list">
-                      {setsCache[editForm.production_id]?.filter(s => s.set_number).map(s => (
-                        <option key={s.id} value={s.set_number!}>{s.set_number} — {s.set_name}</option>
-                      ))}
-                    </datalist>
+                    <SetCodeSelect
+                      value={editForm.set_code}
+                      options={setsCache[editForm.production_id] ?? null}
+                      ariaLabel="Set code"
+                      onChange={code => setEditForm(f => ({ ...f, set_code: code }))}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wider">Type of Expenditure</label>

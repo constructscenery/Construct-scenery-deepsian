@@ -15,6 +15,7 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const { encrypt, decrypt } = require('../config/crypto');
+const { autoAllocateInvoices } = require('./salesAllocationService');
 
 const AUTHORIZE_URL = 'https://login.xero.com/identity/connect/authorize';
 const TOKEN_URL = 'https://identity.xero.com/connect/token';
@@ -378,6 +379,13 @@ const syncInvoices = async ({ trigger = 'manual' } = {}) => {
     try {
       const accessToken = await getAccessToken(current);
       const count = await pullInvoices(current, accessToken);
+      // CS-06: link newly pulled invoices to productions by Xero reference. Never fails the sync.
+      let autoAllocated = 0;
+      try {
+        ({ allocated: { length: autoAllocated } } = await autoAllocateInvoices());
+      } catch (allocErr) {
+        console.error('[Xero] Auto-link after sync failed:', allocErr.message);
+      }
       await db.query(
         `UPDATE xero_connection
          SET last_synced_at = $2, last_sync_attempt_at = $2, last_sync_status = 'success',
@@ -385,8 +393,8 @@ const syncInvoices = async ({ trigger = 'manual' } = {}) => {
          WHERE id = $1 AND tenant_id = $4`, // skip if a different organisation was connected meanwhile
         [current.id, startedAt, count, current.tenant_id]
       );
-      console.log(`[Xero] ${trigger} sync: ${count} invoice(s) updated`);
-      return { ran: true, count, status: await getStatus() };
+      console.log(`[Xero] ${trigger} sync: ${count} invoice(s) updated, ${autoAllocated} auto-linked`);
+      return { ran: true, count, auto_allocated: autoAllocated, status: await getStatus() };
     } catch (err) {
       await db.query(
         `UPDATE xero_connection

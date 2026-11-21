@@ -66,6 +66,10 @@ export class Timesheet {
   @Column({ type: 'decimal', precision: 12, scale: 2, name: 'grand_total', default: 0 })
   grandTotal: number;
 
+  /** CS-08 — rate-card multiplier used when this timesheet was last priced (1 = standard, 1.1 = commercial +10%). */
+  @Column({ type: 'decimal', precision: 5, scale: 4, name: 'rate_multiplier', default: 1 })
+  rateMultiplier: number;
+
   @Column({ type: 'uuid', name: 'created_by', nullable: true })
   createdById: string | null;
 

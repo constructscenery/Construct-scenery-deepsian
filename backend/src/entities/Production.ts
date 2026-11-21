@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { ProductionStatus, ContractType } from '../enums';
+import { ProductionStatus, ContractType, RateCardType } from '../enums';
 import { User } from './User';
 
 @Entity('productions')
@@ -60,6 +60,10 @@ export class Production {
 
   @Column({ type: 'text', name: 'contract_type' })
   contractType: ContractType;
+
+  /** CS-08 — standard or commercial (rate card + commercial_rate_uplift_pct) */
+  @Column({ type: 'text', name: 'rate_card_type', default: RateCardType.STANDARD })
+  rateCardType: RateCardType;
 
   @Column({ type: 'text', default: ProductionStatus.PRE_PRODUCTION })
   status: ProductionStatus;

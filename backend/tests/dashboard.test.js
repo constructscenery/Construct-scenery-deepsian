@@ -279,3 +279,65 @@ describe('GET /api/dashboard/po-spend', () => {
     expect(Array.isArray(res.body.breakdown)).toBe(true);
   });
 });
+
+// ─── GET /api/dashboard/production-pl (CS-01) ───────────────────────────────
+describe('GET /api/dashboard/production-pl', () => {
+  const A = 'prod-a', C = 'prod-c';
+  const respondPL = () => {
+    dbMock.respond([
+      { id: A, name: 'Addlestone', production_code: '129', status: 'active_build', contract_type: 'on_a_price' },
+      { id: C, name: 'No Budget', production_code: null, status: 'pre_production', contract_type: 'on_a_price' },
+    ]);
+    // live labour (grouped)
+    dbMock.respond([{ production_id: A, labour_total: '2900', labour_management: '240', labour_booked: '500', labour_unbooked: '2400', draft_count: 2, timesheet_count: 4, crew_count: 4 }]);
+    // live POs
+    dbMock.respond([{ production_id: A, po_total: '1100', po_management: '100', po_approved: '700', po_count: 3 }]);
+    // hire
+    dbMock.respond([{ production_id: A, hire_start_date: '2026-11-02', return_date: '2026-11-16', weekly_hire_rate: '100' }]);
+    // budget
+    dbMock.respond([
+      { production_id: A, contract_type: 'on_a_price', budget_revenue: '100000', invoiced_to_date: '4000' },
+      { production_id: C, contract_type: 'on_a_price', budget_revenue: null, invoiced_to_date: null },
+    ]);
+  };
+
+  test('five headings per production, with totals — 200', async () => {
+    respondPL();
+    const res = await request(app).get('/api/dashboard/production-pl').set(authHeader('md'));
+    expect(res.status).toBe(200);
+    expect(res.body.vat_basis).toBe('ex_vat');
+    const [a, c] = res.body.productions;
+    expect(a).toMatchObject({
+      production_name: 'Addlestone', budget_revenue: 100000, labour_charged: 2660,
+      materials_charged: 1200, materials_po: 1000, materials_hire: 200,
+      management_costs: 340, profit_loss: 96140, profit_pct: 96.14, draft_timesheets: 2,
+    });
+    expect(c).toMatchObject({ budget_revenue: null, profit_loss: null, labour_charged: 0, materials_charged: 0 });
+    expect(res.body.totals).toEqual({ budget_revenue: 100000, labour_charged: 2660, materials_charged: 1200, profit_loss: 96140, management_costs: 340 });
+  });
+
+  test('only active, non-deleted productions are listed', async () => {
+    dbMock.respond([]);
+    const res = await request(app).get('/api/dashboard/production-pl').set(authHeader('accountant'));
+    expect(res.status).toBe(200);
+    expect(res.body.productions).toEqual([]);
+    const q = dbMock.queries[0];
+    expect(q.sql).toContain('deleted_at IS NULL');
+    expect(q.params[0]).toEqual(['pre_production', 'active_build', 'strike']);
+    expect(dbMock.queries).toHaveLength(1); // no per-production queries when nothing is active
+  });
+
+  test.each(['md', 'accountant', 'coordinator'])('%s can read it', async role => {
+    dbMock.respond([]);
+    const res = await request(app).get('/api/dashboard/production-pl').set(authHeader(role));
+    expect(res.status).toBe(200);
+  });
+
+  test('cost-summary is unchanged (still gross cost-report based)', async () => {
+    dbMock.respond([{ id: 'p1', name: 'X', contract_type: 'on_a_price', agreed_price: '1000' }]);
+    dbMock.respond([{ total: '100' }]);
+    const res = await request(app).get('/api/dashboard/cost-summary').set(authHeader('md'));
+    expect(res.body[0]).toMatchObject({ total_budget: 1000, total_costs_to_date: 100 });
+    expect(dbMock.queries[1].sql).toContain('FROM cost_report_entries');
+  });
+});

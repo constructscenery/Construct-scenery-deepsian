@@ -621,3 +621,21 @@ html.dark .text-red-700 {
 [data-cms-theme="day"] ::-webkit-scrollbar-thumb:hover {
   background: var(--cms-muted);
 }
+
+/* ── Select chevrons ─────────────────────────────────────────────────────────
+   Native select arrows sit flush against the right border when a select uses
+   symmetric padding (e.g. px-2.5). Draw one consistent chevron with room around it.
+   Skipped: multi/list selects, selects that draw their own arrow (.appearance-none),
+   and borderless inline selects (.bg-transparent). */
+select:not([multiple]):not([size]):not(.appearance-none):not(.bg-transparent) {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2364748b' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 1rem 1rem;
+  padding-right: 2rem !important;
+}
+html.dark select:not([multiple]):not([size]):not(.appearance-none):not(.bg-transparent) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2394a3b8' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+}

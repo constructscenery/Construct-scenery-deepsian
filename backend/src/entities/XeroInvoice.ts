@@ -1,7 +1,7 @@
 import {
   Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn,
 } from 'typeorm';
-import { XeroInvoiceStatus } from '../enums';
+import { InvoiceAllocationSource, XeroInvoiceStatus } from '../enums';
 import { Production } from './Production';
 import { User } from './User';
 
@@ -72,6 +72,10 @@ export class XeroInvoice {
 
   @Column({ name: 'allocated_at', type: 'timestamptz', nullable: true })
   allocatedAt: Date | null;
+
+  /** CS-06 — 'auto' (from the Xero reference) or 'manual' (a person). Auto-link never touches 'manual'. */
+  @Column({ name: 'allocation_source', type: 'text', nullable: true })
+  allocationSource: InvoiceAllocationSource | null;
 
   @Column({ name: 'first_synced_at', type: 'timestamptz' })
   firstSyncedAt: Date;

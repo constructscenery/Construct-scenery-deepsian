@@ -2,6 +2,7 @@ const db = require('../config/db');
 const { logAudit } = require('../services/auditService');
 const { round2 } = require('../services/quoteCalculations');
 const { getInvoiceNotes } = require('../services/xeroService');
+const { findSuggestedProductions, autoAllocateInvoices } = require('../services/salesAllocationService');
 
 // Addendum 6 — Sales module (read-only view of Xero sales invoices + production allocation).
 // Reads the local xero_invoices cache, filled by services/xeroService.js. Only invoices from the
@@ -82,7 +83,9 @@ const buildInvoiceQuery = query => {
   }
   if (date_from && date_to && date_from > date_to) return { error: 'date_from cannot be after date_to' };
   if (search && String(search).trim()) {
-    conditions.push(`invoice_number ILIKE $${idx++}`);
+    // CS-07: one search box matches invoice number, customer (Xero contact) or Xero reference
+    conditions.push(`(invoice_number ILIKE $${idx} OR contact_name ILIKE $${idx} OR reference ILIKE $${idx})`);
+    idx++;
     params.push(`%${String(search).trim()}%`);
   }
 
@@ -145,22 +148,6 @@ const exportInvoicesCsv = async (req, res) => {
   }
 };
 
-/** Productions whose code appears in the Xero reference (case-insensitive). */
-const findSuggestedProductions = async reference => {
-  if (!reference || !String(reference).trim()) return [];
-  const { rows } = await db.query(
-    `SELECT id, name, production_code
-     FROM productions
-     WHERE deleted_at IS NULL
-       AND status <> 'archived'
-       AND production_code IS NOT NULL AND TRIM(production_code) <> ''
-       AND POSITION(LOWER(TRIM(production_code)) IN LOWER($1)) > 0
-     ORDER BY name`,
-    [String(reference).trim()]
-  );
-  return rows;
-};
-
 // GET /api/sales/invoices/:id   — invoice + suggested production for the allocation panel
 const getInvoiceById = async (req, res) => {
   if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid invoice ID' });
@@ -211,6 +198,7 @@ const allocateInvoice = async (req, res) => {
        SET production_id = $2,
            allocated_by = CASE WHEN $2::uuid IS NULL THEN NULL ELSE $3::uuid END,
            allocated_at = CASE WHEN $2::uuid IS NULL THEN NULL ELSE NOW() END,
+           allocation_source = 'manual', -- InvoiceAllocationSource.MANUAL: auto-link never overrides a person (CS-06)
            updated_at = NOW()
        WHERE id = $1`,
       [id, productionId, req.user.id]
@@ -236,6 +224,19 @@ const allocateInvoice = async (req, res) => {
   } catch (err) {
     console.error('allocateInvoice error:', err);
     res.status(500).json({ error: 'Unable to allocate invoice' });
+  }
+};
+
+// POST /api/sales/auto-allocate  — CS-06: link unallocated invoices whose Xero reference names exactly
+// one production code. Also runs after every Xero sync; this endpoint is for the one-off backfill and
+// the "Re-run auto-link" button.
+const runAutoAllocate = async (req, res) => {
+  try {
+    const { allocated } = await autoAllocateInvoices();
+    res.json({ allocated: allocated.length });
+  } catch (err) {
+    console.error('runAutoAllocate error:', err);
+    res.status(500).json({ error: 'Unable to auto-link invoices' });
   }
 };
 
@@ -320,4 +321,5 @@ module.exports = {
   getInvoiceComments,
   getSummary,
   getUnallocatedReminder,
+  runAutoAllocate,
 };

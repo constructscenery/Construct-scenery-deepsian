@@ -160,7 +160,9 @@ export default function SalesPage() {
       const r = await xeroApi.sync('manual');
       setXero(r.status);
       if (r.ran) refreshData();
-      showToast('success', r.ran ? `Pulled from Xero — ${r.count ?? 0} invoice(s) updated` : 'A sync is already running');
+      showToast('success', r.ran
+        ? `Pulled from Xero — ${r.count ?? 0} invoice(s) updated${r.auto_allocated ? `, ${r.auto_allocated} auto-linked to productions` : ''}`
+        : 'A sync is already running');
     } catch (e) {
       showToast('error', e instanceof Error ? e.message : 'Xero sync failed');
       xeroApi.status().then(setXero).catch(() => {});
@@ -319,7 +321,7 @@ export default function SalesPage() {
             <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-wrap items-center gap-2">
               <div className="relative w-full sm:w-56">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="text" placeholder="Invoice number…" value={search} onChange={e => setSearch(e.target.value)}
+                <input type="text" placeholder="Invoice no., customer or reference…" value={search} onChange={e => setSearch(e.target.value)}
                   className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <select value={statuses.join(',')} onChange={e => setStatuses(e.target.value ? [e.target.value as SalesInvoiceStatus] : [])} className={selectCls} aria-label="Status">
@@ -347,6 +349,7 @@ export default function SalesPage() {
                   <thead className="bg-slate-800 text-white font-semibold">
                     <tr>
                       <th className="px-4 py-3">Invoice No.</th>
+                      <th className="px-4 py-3">Customer</th>
                       <th className="px-4 py-3">Production / Client</th>
                       <th className="px-4 py-3">Invoice Date</th>
                       <th className="px-4 py-3">Due Date</th>
@@ -356,11 +359,11 @@ export default function SalesPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {loading ? (
-                      <tr><td colSpan={6} className="py-12 text-center text-slate-400"><Loader2 size={20} className="animate-spin text-blue-600 inline" /></td></tr>
+                      <tr><td colSpan={7} className="py-12 text-center text-slate-400"><Loader2 size={20} className="animate-spin text-blue-600 inline" /></td></tr>
                     ) : error ? (
-                      <tr><td colSpan={6} className="py-12 text-center text-red-600">{error}</td></tr>
+                      <tr><td colSpan={7} className="py-12 text-center text-red-600">{error}</td></tr>
                     ) : invoices.length === 0 ? (
-                      <tr><td colSpan={6} className="py-12 text-center text-slate-400">{filtersActive ? 'No invoices match these filters.' : 'No invoices pulled from Xero yet.'}</td></tr>
+                      <tr><td colSpan={7} className="py-12 text-center text-slate-400">{filtersActive ? 'No invoices match these filters.' : 'No invoices pulled from Xero yet.'}</td></tr>
                     ) : pager.pageItems.map(inv => {
                       const due = Number(inv.amount_due);
                       const partPaid = inv.sales_status !== 'paid' && due > 0 && due < Number(inv.total);
@@ -370,7 +373,15 @@ export default function SalesPage() {
                           onKeyDown={e => { if (e.key === 'Enter') setPanelInvoiceId(inv.id); }}
                           className="hover:bg-slate-50/70 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500">
                           <td className="px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">{inv.invoice_number || '—'}</td>
-                          <td className="px-4 py-3 min-w-44">{inv.production_name || <span className="text-slate-400 italic">Unallocated</span>}</td>
+                          <td className="px-4 py-3 min-w-36 text-slate-700">{inv.contact_name || '—'}</td>
+                          <td className="px-4 py-3 min-w-44">
+                            {inv.production_name || <span className="text-slate-400 italic">Unallocated</span>}
+                            {inv.production_id && inv.allocation_source === 'auto' && (
+                              <span title="Linked automatically from the Xero reference" className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 text-[10px] font-semibold align-middle">
+                                <Sparkles size={10} /> Auto
+                              </span>
+                            )}
+                          </td>
                           <td className="px-4 py-3 whitespace-nowrap">{fmtDate(inv.invoice_date)}</td>
                           <td className="px-4 py-3 whitespace-nowrap">{fmtDate(inv.due_date)}</td>
                           <td className="px-4 py-3 text-right whitespace-nowrap">
@@ -585,6 +596,16 @@ function AllocationPanel({ invoiceId, productions, canWrite, onClose, onSaved, o
                 {suggested && (
                   <p className="flex items-center gap-1.5 text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
                     <Sparkles size={13} /> Suggested from the Xero reference — confirm to link.
+                  </p>
+                )}
+                {invoice.production_id && invoice.allocation_source === 'auto' && (
+                  <p className="flex items-center gap-1.5 text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                    <Sparkles size={13} /> Linked automatically from the Xero reference. Pick another production to change it.
+                  </p>
+                )}
+                {!invoice.production_id && !invoice.suggested_production && invoice.suggestion_count > 1 && (
+                  <p className="text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                    The Xero reference matches {invoice.suggestion_count} productions, so it wasn&apos;t linked automatically. Pick the right one below.
                   </p>
                 )}
                 <div className="relative">

@@ -388,7 +388,21 @@
       "POST /api/xero/sync",
       "GET /api/xero/connect",
       "DELETE /api/xero/connection",
-      "GET /api/sales/invoices/:id/notes"
+      "GET /api/sales/invoices/:id/notes",
+      "POST /api/sales/auto-allocate",
+      "GET /api/dashboard/production-pl",
+      "GET /api/set-codes",
+      "GET /api/universal-set-codes",
+      "POST /api/universal-set-codes",
+      "PATCH /api/universal-set-codes/:id",
+      "POST /api/universal-set-codes/import",
+      "GET /api/productions/sets/import/template",
+      "POST /api/productions/:id/sets/import/preview",
+      "POST /api/productions/:id/sets/import",
+      "GET /api/productions/:id/history",
+      "GET /api/productions/:id/history/weeks/:weekEnding",
+      "GET /api/productions/:id/set-costs",
+      "POST /api/productions/:id/recalculate-timesheets"
     ]
   },
   "construction_accountant": {
@@ -773,7 +787,21 @@
       "PATCH /api/sales/invoices/:id/allocation",
       "GET /api/xero/status",
       "POST /api/xero/sync",
-      "GET /api/sales/invoices/:id/notes"
+      "GET /api/sales/invoices/:id/notes",
+      "POST /api/sales/auto-allocate",
+      "GET /api/dashboard/production-pl",
+      "GET /api/set-codes",
+      "GET /api/universal-set-codes",
+      "POST /api/universal-set-codes",
+      "PATCH /api/universal-set-codes/:id",
+      "POST /api/universal-set-codes/import",
+      "GET /api/productions/sets/import/template",
+      "POST /api/productions/:id/sets/import/preview",
+      "POST /api/productions/:id/sets/import",
+      "GET /api/productions/:id/history",
+      "GET /api/productions/:id/history/weeks/:weekEnding",
+      "GET /api/productions/:id/set-costs",
+      "POST /api/productions/:id/recalculate-timesheets"
     ]
   },
   "construction_coordinator": {
@@ -1158,7 +1186,21 @@
       "PATCH /api/sales/invoices/:id/allocation",
       "GET /api/xero/status",
       "POST /api/xero/sync",
-      "GET /api/sales/invoices/:id/notes"
+      "GET /api/sales/invoices/:id/notes",
+      "POST /api/sales/auto-allocate",
+      "GET /api/dashboard/production-pl",
+      "GET /api/set-codes",
+      "GET /api/universal-set-codes",
+      "POST /api/universal-set-codes",
+      "PATCH /api/universal-set-codes/:id",
+      "POST /api/universal-set-codes/import",
+      "GET /api/productions/sets/import/template",
+      "POST /api/productions/:id/sets/import/preview",
+      "POST /api/productions/:id/sets/import",
+      "GET /api/productions/:id/history",
+      "GET /api/productions/:id/history/weeks/:weekEnding",
+      "GET /api/productions/:id/set-costs",
+      "POST /api/productions/:id/recalculate-timesheets"
     ]
   },
   "guest": {
@@ -1319,7 +1361,13 @@
       "POST /api/forecasting/labour-flows/:id/version",
       "PUT /api/forecasting/cost-forecasts/:id",
       "PUT /api/forecasting/labour-flows/:id",
-      "GET /api/xero/status"
+      "GET /api/xero/status",
+      "GET /api/set-codes",
+      "GET /api/universal-set-codes",
+      "GET /api/productions/sets/import/template",
+      "GET /api/productions/:id/history",
+      "GET /api/productions/:id/history/weeks/:weekEnding",
+      "GET /api/productions/:id/set-costs"
     ]
   }
 }
