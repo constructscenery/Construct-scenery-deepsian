@@ -26,7 +26,7 @@ const fmtCurrency = (v: number | string | null | undefined) =>
 const STATUS: Record<SalesInvoiceStatus, { label: string; cls: string }> = {
   overdue:     { label: 'Overdue',     cls: 'bg-red-700 text-white' },
   outstanding: { label: 'Outstanding', cls: 'bg-amber-600 text-white' },
-  paid:        { label: 'Paid',        cls: 'bg-green-700 text-white' },
+  paid:        { label: 'Paid',        cls: 'bg-green-100 text-green-700' },
 };
 const STATUS_ORDER: SalesInvoiceStatus[] = ['outstanding', 'overdue', 'paid'];
 
