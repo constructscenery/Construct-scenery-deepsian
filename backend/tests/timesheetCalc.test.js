@@ -112,9 +112,43 @@ describe('TECH-01 golden master: new calculator === original saveEntries maths',
   test('rate lookup tries the week\'s rate year first, then the latest rate', async () => {
     const client = { query: jest.fn().mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ daily_rate: '300' }] }) };
     const r = await calc.resolveRates(client, { trade: 'Carpenters', rank: 'Carpenter', weekEndingDate: '2026-07-05' });
-    expect(client.query.mock.calls[0][1]).toEqual(['Carpenters', 'Carpenter', '2026/27']);
-    expect(client.query.mock.calls[1][1]).toEqual(['Carpenters', 'Carpenter']);
+    // RC-02: the week-ending date is passed so the version in force that week is chosen
+    expect(client.query.mock.calls[0][1]).toEqual(['Carpenters', 'Carpenter', '2026/27', '2026-07-05']);
+    expect(client.query.mock.calls[0][0]).toMatch(/ORDER BY \(effective_from <= \$4::date\) DESC NULLS LAST, effective_from DESC NULLS LAST/);
+    expect(client.query.mock.calls[1][1]).toEqual(['Carpenters', 'Carpenter', '2026-07-05']);
     expect(r).toMatchObject({ dailyRate: 300, otRate: 47.37 });
+  });
+
+  describe('RC-02 commercial rates', () => {
+    const card = row => ({ query: jest.fn().mockResolvedValue({ rows: [row] }) });
+    const base = { daily_rate: '320.00', overtime_rate: '48.00', commercial_daily_rate: null, commercial_overtime_rate: null };
+    const args = { trade: 'Carpenters', rank: 'Carpenter', weekEndingDate: '2026-11-29' };
+
+    test('Auto commercial = standard × multiplier (unchanged)', async () => {
+      const r = await calc.resolveRates(card(base), { ...args, multiplier: 1.1, commercial: true });
+      expect(r).toMatchObject({ dailyRate: 352, otRate: 52.8, multiplier: 1.1 });
+    });
+    test('a Set commercial rate is used as entered; the other stays Auto', async () => {
+      const r = await calc.resolveRates(card({ ...base, commercial_daily_rate: '400.00' }), { ...args, multiplier: 1.1, commercial: true });
+      expect(r).toMatchObject({ dailyRate: 400, otRate: 52.8 });
+    });
+    test('Set rates apply even at 0 % uplift', async () => {
+      const r = await calc.resolveRates(card({ ...base, commercial_daily_rate: '400.00', commercial_overtime_rate: '60.00' }), { ...args, multiplier: 1, commercial: true });
+      expect(r).toMatchObject({ dailyRate: 400, otRate: 60 });
+    });
+    test('standard productions ignore commercial rates', async () => {
+      const r = await calc.resolveRates(card({ ...base, commercial_daily_rate: '400.00' }), { ...args, multiplier: 1 });
+      expect(r).toMatchObject({ dailyRate: 320, otRate: 48 });
+    });
+    test('a manual rate override is never replaced or multiplied', async () => {
+      const r = await calc.resolveRates(card({ ...base, commercial_daily_rate: '400.00' }), { ...args, rateOverride: '380', multiplier: 1.1, commercial: true });
+      expect(r).toMatchObject({ dailyRate: 380, otRate: 60, source: 'override' });
+    });
+    test('commercialRate helper', () => {
+      expect(calc.commercialRate(320, null, 1.1)).toBe(352);
+      expect(calc.commercialRate(320, '400.50', 1.1)).toBe(400.5);
+      expect(calc.commercialRate(320, '', 1.1)).toBe(352);
+    });
   });
 
   test('rate year boundaries (1 July)', () => {

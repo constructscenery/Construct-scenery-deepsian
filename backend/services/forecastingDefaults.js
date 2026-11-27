@@ -119,6 +119,10 @@ function resolveRate(bectuRates, trade, rank, fallbackPct = 1.0) {
       daily_rate: Number(daily.toFixed(2)),
       weekly_rate: Number(weekly.toFixed(2)),
       overtime_rate: match.overtime_rate ? parseFloat(match.overtime_rate) : null,
+      // RC-05: Set commercial rates (null = Auto). Scaled apprentice/improver fallbacks below have none.
+      commercial_daily_rate:    match.commercial_daily_rate    ?? null,
+      commercial_weekly_rate:   match.commercial_weekly_rate   ?? null,
+      commercial_overtime_rate: match.commercial_overtime_rate ?? null,
     };
   }
 

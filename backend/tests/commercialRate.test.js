@@ -85,7 +85,7 @@ describe('POST /api/productions/:id/recalculate-timesheets', () => {
         { id: 'ok', week_ending_date: '2026-11-22', first_name: 'A', last_name: 'One' },
         { id: 'imported', week_ending_date: '2026-11-22', first_name: 'B', last_name: 'Two' },
       ]],
-      [/SELECT rate_multiplier, grand_total FROM timesheets WHERE id = \$1/, (sql, p) => [{ rate_multiplier: '1.0000', grand_total: p[0] === 'ok' ? '300.00' : '355.00' }]],
+      [/SELECT rate_multiplier, grand_total(, applied_daily_rate, applied_overtime_rate)? FROM timesheets WHERE id = \$1/, (sql, p) => [{ rate_multiplier: '1.0000', grand_total: p[0] === 'ok' ? '300.00' : '355.00' }]],
       [/LEFT JOIN productions p ON p.id = t.production_id\s+WHERE t.id = \$1/, (sql, p) => [tsRow(p[0], p[0] === 'ok' ? 300 : 355)]],
       [/FROM timesheet_entries WHERE timesheet_id/, entries],
       [/FROM bectu_rates/, [{ daily_rate: '300.00', overtime_rate: '50.00' }]],

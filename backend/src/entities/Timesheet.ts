@@ -80,6 +80,14 @@ export class Timesheet {
   @Column({ type: 'decimal', precision: 5, scale: 4, name: 'rate_multiplier', default: 1 })
   rateMultiplier: number;
 
+  /** RC-01 — day rate this timesheet was last priced with (snapshot; finalised rows display it). */
+  @Column({ type: 'decimal', precision: 10, scale: 2, name: 'applied_daily_rate', nullable: true })
+  appliedDailyRate: number | null;
+
+  /** RC-01 — OT hourly rate this timesheet was last priced with (snapshot). */
+  @Column({ type: 'decimal', precision: 10, scale: 2, name: 'applied_overtime_rate', nullable: true })
+  appliedOvertimeRate: number | null;
+
   @Column({ type: 'uuid', name: 'created_by', nullable: true })
   createdById: string | null;
 

@@ -89,7 +89,9 @@ const priceLines = (fc, crewLines, nonLabourLines, { bectuRates = null, multipli
   const view = fc.default_view === 'daily' ? 'daily' : 'weekly';
   const settings = settingsOf(fc);
   const crew = crewLines.map(line => {
-    const synced = bectuRates ? CFC.syncLineRates(line, bectuRates, multiplier, view) : { ...line };
+    const synced = bectuRates
+      ? CFC.syncLineRates(line, bectuRates, multiplier, view, fc.rate_card_type === 'commercial')  // RateCardType.COMMERCIAL
+      : { ...line };
     const priced = CFC.priceCrewLine(synced, settings);
     return { ...synced, rate_unit: view, line_total: priced.line_total, margin_amount: priced.margin_amount };
   });
@@ -177,7 +179,7 @@ const createCostForecast = async (req, res) => {
     // 3. Build & insert default crew lines (card rates × the forecast's multiplier)
     const defaultCrew = buildDefaultCostForecastLines(bectuRates);
     for (const c of defaultCrew) {
-      const card = CFC.cardRatesFor(bectuRates, c, multiplier, view);
+      const card = CFC.cardRatesFor(bectuRates, c, multiplier, view, rateCardType === 'commercial');
       const unitRate = card ? card.unit_rate : (view === 'daily' ? c.daily_rate : c.weekly_rate);
       await client.query(
         `INSERT INTO cost_forecast_crew_lines
@@ -523,6 +525,8 @@ const lockCostForecast = async (req, res) => {
       locked_by: req.user?.full_name,
       bectu_rates: bectuRates.map(r => ({
         id: r.id, trade: r.trade, rank: r.rank, daily_rate: r.daily_rate, overtime_rate: r.overtime_rate, weekly_rate: r.weekly_rate,
+        commercial_daily_rate: r.commercial_daily_rate ?? null, commercial_overtime_rate: r.commercial_overtime_rate ?? null,
+        commercial_weekly_rate: r.commercial_weekly_rate ?? null,
       })),
       rate_card_type: forecast.rate_card_type || 'standard',
       rate_multiplier: multiplier,

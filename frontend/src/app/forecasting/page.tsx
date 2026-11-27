@@ -144,10 +144,16 @@ function ForecastingContent() {
     // Prefill weekly rates from the latest Carpenters rate card (still editable)
     forecastingApi.getBectuRates()
       .then(raw => {
-        const rows = (Array.isArray(raw) ? raw : []) as Array<{ trade: string; rank: string; weekly_rate: string | null; daily_rate: string | null; rate_year?: string | null }>;
+        const rows = (Array.isArray(raw) ? raw : []) as Array<{
+          trade: string; rank: string; weekly_rate: string | null; daily_rate: string | null;
+          rate_year?: string | null; effective_from?: string | null; effective_to?: string | null;
+        }>;
+        // The current version first (RC-06), then the newest rate year / version
         const latest = (rank: string) => rows
           .filter(r => r.trade === 'Carpenters' && r.rank === rank)
-          .sort((a, b) => String(b.rate_year ?? '').localeCompare(String(a.rate_year ?? '')))[0];
+          .sort((a, b) => (Number(Boolean(a.effective_to)) - Number(Boolean(b.effective_to)))
+            || String(b.rate_year ?? '').localeCompare(String(a.rate_year ?? ''))
+            || String(b.effective_from ?? '').localeCompare(String(a.effective_from ?? '')))[0];
         setPmCrew(prev => prev.map(r => {
           if (r.weekly_rate) return r;
           const hit = latest(r.grade);

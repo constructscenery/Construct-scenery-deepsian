@@ -9,6 +9,7 @@ const csvParse                     = require('csv-parse/sync');
 const {
   resolveRates, normaliseEntries, computeTotals, recalculateAndStore,
   displayDailyRateSql, displayOvertimeRateSql, displayRateMultiplierSql, PRODUCTION_RATE_CARD_COLUMNS, rateMultiplierFor, applyMultiplier,
+  commercialRate, isCommercialCard,
 } = require('../services/timesheetCalc');
 const { unknownSetCodes, setCodeWarnings } = require('../services/setCodeService');
 
@@ -532,6 +533,7 @@ const saveEntries = async (req, res) => {
     // Rate resolution (TECH-01, services/timesheetCalc): rate_override → rank_override rate → default rank rate.
     // Like before, only an override sent with THIS save is applied. CS-08: a commercial production
     // multiplies the rate-card rates (never a manual rate_override).
+    // RC-02: commercial productions use the version's Set commercial rates where present.
     const rateMultiplier = rateMultiplierFor(ts);
     const { dailyRate, otRate } = await resolveRates(client, {
       trade: ts.crew_trade,
@@ -539,6 +541,7 @@ const saveEntries = async (req, res) => {
       weekEndingDate: ts.week_ending_date,
       rateOverride: rate_override != null ? rate_override : null,
       multiplier: rateMultiplier,
+      commercial: isCommercialCard(ts),
     });
 
     // Delete old entries and re-insert
@@ -580,12 +583,12 @@ const saveEntries = async (req, res) => {
          weekly_rate = $1, sixth_day_payment = $2, seventh_day_payment = $3,
          overtime_amount = $4, meal_allowance_total = $5, mileage_and_travel = $6,
          vat = $7, gross_total = $8, grand_total = $9,
-         rate_multiplier = $11,
+         rate_multiplier = $11, applied_daily_rate = $12, applied_overtime_rate = $13,
          amended_at = CASE WHEN status = 'distributed' THEN NOW() ELSE amended_at END
        WHERE id = $10
        RETURNING *`,
       [weeklyRate, sixthDayPayment, seventhDayPayment, overtimeAmount,
-       mealAllowance, mileageAndTravel, vat, grossTotal, grandTotal, req.params.id, rateMultiplier]
+       mealAllowance, mileageAndTravel, vat, grossTotal, grandTotal, req.params.id, rateMultiplier, dailyRate, otRate]
     );
 
     await client.query('COMMIT');
@@ -1757,17 +1760,29 @@ const getImportWeekDays = (weekEndingDate) => {
   });
 };
 
-const resolveImportRate = (bectuRates, trade, rank, rateYear) => {
+const importRateOf = r => ({
+  daily_rate: parseFloat(r.daily_rate || 0),
+  overtime_rate: parseFloat(r.overtime_rate || 0),
+  commercial_daily_rate: r.commercial_daily_rate ?? null,
+  commercial_overtime_rate: r.commercial_overtime_rate ?? null,
+});
+
+// Same choice as timesheetCalc.resolveRates: the week's rate year, the version in force that week (RC-02);
+// otherwise the newest row for the grade.
+const resolveImportRate = (bectuRates, trade, rank, rateYear, weekEnding = null) => {
   if (!trade || !rank) return { daily_rate: 0, overtime_rate: 0 };
-  const exact = bectuRates.find(r => r.trade === trade && r.rank === rank && r.rate_year === rateYear);
-  if (exact) return { daily_rate: parseFloat(exact.daily_rate || 0), overtime_rate: parseFloat(exact.overtime_rate || 0) };
+  const from = r => String(r.effective_from || '').slice(0, 10);
+  const newestFirst = (a, b) => new Date(b.effective_from || 0) - new Date(a.effective_from || 0);
+  const inYear = bectuRates.filter(r => r.trade === trade && r.rank === rank && r.rate_year === rateYear);
+  if (inYear.length) {
+    const inForce = weekEnding ? inYear.filter(r => from(r) && from(r) <= weekEnding).sort(newestFirst) : [];
+    return importRateOf(inForce[0] || inYear.sort(newestFirst)[0]);
+  }
 
   const matches = bectuRates
     .filter(r => r.trade === trade && r.rank === rank)
-    .sort((a, b) => new Date(b.effective_from || 0) - new Date(a.effective_from || 0));
-  if (matches.length) {
-    return { daily_rate: parseFloat(matches[0].daily_rate || 0), overtime_rate: parseFloat(matches[0].overtime_rate || 0) };
-  }
+    .sort(newestFirst);
+  if (matches.length) return importRateOf(matches[0]);
   return { daily_rate: 0, overtime_rate: 0 };
 };
 
@@ -1905,12 +1920,16 @@ const parseImportTimesheetRow = (row, idx, context) => {
   const rateYear = wed ? getRateYear(wed) : '';
 
   const rates = (crew && crew.crew_trade)
-    ? resolveImportRate(context.bectuRates, crew.crew_trade, effectiveRank, rateYear)
+    ? resolveImportRate(context.bectuRates, crew.crew_trade, effectiveRank, rateYear, wed || null)
     : { daily_rate: 0, overtime_rate: 0 };
 
-  // CS-08: commercial productions uplift rate-card rates (never a Rate Override)
+  // CS-08: commercial productions uplift rate-card rates (never a Rate Override).
+  // RC-02: a Set commercial rate on the version is used as entered instead of the uplift.
   const rateMultiplier = rateMultiplierFor(production);
-  if (rateMultiplier !== 1) {
+  if (isCommercialCard(production)) {
+    rates.daily_rate = commercialRate(rates.daily_rate, rates.commercial_daily_rate, rateMultiplier);
+    rates.overtime_rate = commercialRate(rates.overtime_rate, rates.commercial_overtime_rate, rateMultiplier);
+  } else if (rateMultiplier !== 1) {
     rates.daily_rate = applyMultiplier(rates.daily_rate, rateMultiplier);
     rates.overtime_rate = applyMultiplier(rates.overtime_rate, rateMultiplier);
   }
@@ -2011,7 +2030,7 @@ const previewImport = async (req, res) => {
     'SELECT id, crew_number, first_name, last_name, email, crew_trade, crew_rank, employment_status, vat_registration_number, is_active FROM crew_members'
   );
   const { rows: bectuRates } = await db.query(
-    'SELECT trade, rank, rate_year, daily_rate, overtime_rate, effective_from FROM bectu_rates'
+    'SELECT trade, rank, rate_year, daily_rate, overtime_rate, commercial_daily_rate, commercial_overtime_rate, effective_from::text FROM bectu_rates'
   );
   const { rows: existingTimesheets } = await db.query(
     'SELECT id, crew_member_id, production_id, week_ending_date::text, status FROM timesheets'
@@ -2066,7 +2085,7 @@ const importCSV = async (req, res) => {
     'SELECT id, crew_number, first_name, last_name, email, crew_trade, crew_rank, employment_status, vat_registration_number, is_active FROM crew_members'
   );
   const { rows: bectuRates } = await db.query(
-    'SELECT trade, rank, rate_year, daily_rate, overtime_rate, effective_from FROM bectu_rates'
+    'SELECT trade, rank, rate_year, daily_rate, overtime_rate, commercial_daily_rate, commercial_overtime_rate, effective_from::text FROM bectu_rates'
   );
   const { rows: existingTimesheets } = await db.query(
     'SELECT id, crew_member_id, production_id, week_ending_date::text, status FROM timesheets'
@@ -2121,7 +2140,7 @@ const importCSV = async (req, res) => {
                weekly_rate = $3, sixth_day_payment = $4, seventh_day_payment = $5,
                overtime_amount = $6, meal_allowance_total = $7, mileage_and_travel = $8,
                vat = $9, gross_total = $10, grand_total = $11,
-               rate_multiplier = $13,
+               rate_multiplier = $13, applied_daily_rate = $14, applied_overtime_rate = $15,
                updated_at = NOW()
              WHERE id = $12`,
             [
@@ -2129,7 +2148,7 @@ const importCSV = async (req, res) => {
               item.weekly_rate, item.sixth_day_payment, item.seventh_day_payment,
               item.overtime_amount, item.meal_allowance_total, item.mileage_and_travel,
               item.vat, item.gross_total, item.grand_total,
-              timesheetId, item.rate_multiplier ?? 1,
+              timesheetId, item.rate_multiplier ?? 1, item.daily_rate ?? null, item.overtime_rate ?? null,
             ]
           );
           await client.query('DELETE FROM timesheet_entries WHERE timesheet_id = $1', [timesheetId]);
@@ -2147,8 +2166,9 @@ const importCSV = async (req, res) => {
             `INSERT INTO timesheets
                (crew_member_id, production_id, week_ending_date, status, created_by,
                 rank_override, rate_override, weekly_rate, sixth_day_payment, seventh_day_payment,
-                overtime_amount, meal_allowance_total, mileage_and_travel, vat, gross_total, grand_total, rate_multiplier)
-             VALUES ($1,$2,$3,'draft',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+                overtime_amount, meal_allowance_total, mileage_and_travel, vat, gross_total, grand_total, rate_multiplier,
+                applied_daily_rate, applied_overtime_rate)
+             VALUES ($1,$2,$3,'draft',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
              RETURNING id`,
             [
               item.crew_member_id, item.production_id, item.week_ending_date, req.user?.id || null,
@@ -2156,6 +2176,7 @@ const importCSV = async (req, res) => {
               item.weekly_rate, item.sixth_day_payment, item.seventh_day_payment,
               item.overtime_amount, item.meal_allowance_total, item.mileage_and_travel,
               item.vat, item.gross_total, item.grand_total, item.rate_multiplier ?? 1,
+              item.daily_rate ?? null, item.overtime_rate ?? null,
             ]
           );
           timesheetId = newTs.id;

@@ -2,8 +2,46 @@ const db  = require('../config/db');
 const csv = require('csv-parse/sync');
 const { logAudit } = require('../services/auditService');
 
-const canManageRates = (role) =>
-  ['managing_director', 'construction_accountant', 'construction_coordinator', 'guest'].includes(role) || Boolean(role);
+// UserRole.MANAGING_DIRECTOR / CONSTRUCTION_ACCOUNTANT / CONSTRUCTION_COORDINATOR may change rates.
+// Guests are read-only (RC-03).
+const RATE_MANAGER_ROLES = ['managing_director', 'construction_accountant', 'construction_coordinator'];
+const canManageRates = (role) => RATE_MANAGER_ROLES.includes(role);
+
+// Every money column a rate version holds. Commercial NULL = Auto (standard × uplift %).
+const RATE_FIELDS = [
+  'daily_rate', 'overtime_rate', 'weekly_rate',
+  'commercial_daily_rate', 'commercial_overtime_rate', 'commercial_weekly_rate',
+];
+const rateColumns = (alias = '') => {
+  const a = alias ? `${alias}.` : '';
+  return `${a}id, ${a}trade, ${a}rank, ${a}daily_rate, ${a}overtime_rate, ${a}weekly_rate,
+              ${a}commercial_daily_rate, ${a}commercial_overtime_rate, ${a}commercial_weekly_rate,
+              ${a}rate_year, ${a}rate_type, ${a}effective_from::text AS effective_from, ${a}effective_to::text AS effective_to,
+              ${a}created_by, ${a}change_note, ${a}created_at`;
+};
+const RATE_COLUMNS = rateColumns();
+const MAX_RATE = 100000;
+const MAX_NOTE = 500;
+// Today in the UK — the date a rate change takes effect from (Render runs in UTC).
+const UK_TODAY_SQL = `(now() AT TIME ZONE 'Europe/London')::date`;
+
+/**
+ * Validate one rate value from a request body.
+ * undefined → not sent; null / '' → cleared (commercial: back to Auto); else 0–100,000 with at most 2 dp.
+ */
+const parseRateValue = (field, v) => {
+  if (v === undefined) return { skip: true };
+  if (v === null || v === '') return { value: null };
+  const n = typeof v === 'number' ? v : Number(String(v).trim());
+  if (!Number.isFinite(n) || n < 0 || n > MAX_RATE) return { error: `${field} must be a number from 0 to ${MAX_RATE}` };
+  if (Math.abs(n * 100 - Math.round(n * 100)) > 1e-6) return { error: `${field} can have at most 2 decimal places` };
+  return { value: Math.round(n * 100) / 100 };
+};
+
+const sameMoney = (a, b) => {
+  if (a == null || b == null) return a == null && b == null;
+  return Math.abs(Number(a) - Number(b)) < 0.005;
+};
 
 // ─── GET /api/crew-rates ──────────────────────────────────────────────────────
 // ?current=true  → only active rows (effective_to IS NULL)
@@ -21,11 +59,10 @@ const getRates = async (req, res) => {
 
     const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
     const { rows } = await db.query(
-      `SELECT id, trade, rank, daily_rate, overtime_rate, weekly_rate,
-              rate_year, rate_type, effective_from, effective_to, created_at
+      `SELECT ${RATE_COLUMNS}
        FROM   bectu_rates
        ${where}
-       ORDER  BY rate_type, trade, rank`,
+       ORDER  BY rate_type, trade, rank, effective_from DESC NULLS LAST`,
       params
     );
     res.json(rows);
@@ -41,8 +78,7 @@ const getRates = async (req, res) => {
 const getHistory = async (req, res) => {
   try {
     const { rows } = await db.query(
-      `SELECT id, trade, rank, daily_rate, overtime_rate, weekly_rate,
-              rate_year, rate_type, effective_from, effective_to, created_at
+      `SELECT ${RATE_COLUMNS}
        FROM   bectu_rates
        WHERE  effective_to IS NOT NULL
        ORDER  BY effective_from DESC, trade, rank`
@@ -63,62 +99,195 @@ const getHistory = async (req, res) => {
   }
 };
 
+// ─── GET /api/crew-rates/:id/versions ────────────────────────────────────────
+// Every version of the rate's grade (trade + rank), newest first, with who made it and why (RC-03).
+const getVersions = async (req, res) => {
+  try {
+    const { rows: [rate] } = await db.query('SELECT trade, rank FROM bectu_rates WHERE id = $1', [req.params.id]);
+    if (!rate) return res.status(404).json({ error: 'Rate not found' });
+    const { rows } = await db.query(
+      `SELECT ${rateColumns('br')}, u.full_name AS created_by_name
+       FROM   bectu_rates br
+       LEFT JOIN users u ON u.id = br.created_by
+       WHERE  br.trade = $1 AND br.rank = $2
+       ORDER  BY br.effective_from DESC NULLS LAST, br.created_at DESC`,
+      [rate.trade, rate.rank]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('getVersions:', err);
+    res.status(500).json({ error: 'Unable to load rate history' });
+  }
+};
+
 // ─── PATCH /api/crew-rates/:id ────────────────────────────────────────────────
-// Inline edit for BECTU and non-BECTU rate card entries.
+// Change a rate (standard and/or commercial). RC-03: rates are versioned so old work keeps its rates —
+//   • only the CURRENT version can be changed (409 otherwise);
+//   • a change closes the current version the day before today (UK) and inserts a new version from today;
+//   • a second change on the day a version started corrects that version in place;
+//   • nothing changed → the current version is returned and nothing is written.
+// Body: any of RATE_FIELDS (number, or null to clear — commercial null = Auto) and change_note (≤ 500).
+// Returns the current version (a new id when a version was created).
 const updateRate = async (req, res) => {
   if (!canManageRates(req.user?.role))
     return res.status(403).json({ error: 'Permission denied: cannot update rate card entries' });
 
-  const { daily_rate, overtime_rate, weekly_rate } = req.body;
+  const body = req.body || {};
+  const values = {};
+  for (const f of RATE_FIELDS) {
+    const p = parseRateValue(f, body[f]);
+    if (p.error) return res.status(400).json({ error: p.error });
+    if (!p.skip) values[f] = p.value;
+  }
+  if (!Object.keys(values).length) return res.status(400).json({ error: 'No fields to update' });
 
+  let note = null;
+  if (body.change_note !== undefined && body.change_note !== null) {
+    if (typeof body.change_note !== 'string') return res.status(400).json({ error: 'change_note must be text' });
+    note = body.change_note.trim() || null;
+    if (note && note.length > MAX_NOTE) return res.status(400).json({ error: `change_note can be at most ${MAX_NOTE} characters` });
+  }
+
+  const client = await db.connect();
+  let result;
   try {
-    const { rows: [existing] } = await db.query(
-      'SELECT * FROM bectu_rates WHERE id = $1',
+    await client.query('BEGIN');
+    const { rows: [existing] } = await client.query(
+      `SELECT *, effective_from::text AS effective_from, effective_to::text AS effective_to,
+              (effective_from IS NOT NULL AND effective_from >= ${UK_TODAY_SQL}) AS starts_today_or_later,
+              ${UK_TODAY_SQL}::text AS today
+       FROM bectu_rates WHERE id = $1 FOR UPDATE`,
       [req.params.id]
     );
-    if (!existing) return res.status(404).json({ error: 'Rate not found' });
+    if (!existing) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Rate not found' }); }
+    if (existing.effective_to != null) {
+      await client.query('ROLLBACK');
+      const { rows: [current] } = await db.query(
+        'SELECT id FROM bectu_rates WHERE trade = $1 AND rank = $2 AND effective_to IS NULL', [existing.trade, existing.rank]
+      );
+      return res.status(409).json({
+        error: 'This is an old version of the rate and cannot be changed. Refresh and edit the current rate.',
+        current_id: current?.id || null,
+      });
+    }
 
-    const updates = [];
-    const vals    = [];
-    let   j       = 1;
-    const parseRate = (v) => {
-      if (v === null || v === undefined || v === '' || v === 'NaN') return null;
-      const num = parseFloat(v);
-      return isNaN(num) ? null : num;
-    };
+    const next = {};
+    for (const f of RATE_FIELDS) next[f] = f in values ? values[f] : existing[f];
+    const changed = RATE_FIELDS.filter(f => !sameMoney(existing[f], next[f]));
+    if (!changed.length) {
+      await client.query('ROLLBACK');
+      const { rows: [same] } = await db.query(`SELECT ${RATE_COLUMNS} FROM bectu_rates WHERE id = $1`, [existing.id]);
+      return res.json(same);
+    }
 
-    if (daily_rate    !== undefined) { updates.push(`daily_rate = $${j++}`);    vals.push(parseRate(daily_rate)); }
-    if (overtime_rate !== undefined) { updates.push(`overtime_rate = $${j++}`); vals.push(parseRate(overtime_rate)); }
-    if (weekly_rate   !== undefined) { updates.push(`weekly_rate = $${j++}`);   vals.push(parseRate(weekly_rate)); }
-
-    if (!updates.length) return res.status(400).json({ error: 'No fields to update' });
-
-    const { rows: [updated] } = await db.query(
-      `UPDATE bectu_rates SET ${updates.join(', ')} WHERE id = $${j} RETURNING *`,
-      [...vals, req.params.id]
-    );
-    res.json(updated);
-
-    await logAudit({
-      userId: req.user?.id,
-      userName: req.user?.full_name,
-      userRole: req.user?.role,
-      category: 'rate_card',
-      action: 'rate_updated',
-      entityType: 'bectu_rates',
-      entityId: `${existing.trade} - ${existing.rank}`,
-      details: `Updated rate card for ${existing.trade} (${existing.rank}): daily £${existing.daily_rate} → £${updated.daily_rate}, OT £${existing.overtime_rate} → £${updated.overtime_rate}`,
-      metadata: {
-        trade: existing.trade,
-        rank: existing.rank,
-        previous: { daily_rate: existing.daily_rate, overtime_rate: existing.overtime_rate, weekly_rate: existing.weekly_rate },
-        updated: { daily_rate: updated.daily_rate, overtime_rate: updated.overtime_rate, weekly_rate: updated.weekly_rate },
-      },
-    });
+    const userId = req.user?.id || null;
+    let saved;
+    let action;
+    if (existing.starts_today_or_later) {
+      // The version started today (or is not in force yet): correct it rather than stacking same-day versions.
+      action = 'rate_corrected';
+      ({ rows: [saved] } = await client.query(
+        `UPDATE bectu_rates SET
+           daily_rate = $1, overtime_rate = $2, weekly_rate = $3,
+           commercial_daily_rate = $4, commercial_overtime_rate = $5, commercial_weekly_rate = $6,
+           created_by = $7, change_note = $8
+         WHERE id = $9
+         RETURNING ${RATE_COLUMNS}`,
+        [...RATE_FIELDS.map(f => next[f]), userId, note, existing.id]
+      ));
+    } else {
+      action = 'rate_version_created';
+      await client.query(
+        `UPDATE bectu_rates SET effective_to = ${UK_TODAY_SQL} - 1 WHERE id = $1`,
+        [existing.id]
+      );
+      ({ rows: [saved] } = await client.query(
+        `INSERT INTO bectu_rates
+           (trade, rank, rate_year, rate_type,
+            daily_rate, overtime_rate, weekly_rate,
+            commercial_daily_rate, commercial_overtime_rate, commercial_weekly_rate,
+            effective_from, created_by, change_note)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, ${UK_TODAY_SQL}, $11, $12)
+         RETURNING ${RATE_COLUMNS}`,
+        [existing.trade, existing.rank, existing.rate_year, existing.rate_type,
+          ...RATE_FIELDS.map(f => next[f]), userId, note]
+      ));
+    }
+    await client.query('COMMIT');
+    result = { existing, saved, action, changed };
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'This rate was changed by someone else at the same time. Refresh and try again.' });
+    }
     console.error('updateRate:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Unable to save the rate change' });
+  } finally {
+    client.release();
   }
+
+  const { existing, saved, action, changed } = result;
+  res.json(saved);
+
+  const money = v => (v == null ? 'Auto' : `£${Number(v).toFixed(2)}`);
+  const pick = row => Object.fromEntries(RATE_FIELDS.map(f => [f, row[f] == null ? null : Number(row[f])]));
+  await logAudit({
+    userId: req.user?.id,
+    userName: req.user?.full_name,
+    userRole: req.user?.role,
+    category: 'rate_card',
+    action,
+    entityType: 'bectu_rates',
+    entityId: `${existing.trade} - ${existing.rank}`,
+    details: `${action === 'rate_corrected' ? 'Corrected' : 'Changed'} rate for ${existing.trade} (${existing.rank}) ` +
+      `from ${saved.effective_from}: ` +
+      changed.map(f => `${f.replace(/_/g, ' ')} ${money(existing[f])} → ${money(saved[f])}`).join(', ') +
+      (note ? ` — ${note}` : ''),
+    metadata: {
+      trade: existing.trade,
+      rank: existing.rank,
+      rate_year: existing.rate_year,
+      previous_version_id: existing.id,
+      version_id: saved.id,
+      effective_from: saved.effective_from,
+      changed_fields: changed,
+      previous: pick(existing),
+      updated: pick(saved),
+      change_note: note,
+    },
+  });
+};
+
+/**
+ * RC-03 checks for a rate-card import, against the current version of each grade in the file:
+ *   blocked   — the import date is not after the current version's start (versions must move forward);
+ *               re-importing the same rate year with the same date is allowed (it updates that version)
+ *   overrides — grades whose current version has Set commercial rates; the new version starts on Auto
+ */
+const importChecks = async (q, records, effectiveFrom, rateYear) => {
+  const grades = records.filter(r => r.trade && r.rank);
+  if (!grades.length) return { blocked: [], overrides: [] };
+  const { rows: current } = await q.query(
+    `SELECT trade, rank, rate_year, effective_from::text AS effective_from,
+            commercial_daily_rate, commercial_overtime_rate, commercial_weekly_rate
+     FROM bectu_rates
+     WHERE effective_to IS NULL AND COALESCE(rate_type, 'bectu') = 'bectu'
+       AND (trade, rank) IN (SELECT * FROM unnest($1::text[], $2::text[]))`,
+    [grades.map(r => r.trade), grades.map(r => r.rank)]
+  );
+  const date = String(effectiveFrom).slice(0, 10);
+  const blocked = current
+    .filter(c => c.effective_from && c.effective_from >= date && !(c.rate_year === rateYear && c.effective_from === date))
+    .map(c => ({ trade: c.trade, rank: c.rank, current_from: c.effective_from, current_rate_year: c.rate_year }));
+  const overrides = current
+    .filter(c => c.commercial_daily_rate != null || c.commercial_overtime_rate != null || c.commercial_weekly_rate != null)
+    .filter(c => !(c.rate_year === rateYear && c.effective_from === date))
+    .map(c => ({
+      trade: c.trade, rank: c.rank,
+      commercial_daily_rate: c.commercial_daily_rate, commercial_overtime_rate: c.commercial_overtime_rate,
+      commercial_weekly_rate: c.commercial_weekly_rate,
+    }));
+  return { blocked, overrides };
 };
 
 // ─── POST /api/crew-rates/preview  (MD + Accountant) ─────────────────────────
@@ -154,8 +323,9 @@ const previewCSV = async (req, res) => {
     const { rows: current } = await db.query(
       `SELECT trade, rank, daily_rate, overtime_rate, weekly_rate
        FROM bectu_rates
-       WHERE effective_to IS NULL AND rate_type = 'bectu'`
+       WHERE effective_to IS NULL AND COALESCE(rate_type, 'bectu') = 'bectu'`
     );
+    const { blocked, overrides } = await importChecks(db, records, effective_from, rate_year);
     const currentMap = Object.fromEntries(current.map(r => [`${r.trade}||${r.rank}`, r]));
 
     const changes = records
@@ -188,6 +358,9 @@ const previewCSV = async (req, res) => {
       new_entries:   changes.filter(c => c.is_new).length,
       changed_rates: changes.filter(c => !c.is_new && (c.daily_changed || c.ot_changed)).length,
       changes,
+      // RC-03: rows that can't be imported with this date, and Set commercial rates that won't carry forward
+      blocked,
+      commercial_overrides_not_carried: overrides,
     });
   } catch (err) {
     console.error('previewCSV:', err);
@@ -228,6 +401,17 @@ const importCSV = async (req, res) => {
   try {
     await client.query('BEGIN');
 
+    // RC-03: a new card must start after the version it replaces (re-importing the same year + date is allowed)
+    const { blocked, overrides } = await importChecks(client, records, effective_from, rate_year);
+    if (blocked.length) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        error: `Effective from ${effective_from} is not after the current rate for ${blocked.length} grade(s). ` +
+          `Choose a later date. First: ${blocked[0].trade} / ${blocked[0].rank} (current from ${blocked[0].current_from}).`,
+        blocked,
+      });
+    }
+
     for (const row of records) {
       const { trade, rank, daily_rate, overtime_rate } = row;
       if (!trade || !rank) continue;
@@ -238,29 +422,33 @@ const importCSV = async (req, res) => {
       const { rowCount } = await client.query(
         `UPDATE bectu_rates
          SET effective_to = $1::date - INTERVAL '1 day'
-         WHERE trade = $2 AND rank = $3 AND effective_to IS NULL AND rate_type = 'bectu'`,
+         WHERE trade = $2 AND rank = $3 AND effective_to IS NULL AND COALESCE(rate_type, 'bectu') = 'bectu'
+           AND effective_from IS DISTINCT FROM $1::date`,
         [effective_from, trade, rank]
       );
       expired += rowCount;
 
-      // Insert new row
+      // Insert the new version. RC-03: the key is (trade, rank, rate_year, effective_from), so re-importing
+      // the same year and date updates that version. New versions start with commercial rates on Auto.
       await client.query(
         `INSERT INTO bectu_rates
-           (trade, rank, daily_rate, overtime_rate, weekly_rate, rate_year, rate_type, effective_from)
-         VALUES ($1,$2,$3,$4,$5,$6,'bectu',$7)
-         ON CONFLICT (trade, rank, rate_year) DO UPDATE
+           (trade, rank, daily_rate, overtime_rate, weekly_rate, rate_year, rate_type, effective_from, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,'bectu',$7,$8)
+         ON CONFLICT (trade, rank, rate_year, effective_from) DO UPDATE
            SET daily_rate     = EXCLUDED.daily_rate,
                overtime_rate  = EXCLUDED.overtime_rate,
                weekly_rate    = EXCLUDED.weekly_rate,
-               effective_from = EXCLUDED.effective_from,
                effective_to   = NULL`,
-        [trade, rank, parseFloat(daily_rate), parseFloat(overtime_rate), weekly, rate_year, effective_from]
+        [trade, rank, parseFloat(daily_rate), parseFloat(overtime_rate), weekly, rate_year, effective_from, req.user?.id || null]
       );
       inserted++;
     }
 
     await client.query('COMMIT');
-    res.json({ message: `${rate_year} rate card imported successfully`, rate_year, inserted, expired, effective_from });
+    res.json({
+      message: `${rate_year} rate card imported successfully`, rate_year, inserted, expired, effective_from,
+      commercial_overrides_not_carried: overrides,
+    });
 
     await logAudit({
       userId: req.user?.id,
@@ -271,10 +459,13 @@ const importCSV = async (req, res) => {
       entityType: 'bectu_rates',
       entityId: rate_year,
       details: `Imported new BECTU rate card for ${rate_year} effective ${effective_from} (${inserted} rates updated/inserted, ${expired} previous rates retired)`,
-      metadata: { rate_year, effective_from, inserted, expired },
+      metadata: { rate_year, effective_from, inserted, expired, commercial_overrides_not_carried: overrides },
     });
   } catch (err) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'The import would leave two current rates for the same grade. Check the file for duplicate trade / rank rows.' });
+    }
     console.error('importCSV:', err);
     res.status(500).json({ error: err.message });
   } finally {
@@ -282,4 +473,4 @@ const importCSV = async (req, res) => {
   }
 };
 
-module.exports = { getRates, getHistory, updateRate, previewCSV, importCSV };
+module.exports = { getRates, getHistory, getVersions, updateRate, previewCSV, importCSV };

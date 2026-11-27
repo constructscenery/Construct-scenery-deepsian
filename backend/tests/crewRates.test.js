@@ -2,7 +2,7 @@
 /**
  * Crew Rates controller tests
  * Tests: getRates, getHistory, updateRate, previewCSV, importCSV
- * Access: Accountant (write); MD read-only; all roles (read)
+ * Access: MD, Accountant, Coordinator (write); guest read-only (RC-03); all roles (read)
  */
 
 const request = require('supertest');
@@ -74,59 +74,114 @@ describe('GET /api/crew-rates/history', () => {
   });
 });
 
-// ─── PATCH /api/crew-rates/:id ────────────────────────────────────────────────
-describe('PATCH /api/crew-rates/:id', () => {
-  test('Accountant updates non-BECTU rate — 200', async () => {
-    dbMock.respond([NON_BECTU_RATE]);   // existing rate
-    dbMock.respond([{ ...NON_BECTU_RATE, daily_rate: '360.00' }]);
+// ─── PATCH /api/crew-rates/:id  (RC-03: versioned) ───────────────────────────
+// Query order: BEGIN → SELECT … FOR UPDATE → (close + INSERT | correct in place) → COMMIT → audit.
+const OPEN = { rows: [], rowCount: 0 };                       // BEGIN / COMMIT / ROLLBACK
+const current = (r, startsToday = false) => [{ ...r, starts_today_or_later: startsToday, today: '2026-11-27' }];
+const sqlOf = () => dbMock.queries.map(q => q.sql).join('\n');
 
+describe('PATCH /api/crew-rates/:id', () => {
+  test('Accountant changes a non-BECTU rate — new version from today', async () => {
+    dbMock.respond(OPEN, current(NON_BECTU_RATE), { rows: [], rowCount: 1 },
+      [{ ...NON_BECTU_RATE, id: 'cr-nb-002', daily_rate: '360.00', effective_from: '2026-11-27' }]);
     const res = await request(app)
       .patch('/api/crew-rates/cr-nb-001')
       .set(authHeader('accountant'))
       .send({ daily_rate: '360.00' });
-
     expect(res.status).toBe(200);
+    expect(res.body.id).toBe('cr-nb-002');
     expect(res.body.daily_rate).toBe('360.00');
+    expect(sqlOf()).toMatch(/SET effective_to = \(now\(\) AT TIME ZONE 'Europe\/London'\)::date - 1/);
+    expect(sqlOf()).toMatch(/INSERT INTO bectu_rates/);
   });
 
-  test('Accountant updates BECTU rate — 200', async () => {
-    dbMock.respond([SAMPLE_RATE]);   // existing rate (bectu)
-    dbMock.respond([{ ...SAMPLE_RATE, daily_rate: '500.00' }]);
-
+  test('Accountant sets a commercial rate on a BECTU rate — 200', async () => {
+    dbMock.respond(OPEN, current(SAMPLE_RATE), { rows: [], rowCount: 1 },
+      [{ ...SAMPLE_RATE, id: 'cr-002', commercial_daily_rate: '500.00', effective_from: '2026-11-27' }]);
     const res = await request(app)
       .patch('/api/crew-rates/cr-001')
       .set(authHeader('accountant'))
-      .send({ daily_rate: '500.00' });
+      .send({ commercial_daily_rate: 500, change_note: 'Agreed rate' });
     expect(res.status).toBe(200);
-    expect(res.body.daily_rate).toBe('500.00');
+    expect(res.body.commercial_daily_rate).toBe('500.00');
+    const insert = dbMock.queries.find(q => /INSERT INTO bectu_rates/.test(q.sql));
+    expect(insert.params).toEqual(expect.arrayContaining([500, 'Agreed rate']));
   });
 
-  test('MD updates rate — 200', async () => {
-    dbMock.respond([SAMPLE_RATE]);
-    dbMock.respond([{ ...SAMPLE_RATE, daily_rate: '300.00' }]);
-    const res = await request(app)
-      .patch('/api/crew-rates/cr-001')
-      .set(authHeader('md'))
-      .send({ daily_rate: '300' });
-    expect(res.status).toBe(200);
+  test('MD and Coordinator can change rates — 200', async () => {
+    for (const role of ['md', 'coordinator']) {
+      dbMock.reset();
+      dbMock.respond(OPEN, current(SAMPLE_RATE), { rows: [], rowCount: 1 }, [{ ...SAMPLE_RATE, id: 'cr-003', daily_rate: '300.00' }]);
+      const res = await request(app).patch('/api/crew-rates/cr-001').set(authHeader(role)).send({ daily_rate: '300' });
+      expect(res.status).toBe(200);
+    }
   });
 
-  test('Coordinator updates rate — 200', async () => {
-    dbMock.respond([SAMPLE_RATE]);
-    dbMock.respond([{ ...SAMPLE_RATE, daily_rate: '300.00' }]);
-    const res = await request(app)
-      .patch('/api/crew-rates/cr-001')
-      .set(authHeader('coordinator'))
-      .send({ daily_rate: '300' });
+  test('Guest cannot change rates — 403', async () => {
+    const res = await request(app).patch('/api/crew-rates/cr-001').set(authHeader('guest')).send({ daily_rate: '300' });
+    expect(res.status).toBe(403);
+    expect(dbMock.queries.length).toBe(0);
+  });
+
+  test('Second change on the day a version started corrects it in place', async () => {
+    dbMock.respond(OPEN, current({ ...SAMPLE_RATE, effective_from: '2026-11-27' }, true),
+      [{ ...SAMPLE_RATE, daily_rate: '440.00', effective_from: '2026-11-27' }]);
+    const res = await request(app).patch('/api/crew-rates/cr-001').set(authHeader('accountant')).send({ daily_rate: 440 });
     expect(res.status).toBe(200);
+    expect(res.body.id).toBe('cr-001');
+    expect(sqlOf()).not.toMatch(/INSERT INTO bectu_rates/);
+  });
+
+  test('Same values → 200, nothing written', async () => {
+    dbMock.respond(OPEN, current(SAMPLE_RATE), OPEN, [SAMPLE_RATE]);
+    const res = await request(app).patch('/api/crew-rates/cr-001').set(authHeader('accountant')).send({ daily_rate: '430' });
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe('cr-001');
+    expect(sqlOf()).not.toMatch(/INSERT INTO bectu_rates|UPDATE bectu_rates/);
+  });
+
+  test('Old version → 409 with the current id', async () => {
+    dbMock.respond(OPEN, current({ ...SAMPLE_RATE, effective_to: '2026-11-26' }), OPEN, [{ id: 'cr-002' }]);
+    const res = await request(app).patch('/api/crew-rates/cr-001').set(authHeader('accountant')).send({ daily_rate: '440' });
+    expect(res.status).toBe(409);
+    expect(res.body.current_id).toBe('cr-002');
+  });
+
+  test('Invalid values → 400 before touching the database', async () => {
+    for (const body of [{ daily_rate: -1 }, { commercial_daily_rate: 'abc' }, { weekly_rate: 100001 },
+      { overtime_rate: 1.234 }, {}, { daily_rate: 1, change_note: 'x'.repeat(501) }]) {
+      const res = await request(app).patch('/api/crew-rates/cr-001').set(authHeader('accountant')).send(body);
+      expect(res.status).toBe(400);
+    }
+    expect(dbMock.queries.length).toBe(0);
   });
 
   test('Rate not found → 404', async () => {
-    dbMock.respond([]);
+    dbMock.respond(OPEN, []);
     const res = await request(app)
       .patch('/api/crew-rates/bad-id')
       .set(authHeader('accountant'))
       .send({ daily_rate: '400' });
+    expect(res.status).toBe(404);
+  });
+});
+
+// ─── GET /api/crew-rates/:id/versions ────────────────────────────────────────
+describe('GET /api/crew-rates/:id/versions', () => {
+  test('Every role (guest included) can read a grade\'s versions — newest first', async () => {
+    for (const role of ['md', 'accountant', 'coordinator', 'guest']) {
+      dbMock.reset();
+      dbMock.respond([{ trade: 'Carpenters', rank: 'HOD' }],
+        [{ ...SAMPLE_RATE, id: 'cr-002', effective_from: '2026-11-27', created_by_name: 'Warren MD' }, { ...SAMPLE_RATE, effective_to: '2026-11-26' }]);
+      const res = await request(app).get('/api/crew-rates/cr-001/versions').set(authHeader(role));
+      expect(res.status).toBe(200);
+      expect(res.body[0].id).toBe('cr-002');
+    }
+  });
+
+  test('Unknown rate → 404', async () => {
+    dbMock.respond([]);
+    const res = await request(app).get('/api/crew-rates/nope/versions').set(authHeader('md'));
     expect(res.status).toBe(404);
   });
 });
@@ -236,5 +291,35 @@ describe('POST /api/crew-rates/import', () => {
       .field('rate_year', '2027/28')
       .attach('csv', csv, 'r.csv');
     expect(res.status).toBe(200);
+  });
+
+  test('Import dated on/before the current version → 400, nothing imported (RC-03)', async () => {
+    dbMock.respond(OPEN, [{ trade: 'Carpenters', rank: 'HOD', rate_year: '2026/27', effective_from: '2027-05-01',
+      commercial_daily_rate: null, commercial_overtime_rate: null, commercial_weekly_rate: null }]);
+    const csv = Buffer.from('trade,rank,daily_rate,overtime_rate\nCarpenters,HOD,450,67.5');
+    const res = await request(app)
+      .post('/api/crew-rates/import')
+      .set(authHeader('accountant'))
+      .field('effective_from', '2027-04-06')
+      .field('rate_year', '2027/28')
+      .attach('csv', csv, 'r.csv');
+    expect(res.status).toBe(400);
+    expect(res.body.blocked[0]).toMatchObject({ trade: 'Carpenters', rank: 'HOD' });
+    expect(dbMock.queries.map(q => q.sql).join('\n')).not.toMatch(/INSERT INTO bectu_rates/);
+  });
+
+  test('Preview warns when Set commercial rates will not carry into the new year', async () => {
+    dbMock.respond([SAMPLE_RATE], [{ trade: 'Carpenters', rank: 'HOD', rate_year: '2026/27', effective_from: '2026-04-06',
+      commercial_daily_rate: '480.00', commercial_overtime_rate: null, commercial_weekly_rate: null }]);
+    const csv = Buffer.from('trade,rank,daily_rate,overtime_rate\nCarpenters,HOD,450,67.5');
+    const res = await request(app)
+      .post('/api/crew-rates/preview')
+      .set(authHeader('accountant'))
+      .field('effective_from', '2027-07-01')
+      .field('rate_year', '2027/28')
+      .attach('csv', csv, 'r.csv');
+    expect(res.status).toBe(200);
+    expect(res.body.blocked).toEqual([]);
+    expect(res.body.commercial_overrides_not_carried).toHaveLength(1);
   });
 });

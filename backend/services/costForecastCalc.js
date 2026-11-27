@@ -23,7 +23,7 @@
  * (tests/costForecastCalc.test.js checks both against the same cases).
  */
 const { STANDARD_SECTIONS, resolveRate } = require('./forecastingDefaults');
-const { applyMultiplier, deriveOtRate } = require('./timesheetCalc');
+const { applyMultiplier, deriveOtRate, commercialRate } = require('./timesheetCalc');
 
 const r2 = n => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const num = v => {
@@ -102,24 +102,26 @@ const fallbackPctFor = (trade, rank) => {
  * Card rates for a line × multiplier. Returns null when the grade is not on the card at all
  * (the stored unit_rate is then kept, exactly as before).
  */
-const cardRatesFor = (bectuRates, line, multiplier, view) => {
+const cardRatesFor = (bectuRates, line, multiplier, view, commercial = false) => {
   const info = resolveRate(bectuRates, line.trade, line.rank, fallbackPctFor(line.trade, line.rank));
   if (!info.bectu_rate_id && !(info.daily_rate > 0) && !(info.weekly_rate > 0)) return null;
   const m = num(multiplier) > 0 ? num(multiplier) : 1;
-  const daily  = applyMultiplier(info.daily_rate, m);
-  const weekly = applyMultiplier(info.weekly_rate, m);
+  // RC-05: on a commercial forecast a Set commercial rate is used as entered; Auto = card × multiplier.
+  const rate = (base, override) => (commercial ? commercialRate(base, override, m) : applyMultiplier(base, m));
+  const daily  = rate(info.daily_rate, info.commercial_daily_rate);
+  const weekly = rate(info.weekly_rate, info.commercial_weekly_rate);
   const otBase = info.overtime_rate ? num(info.overtime_rate) : deriveOtRate(num(info.daily_rate));
   return {
     bectu_rate_id:   info.bectu_rate_id,
     unit_rate:       view === 'daily' ? daily : weekly,
     daily_rate:      daily,
-    default_ot_rate: applyMultiplier(otBase, m),
+    default_ot_rate: rate(otBase, info.commercial_overtime_rate),
   };
 };
 
 /** Apply the live card to a line (unlocked forecasts). Overrides and quantities are untouched. */
-const syncLineRates = (line, bectuRates, multiplier, view) => {
-  const card = cardRatesFor(bectuRates, line, multiplier, view);
+const syncLineRates = (line, bectuRates, multiplier, view, commercial = false) => {
+  const card = cardRatesFor(bectuRates, line, multiplier, view, commercial);
   if (!card) return { ...line };
   return { ...line, ...card, bectu_rate_id: card.bectu_rate_id ?? line.bectu_rate_id ?? null };
 };

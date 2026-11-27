@@ -1595,20 +1595,36 @@ export type CrewRate = {
   daily_rate: string | null;
   overtime_rate: string | null;
   weekly_rate: string | null;
+  /** RC: Set commercial rates — null means Auto (standard × commercial uplift %). */
+  commercial_daily_rate?: string | null;
+  commercial_overtime_rate?: string | null;
+  commercial_weekly_rate?: string | null;
   rate_year: string;
   rate_type: 'bectu' | 'non_bectu';
   effective_from: string | null;
   effective_to: string | null;
+  created_by?: string | null;
+  created_by_name?: string | null;
+  change_note?: string | null;
   created_at: string;
 };
+
+/** Fields a rate change can send (RC). Numbers as text; null clears (commercial → Auto). */
+export type CrewRateChange = Partial<Record<
+  'daily_rate' | 'overtime_rate' | 'weekly_rate' | 'commercial_daily_rate' | 'commercial_overtime_rate' | 'commercial_weekly_rate',
+  string | null
+>> & { change_note?: string | null };
 
 export const crewRatesApi = {
   list: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return request<CrewRate[]>(`/api/crew-rates${qs}`);
   },
-  update: (id: string, data: { daily_rate?: string | null; overtime_rate?: string | null; weekly_rate?: string | null }) =>
+  /** Saves a change as a new version from today (or corrects today's version). Returns the current version. */
+  update: (id: string, data: CrewRateChange) =>
     request<CrewRate>(`/api/crew-rates/${id}`, { method: 'PATCH', body: data }),
+  /** Every version of this rate's grade, newest first. */
+  versions: (id: string) => request<CrewRate[]>(`/api/crew-rates/${id}/versions`),
   importCSV: (formData: FormData) =>
     fetch('/api/crew-rates/import', {
       method: 'POST',
@@ -1618,7 +1634,10 @@ export const crewRatesApi = {
       body: formData,
     }).then(async r => {
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error((e as { error?: string }).error ?? r.statusText); }
-      return r.json() as Promise<{ message: string; inserted: number; expired: number }>;
+      return r.json() as Promise<{
+        message: string; inserted: number; expired: number;
+        commercial_overrides_not_carried?: Array<{ trade: string; rank: string }>;
+      }>;
     }),
 };
 

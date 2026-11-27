@@ -10,7 +10,7 @@
  *   gross_amount = timesheet.grand_total  (final pay inc. VAT)
  */
 
-const { applyMultiplier } = require('./timesheetCalc');
+const { applyMultiplier, VERSION_ORDER_SQL } = require('./timesheetCalc');
 const multiplierOf = ts => {
   const m = parseFloat(ts.rate_multiplier);
   return Number.isFinite(m) && m > 0 ? m : 1;
@@ -38,6 +38,7 @@ const recordWeeklyLabour = async (weekEndingDate, productionId, client) => {
   const { rows: timesheets } = await client.query(
     `SELECT t.id, t.production_id, t.crew_member_id, t.week_ending_date,
             t.gross_total, t.vat, t.grand_total, t.rate_multiplier,
+            t.applied_daily_rate, t.applied_overtime_rate,
             cm.crew_trade, cm.crew_rank, cm.account_code
      FROM timesheets t
      JOIN crew_members cm ON t.crew_member_id = cm.id
@@ -69,19 +70,25 @@ const recordWeeklyLabour = async (weekEndingDate, productionId, client) => {
       if (e.set_number && !setCode) setCode = e.set_number;
     }
 
-    // Fetch BECTU rate in effect at week_ending_date; fall back to most-recent
-    const rateYear = getRateYear(weekEndingDate);
-    let { rows: [rateRow] } = await client.query(
-      `SELECT daily_rate, overtime_rate FROM bectu_rates
-       WHERE trade = $1 AND rank = $2 AND rate_year = $3`,
-      [ts.crew_trade, ts.crew_rank, rateYear]
-    );
-    if (!rateRow) {
+    // RC-02: the rates the timesheet was priced with (snapshot) are the rates actually paid.
+    // Older timesheets without a snapshot: the BECTU rate version in force at week_ending_date; fall back to most-recent.
+    const hasSnapshot = ts.applied_daily_rate != null && ts.applied_overtime_rate != null;
+    let rateRow = null;
+    if (!hasSnapshot) {
+      const rateYear = getRateYear(weekEndingDate);
       ({ rows: [rateRow] } = await client.query(
         `SELECT daily_rate, overtime_rate FROM bectu_rates
-         WHERE trade = $1 AND rank = $2 ORDER BY rate_year DESC LIMIT 1`,
-        [ts.crew_trade, ts.crew_rank]
+         WHERE trade = $1 AND rank = $2 AND rate_year = $3
+         ORDER BY ${VERSION_ORDER_SQL('$4::date')} LIMIT 1`,
+        [ts.crew_trade, ts.crew_rank, rateYear, weekEndingDate]
       ));
+      if (!rateRow) {
+        ({ rows: [rateRow] } = await client.query(
+          `SELECT daily_rate, overtime_rate FROM bectu_rates
+           WHERE trade = $1 AND rank = $2 ORDER BY rate_year DESC, effective_from DESC NULLS LAST LIMIT 1`,
+          [ts.crew_trade, ts.crew_rank]
+        ));
+      }
     }
 
     // Skip if a non-deleted entry already exists for this timesheet
@@ -112,8 +119,10 @@ const recordWeeklyLabour = async (weekEndingDate, productionId, client) => {
         dayFlags.day_friday, dayFlags.day_saturday, dayFlags.day_sunday,
         totalDays, Math.round(otHours * 100) / 100,
         // CS-08: show the rate actually paid on commercial productions (money columns already come from the timesheet)
-        applyMultiplier(parseFloat(rateRow?.daily_rate    || 0), multiplierOf(ts)),
-        applyMultiplier(parseFloat(rateRow?.overtime_rate || 0), multiplierOf(ts)),
+        hasSnapshot ? parseFloat(ts.applied_daily_rate)
+          : applyMultiplier(parseFloat(rateRow?.daily_rate    || 0), multiplierOf(ts)),
+        hasSnapshot ? parseFloat(ts.applied_overtime_rate)
+          : applyMultiplier(parseFloat(rateRow?.overtime_rate || 0), multiplierOf(ts)),
         parseFloat(ts.gross_total  || 0),
         parseFloat(ts.vat          || 0),
         parseFloat(ts.grand_total  || 0),

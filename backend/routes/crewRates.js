@@ -11,6 +11,7 @@ router.post('/preview',  csvUpload.single('csv'), ctrl.previewCSV); // diff prev
 router.post('/import',   csvUpload.single('csv'), ctrl.importCSV);  // commit new rate card year
 
 router.get('/',          ctrl.getRates);
+router.get('/:id/versions', ctrl.getVersions);                     // RC-03: every version of this grade
 router.patch('/:id',     ctrl.updateRate);
 
 module.exports = router;

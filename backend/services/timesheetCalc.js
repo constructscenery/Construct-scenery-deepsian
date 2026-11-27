@@ -41,31 +41,51 @@ const applyMultiplier = (rate, multiplier) => {
 };
 
 /**
- * Resolve the day and OT rate for one timesheet.
- * Order: rate_override → rate card for the effective rank in the week's rate year → latest rate card row.
- * Non-BECTU roles are matched by trade or rank under trade 'Non-BECTU'.
+ * RC-02 — the commercial value of one rate: a Set commercial rate is used exactly as entered;
+ * otherwise (Auto) it is the standard rate × multiplier, rounded per rate as before.
  */
-const resolveRates = async (client, { trade, rank, weekEndingDate, rateOverride = null, multiplier = 1 }) => {
+const commercialRate = (base, override, multiplier) =>
+  (override != null && override !== '' && Number.isFinite(Number(override)))
+    ? round2(Number(override))
+    : applyMultiplier(base, multiplier);
+
+/**
+ * RC-02 — rate versions. Within a rate year a grade can have several versions; the one in force for a
+ * week is the newest whose effective_from is on or before the week-ending date. With one version per
+ * year (all data before RC) this orders exactly as before.
+ */
+const VERSION_ORDER_SQL = (weekEndingExpr) =>
+  `(effective_from <= ${weekEndingExpr}) DESC NULLS LAST, effective_from DESC NULLS LAST`;
+
+/**
+ * Resolve the day and OT rate for one timesheet.
+ * Order: rate_override → rate card for the effective rank in the week's rate year (the version in force
+ * that week) → latest rate card row. Non-BECTU roles are matched by trade or rank under trade 'Non-BECTU'.
+ * `commercial` (RC-02): use the version's Set commercial rates where present; Auto rates are × multiplier.
+ * Without `commercial`, the multiplier alone applies (legacy behaviour, used to reproduce old totals).
+ */
+const resolveRates = async (client, { trade, rank, weekEndingDate, rateOverride = null, multiplier = 1, commercial = false }) => {
   if (rateOverride != null && rateOverride !== '') {
     const dailyRate = parseFloat(rateOverride);
     return { dailyRate, otRate: deriveOtRate(dailyRate), multiplier: 1, source: 'override' };
   }
-  const rateYear = getRateYear(weekEndingDate);
+  const weekEnding = String(weekEndingDate).split('T')[0];
+  const rateYear = getRateYear(weekEnding);
   let { rows: [rateRow] } = await client.query(
-    `SELECT daily_rate, overtime_rate FROM bectu_rates
+    `SELECT daily_rate, overtime_rate, commercial_daily_rate, commercial_overtime_rate FROM bectu_rates
      WHERE ((trade = $1 AND rank = $2)
         OR (trade = 'Non-BECTU' AND (rank = $1 OR rank = $2)))
        AND rate_year = $3
-     ORDER BY effective_from DESC NULLS LAST LIMIT 1`,
-    [trade, rank, rateYear]
+     ORDER BY ${VERSION_ORDER_SQL('$4::date')} LIMIT 1`,
+    [trade, rank, rateYear, weekEnding]
   );
   if (!rateRow) {
     ({ rows: [rateRow] } = await client.query(
-      `SELECT daily_rate, overtime_rate FROM bectu_rates
+      `SELECT daily_rate, overtime_rate, commercial_daily_rate, commercial_overtime_rate FROM bectu_rates
        WHERE (trade = $1 AND rank = $2)
           OR (trade = 'Non-BECTU' AND (rank = $1 OR rank = $2))
-       ORDER BY effective_from DESC NULLS LAST LIMIT 1`,
-      [trade, rank]
+       ORDER BY ${VERSION_ORDER_SQL('$3::date')} LIMIT 1`,
+      [trade, rank, weekEnding]
     ));
   }
   const baseDaily = parseFloat(rateRow?.daily_rate || 0);
@@ -74,6 +94,13 @@ const resolveRates = async (client, { trade, rank, weekEndingDate, rateOverride 
   if (!baseOt && baseDaily > 0) baseOt = deriveOtRate(baseDaily);
 
   const m = Number(multiplier) > 0 ? Number(multiplier) : 1;
+  if (commercial) {
+    return {
+      dailyRate: commercialRate(baseDaily, rateRow?.commercial_daily_rate, m),
+      otRate:    commercialRate(baseOt,    rateRow?.commercial_overtime_rate, m),
+      multiplier: m, source: 'rate_card',
+    };
+  }
   if (m === 1) return { dailyRate: baseDaily, otRate: baseOt, multiplier: 1, source: 'rate_card' };
   return { dailyRate: applyMultiplier(baseDaily, m), otRate: applyMultiplier(baseOt, m), multiplier: m, source: 'rate_card' };
 };
@@ -146,7 +173,7 @@ const computeTotals = (rows, { dailyRate, otRate }, crew) => {
  * Overrides stored on the timesheet (rank_override, rate_override) are honoured.
  * `multiplier` defaults to the production's current rate card. Returns null if not found.
  */
-const priceTimesheet = async (client, timesheetId, { multiplier } = {}) => {
+const priceTimesheet = async (client, timesheetId, { multiplier, commercial, rates: fixedRates } = {}) => {
   const { rows: [ts] } = await client.query(
     `SELECT t.*, cm.crew_trade, cm.crew_rank, cm.employment_status, cm.vat_registration_number,
             ${PRODUCTION_RATE_CARD_COLUMNS}
@@ -161,13 +188,18 @@ const priceTimesheet = async (client, timesheetId, { multiplier } = {}) => {
     'SELECT * FROM timesheet_entries WHERE timesheet_id = $1 ORDER BY date', [timesheetId]
   );
   const m = multiplier != null ? multiplier : rateMultiplierFor(ts);
-  const rates = await resolveRates(client, {
-    trade: ts.crew_trade,
-    rank: ts.rank_override || ts.crew_rank,
-    weekEndingDate: String(ts.week_ending_date).split('T')[0],
-    rateOverride: ts.rate_override,
-    multiplier: m,
-  });
+  // RC-02: by default the production's current card decides commercial; `rates` prices with given rates.
+  const isCommercial = commercial != null ? Boolean(commercial) : (multiplier == null && isCommercialCard(ts));
+  const rates = fixedRates
+    ? { dailyRate: Number(fixedRates.dailyRate), otRate: Number(fixedRates.otRate), multiplier: m, source: 'applied' }
+    : await resolveRates(client, {
+      trade: ts.crew_trade,
+      rank: ts.rank_override || ts.crew_rank,
+      weekEndingDate: String(ts.week_ending_date).split('T')[0],
+      rateOverride: ts.rate_override,
+      multiplier: m,
+      commercial: isCommercial,
+    });
   return { ts, rates, multiplier: m, totals: computeTotals(normaliseEntries(timesheetId, entries), rates, ts) };
 };
 
@@ -185,26 +217,38 @@ const recalculateAndStore = async (client, timesheetId, { multiplier } = {}) => 
        weekly_rate = $1, sixth_day_payment = $2, seventh_day_payment = $3,
        overtime_amount = $4, meal_allowance_total = $5, mileage_and_travel = $6,
        vat = $7, gross_total = $8, grand_total = $9, rate_multiplier = $10,
+       applied_daily_rate = $12, applied_overtime_rate = $13,
        amended_at = CASE WHEN status = 'distributed' AND grand_total IS DISTINCT FROM $9 THEN NOW() ELSE amended_at END
      WHERE id = $11 AND status <> 'finalised'
      RETURNING *`,
     [t.weekly_rate, t.sixth_day_payment, t.seventh_day_payment, t.overtime_amount, t.meal_allowance_total,
-     t.mileage_and_travel, t.vat, t.gross_total, t.grand_total, m, timesheetId]
+     t.mileage_and_travel, t.vat, t.gross_total, t.grand_total, m, timesheetId, rates.dailyRate, rates.otRate]
   );
   return { before: ts, after: updated || null, rates };
 };
 
 /**
- * True when re-pricing a timesheet at the multiplier it was last saved with reproduces its stored
+ * True when re-pricing a timesheet with the rates it was last saved with reproduces its stored
  * total (to the penny). False means its totals don't come from its daily entries — e.g. CSV-imported
- * allowances, or a rate card edited since — so a bulk re-price must not overwrite it.
+ * allowances — so a bulk re-price must not overwrite it.
+ * RC-02: rows priced since RC carry applied_daily_rate / applied_overtime_rate and are checked with those
+ * (so a later rate-card edit can't make them look unreproducible); older rows use the stored multiplier.
  */
 const storedTotalsReproducible = async (client, timesheetId) => {
-  const { rows: [row] } = await client.query('SELECT rate_multiplier, grand_total FROM timesheets WHERE id = $1', [timesheetId]);
+  const { rows: [row] } = await client.query(
+    'SELECT rate_multiplier, grand_total, applied_daily_rate, applied_overtime_rate FROM timesheets WHERE id = $1', [timesheetId]
+  );
   if (!row) return false;
   const stored = row.rate_multiplier != null ? parseFloat(row.rate_multiplier) : 1;
-  const priced = await priceTimesheet(client, timesheetId, { multiplier: stored });
-  return !!priced && Math.abs(priced.totals.grand_total - parseFloat(row.grand_total || 0)) < 0.005;
+  const matches = priced => !!priced && Math.abs(priced.totals.grand_total - parseFloat(row.grand_total || 0)) < 0.005;
+  if (row.applied_daily_rate != null && row.applied_overtime_rate != null) {
+    const withApplied = await priceTimesheet(client, timesheetId, {
+      multiplier: stored, rates: { dailyRate: row.applied_daily_rate, otRate: row.applied_overtime_rate },
+    });
+    if (matches(withApplied)) return true;
+  }
+  // Pre-RC rule (stored multiplier, rate card for the week)
+  return matches(await priceTimesheet(client, timesheetId, { multiplier: stored, commercial: false }));
 };
 
 // ─── CS-08: commercial rate card ──────────────────────────────────────────────────────────────
@@ -219,6 +263,9 @@ const parseUpliftPct = (value) => {
   const n = typeof value === 'number' ? value : parseFloat(value);
   return Number.isFinite(n) && n >= 0 && n <= 100 ? n : DEFAULT_COMMERCIAL_UPLIFT_PCT;
 };
+
+/** True when the row's production uses the commercial rate card (RateCardType.COMMERCIAL). */
+const isCommercialCard = (row) => !!row && row.rate_card_type === 'commercial';
 
 /** Multiplier for a row carrying rate_card_type / commercial_uplift_pct. Standard → 1. */
 const rateMultiplierFor = (row) => {
@@ -242,7 +289,8 @@ const rateLookupSql = (valueExpr, t, cm) => `(SELECT ${valueExpr}
                FROM bectu_rates br
                WHERE (br.trade = ${cm}.crew_trade AND br.rank = COALESCE(${t}.rank_override, ${cm}.crew_rank))
                   OR (br.trade = 'Non-BECTU' AND (br.rank = ${cm}.crew_trade OR br.rank = COALESCE(${t}.rank_override, ${cm}.crew_rank)))
-               ORDER BY (br.rate_year = ${RATE_YEAR_SQL(t)}) DESC, br.effective_from DESC NULLS LAST
+               ORDER BY (br.rate_year = ${RATE_YEAR_SQL(t)}) DESC,
+                        (br.effective_from <= ${t}.week_ending_date) DESC NULLS LAST, br.effective_from DESC NULLS LAST
                LIMIT 1)`;
 
 /**
@@ -262,20 +310,38 @@ const effectiveMultiplierSql = (t, p) => `(CASE
 const withMultiplier = (expr, t, p) =>
   `CASE WHEN ${effectiveMultiplierSql(t, p)} = 1 THEN ${expr} ELSE ROUND((${expr}) * ${effectiveMultiplierSql(t, p)}, 2) END`;
 
+/**
+ * RC-02: an unfinalised timesheet on a commercial production shows the version's Set commercial rate
+ * when there is one (what the next save will use); otherwise the multiplied rate as before.
+ */
+const withCommercial = (overrideCol, expr, t, p) =>
+  `CASE WHEN ${t}.status <> 'finalised' AND ${p}.rate_card_type = 'commercial' AND ${overrideCol} IS NOT NULL
+        THEN ${overrideCol} ELSE ${withMultiplier(expr, t, p)} END`;
+
+/**
+ * RC-02: a finalised timesheet shows the rate it was priced with (applied_* snapshot), so later rate-card
+ * edits never change an old record. Rows without a snapshot fall back to the lookup (pre-RC behaviour).
+ */
+const withSnapshot = (snapshotCol, lookupSql, t) =>
+  `(CASE WHEN ${t}.status = 'finalised' AND ${t}.${snapshotCol} IS NOT NULL THEN ${t}.${snapshotCol} ELSE ${lookupSql} END)`;
+
 /** SQL expression for the displayed day rate (alias it AS daily_rate). Needs timesheets t, crew_members cm, productions p. */
 const displayDailyRateSql = (t = 't', cm = 'cm', p = 'p') =>
-  rateLookupSql(withMultiplier('br.daily_rate', t, p), t, cm);
+  withSnapshot('applied_daily_rate',
+    rateLookupSql(withCommercial('br.commercial_daily_rate', 'br.daily_rate', t, p), t, cm), t);
 
 /** SQL expression for the displayed overtime rate (alias it AS overtime_rate). */
 const displayOvertimeRateSql = (t = 't', cm = 'cm', p = 'p') =>
-  rateLookupSql(withMultiplier('COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2))', t, p), t, cm);
+  withSnapshot('applied_overtime_rate',
+    rateLookupSql(withCommercial('br.commercial_overtime_rate',
+      'COALESCE(NULLIF(br.overtime_rate, 0), ROUND(br.daily_rate * 1.5 / 9.5, 2))', t, p), t, cm), t);
 
 /** SQL for the multiplier itself (alias AS effective_rate_multiplier) — lets the UI show a Commercial badge. */
 const displayRateMultiplierSql = (t = 't', p = 'p') => effectiveMultiplierSql(t, p);
 
 module.exports = {
-  MEAL_RATES, round2, getRateYear, deriveOtRate, applyMultiplier,
+  MEAL_RATES, round2, getRateYear, deriveOtRate, applyMultiplier, commercialRate, VERSION_ORDER_SQL,
   resolveRates, normaliseEntries, computeTotals, priceTimesheet, recalculateAndStore, storedTotalsReproducible,
   displayDailyRateSql, displayOvertimeRateSql, displayRateMultiplierSql,
-  DEFAULT_COMMERCIAL_UPLIFT_PCT, PRODUCTION_RATE_CARD_COLUMNS, parseUpliftPct, rateMultiplierFor,
+  DEFAULT_COMMERCIAL_UPLIFT_PCT, PRODUCTION_RATE_CARD_COLUMNS, parseUpliftPct, rateMultiplierFor, isCommercialCard,
 };

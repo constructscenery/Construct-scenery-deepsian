@@ -596,7 +596,8 @@ const deleteCatalogueItem = async (req, res) => {
 // GET /api/forecasting/bectu-rates
 const getBectuRates = async (req, res) => {
   try {
-    const { rows } = await db.query('SELECT * FROM bectu_rates ORDER BY trade, rank');
+    // RC-06: every version, newest first within a grade (effective_to IS NULL marks the current one)
+    const { rows } = await db.query('SELECT * FROM bectu_rates ORDER BY trade, rank, effective_from DESC NULLS LAST');
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
