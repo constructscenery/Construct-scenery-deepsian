@@ -39,6 +39,12 @@ const patchSetting = async (req, res) => {
       return res.status(400).json({ error: 'commercial_rate_uplift_pct must be a number from 0 to 100' });
   }
 
+  // FB-07: Percentometer above-the-line fixed costs — 0 to under 100 % (100 would leave nothing for departments)
+  if (key === 'percentometer_atl_pct') {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value >= 100)
+      return res.status(400).json({ error: 'percentometer_atl_pct must be a number from 0 to less than 100' });
+  }
+
   try {
     const { rows: [row] } = await db.query(
       `INSERT INTO app_settings (key, value, updated_by, updated_at)
@@ -55,6 +61,14 @@ const patchSetting = async (req, res) => {
         userId: req.user.id, userName: req.user.full_name, userRole: req.user.role,
         category: 'rate_card', action: 'commercial_rate_uplift_changed', entityType: 'app_setting', entityId: key,
         details: `Commercial rate uplift set to ${value}%. Applies to timesheets saved or recalculated from now on.`,
+        metadata: { value },
+      });
+    }
+    if (key === 'percentometer_atl_pct') {
+      await logAudit({
+        userId: req.user.id, userName: req.user.full_name, userRole: req.user.role,
+        category: 'general', action: 'percentometer_atl_changed', entityType: 'app_setting', entityId: key,
+        details: `Percentometer above-the-line fixed costs set to ${value}%. Saved scenarios keep the % they were calculated with.`,
         metadata: { value },
       });
     }

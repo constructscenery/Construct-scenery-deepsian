@@ -24,13 +24,13 @@ const buildWeeklyCostSummary = (supplierEntries, labourEntries) => {
   supplierEntries.forEach(e => {
     const key = toDateStr(e.date) || 'unknown';
     if (!weekMap[key]) weekMap[key] = { week_or_date: key, supplier_cost: 0, labour_cost: 0, crew_count: 0 };
-    weekMap[key].supplier_cost += parseFloat(e.gross_amount || 0);
+    weekMap[key].supplier_cost += parseFloat(e.net_amount || 0);   // ex VAT (ADR-06)
   });
 
   labourEntries.forEach(e => {
     const key = toDateStr(e.week_ending_date) || 'unknown';
     if (!weekMap[key]) weekMap[key] = { week_or_date: key, supplier_cost: 0, labour_cost: 0, crew_count: 0 };
-    weekMap[key].labour_cost += parseFloat(e.gross_amount || 0);
+    weekMap[key].labour_cost += parseFloat(e.net_amount || 0);     // ex VAT (ADR-06)
     weekMap[key].crew_count  += 1;
   });
 
@@ -48,18 +48,23 @@ const groupLabourByWeekAndTrade = (labourEntries) => {
   const byWeek = {};
   labourEntries.forEach(e => {
     const week = toDateStr(e.week_ending_date) || 'unknown';
-    if (!byWeek[week]) byWeek[week] = { week_ending_date: week === 'unknown' ? null : week, total: 0, crew: [] };
-    byWeek[week].total += parseFloat(e.gross_amount || 0);
+    if (!byWeek[week]) byWeek[week] = { week_ending_date: week === 'unknown' ? null : week, total: 0, total_vat: 0, total_inc_vat: 0, crew: [] };
+    // ADR-06: `total` is ex VAT so the weekly labour table agrees with the Labour Costs card.
+    byWeek[week].total         += parseFloat(e.net_amount   || 0);
+    byWeek[week].total_vat     += parseFloat(e.vat          || 0);
+    byWeek[week].total_inc_vat += parseFloat(e.gross_amount || 0);
     byWeek[week].crew.push({
       crew_number: e.crew_number || null,
       name:        `${e.first_name || ''} ${e.last_name || ''}`.trim(),
       trade:       e.trade || null,
       rank:        e.rank  || null,
+      net_total:   parseFloat(e.net_amount   || 0),
+      vat:         parseFloat(e.vat          || 0),
       grand_total: parseFloat(e.gross_amount || 0),
     });
   });
   return Object.values(byWeek)
-    .sort((a, b) => b.week_ending_date.localeCompare(a.week_ending_date));
+    .sort((a, b) => String(b.week_ending_date || '').localeCompare(String(a.week_ending_date || '')));
 };
 
 // ─── GET /api/cost-reports/:productionId/type1 ───────────────────────────────
@@ -71,7 +76,7 @@ const getType1Report = async (req, res) => {
 
   try {
     const { rows: [production] } = await db.query(
-      `SELECT id, name, contract_type, status, target_profit_pct FROM productions WHERE id = $1`,
+      `SELECT id, name, contract_type, status, target_profit_pct, agreed_price FROM productions WHERE id = $1`,
       [productionId]
     );
     if (!production) return res.status(404).json({ error: 'Production not found' });
@@ -85,15 +90,16 @@ const getType1Report = async (req, res) => {
     const supplierFilters = { as_at_date, set_code, account_code, supplier_name, date_from, date_to };
     const labourFilters   = { as_at_date };
 
-    const [supplierEntries, labourEntries, metrics, invoiceRows] = await Promise.all([
+    // FB-01: metrics and invoices honour as_at_date; invoices = Xero allocations + manual (ADR-05).
+    const [supplierEntries, labourEntries, metrics, invoiced] = await Promise.all([
       CRS.getSupplierCosts(productionId, supplierFilters, db),
       CRS.getLabourCosts(productionId, labourFilters, db),
-      CRS.getSummaryMetrics(productionId, db),
-      db.query(
-        'SELECT * FROM cost_report_invoices WHERE production_id = $1 ORDER BY date DESC',
-        [productionId]
-      ).then(r => r.rows),
+      as_at_date
+        ? CRS.getAsAtSnapshot(productionId, as_at_date, db)
+        : CRS.getSummaryMetrics(productionId, db),
+      CRS.invoicedToProduction(productionId, { asAtDate: as_at_date }, db),
     ]);
+    const budget = production.agreed_price == null ? null : parseFloat(production.agreed_price);
 
     // Lead summary derived metrics
     const totalCosts      = metrics.total_costs_to_date;
@@ -110,8 +116,11 @@ const getType1Report = async (req, res) => {
         contract_type:     production.contract_type,
         status:            production.status,
         target_profit_pct: targetProfitPct,
+        agreed_price:      budget,
       },
       lead_summary: {
+        vat_basis:                        'ex_vat',
+        budget,
         total_costs_to_date:              totalCosts,
         total_supplier_costs:             metrics.total_supplier_costs,
         total_labour_costs:               metrics.total_labour_costs,
@@ -119,11 +128,11 @@ const getType1Report = async (req, res) => {
         amounts_invoiced_to_production:   totalInvoiced,
         current_profit:                   totalInvoiced - totalCosts,
         profit_pct_of_turnover:           totalInvoiced > 0
-          ? ((totalInvoiced - totalCosts) / totalInvoiced) * 100 : 0,
+          ? ((totalInvoiced - totalCosts) / totalInvoiced) * 100 : null,
         target_profit_pct:                targetProfitPct,
         available_spend_remaining:        availableSpend,
         available_spend_pct_of_budget:    availableSpendPct,
-        last_updated:                     metrics.last_updated,
+        last_updated:                     metrics.last_updated ?? null,
       },
       weekly_cost_summary:   buildWeeklyCostSummary(supplierEntries, labourEntries),
       supplier_costs:        supplierEntries.map(e => ({
@@ -139,7 +148,7 @@ const getType1Report = async (req, res) => {
         purchase_method: e.payment_method,
       })),
       labour_summary:        groupLabourByWeekAndTrade(labourEntries),
-      invoiced_to_production: invoiceRows,
+      invoiced_to_production: invoiced.rows,
     });
   } catch (err) {
     console.error('getType1Report:', err);
@@ -161,23 +170,28 @@ const getCostReport = async (req, res) => {
     if (!production) return res.status(404).json({ error: 'Production not found' });
 
     const filters = { as_at_date };
-    const [metrics, supplierEntries, labourEntries, invoiceRows] = await Promise.all([
+    const [metrics, supplierEntries, labourEntries, invoiced] = await Promise.all([
       as_at_date
         ? CRS.getAsAtSnapshot(productionId, as_at_date, db)
         : CRS.getSummaryMetrics(productionId, db),
       CRS.getSupplierCosts(productionId, filters, db),
       CRS.getLabourCosts(productionId, filters, db),
-      db.query(
-        'SELECT * FROM cost_report_invoices WHERE production_id = $1 ORDER BY date',
-        [productionId]
-      ).then(r => r.rows),
+      CRS.invoicedToProduction(productionId, { asAtDate: as_at_date }, db),  // FB-01: Xero + manual
     ]);
+    // FB-02: On a Price budget = productions.agreed_price (ex VAT). Cost Plus budgets live in the Master Budget.
+    const budget = production.contract_type === 'on_a_price' && production.agreed_price != null  // ContractType.ON_A_PRICE
+      ? parseFloat(production.agreed_price) : null;
 
     res.json({
       production,
       contract_type: production.contract_type,
       as_at_date:    as_at_date || new Date().toISOString().split('T')[0],
       metrics: {
+        vat_basis:                     'ex_vat',
+        budget,
+        budget_remaining:              budget == null ? null : Number((budget - metrics.total_costs_to_date).toFixed(2)),
+        invoiced_xero:                 metrics.invoiced_xero ?? 0,
+        invoiced_manual:               metrics.invoiced_manual ?? 0,
         total_supplier_costs:          metrics.total_supplier_costs,
         total_labour_costs:            metrics.total_labour_costs,
         total_hire_costs:              metrics.total_hire_costs,
@@ -200,7 +214,7 @@ const getCostReport = async (req, res) => {
         purchase_method: e.payment_method,
       })),
       labour_weekly:          groupLabourByWeekAndTrade(labourEntries),
-      invoices_to_production: invoiceRows,
+      invoices_to_production: invoiced.rows,
     });
   } catch (err) {
     console.error('getCostReport:', err);
@@ -451,7 +465,7 @@ const _buildType2Data = async (productionId, filters, db) => {
 
   const [
     budget, budgetLines, supplierEntries, labourEntries,
-    poBilling, omittedRows, marginsRef, weeklyPLRows, invoiceRows, productionSets,
+    poBilling, omittedRows, marginsRef, weeklyPLRows, invoiced, productionSets,
   ] = await Promise.all([
     db.query('SELECT * FROM cost_plus_budgets WHERE production_id = $1', [productionId]).then(r => r.rows[0]),
     db.query(
@@ -465,7 +479,7 @@ const _buildType2Data = async (productionId, filters, db) => {
     db.query('SELECT * FROM cost_report_omitted_entries WHERE production_id = $1 ORDER BY created_at DESC', [productionId]).then(r => r.rows),
     db.query('SELECT * FROM cost_report_margins_reference WHERE production_id = $1', [productionId]).then(r => r.rows[0]),
     db.query('SELECT * FROM cost_report_weekly_pl WHERE production_id = $1 ORDER BY week_ending_date', [productionId]).then(r => r.rows),
-    db.query('SELECT * FROM cost_report_invoices WHERE production_id = $1 ORDER BY date', [productionId]).then(r => r.rows),
+    CRS.invoicedToProduction(productionId, { asAtDate: as_at_date }, db),  // FB-01: Xero + manual (ADR-05)
     db.query('SELECT id, set_number, set_name, shoot_week FROM sets WHERE production_id = $1 ORDER BY set_number', [productionId]).then(r => r.rows),
   ]);
 
@@ -479,11 +493,11 @@ const _buildType2Data = async (productionId, filters, db) => {
   const materialsByAccount = {};
   labourEntries.forEach(e => {
     const key = e.account_code || '__none__';
-    labourByAccount[key] = (labourByAccount[key] || 0) + parseFloat(e.gross_amount || 0);
+    labourByAccount[key] = (labourByAccount[key] || 0) + parseFloat(e.net_amount || 0);      // ex VAT (ADR-06)
   });
   supplierEntries.forEach(e => {
     const key = e.account_code || '__none__';
-    materialsByAccount[key] = (materialsByAccount[key] || 0) + parseFloat(e.gross_amount || 0);
+    materialsByAccount[key] = (materialsByAccount[key] || 0) + parseFloat(e.net_amount || 0); // ex VAT (ADR-06)
   });
 
   const mainCostReport = budgetLines.map(bl => {
@@ -649,7 +663,8 @@ const _buildType2Data = async (productionId, filters, db) => {
 
   const totalLabourCTP    = labourToSend.reduce((s, l) => s + l.cost_to_production, 0);
   const totalMaterialsCTP = materialsToSend.reduce((s, m) => s + m.recharge_to_production, 0);
-  const totalInvoiced     = invoiceRows.reduce((s, i) => s + parseFloat(i.amount || 0), 0);
+  const invoiceRows       = invoiced.rows;
+  const totalInvoiced     = invoiced.total;   // counted rows only (duplicates of Xero excluded)
 
   return {
     production, budget, budgetLines,

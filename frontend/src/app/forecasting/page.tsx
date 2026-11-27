@@ -7,7 +7,7 @@ import {
   TrendingUp, Users, Calendar, Download, Eye, Layers, Lock, FileSpreadsheet
 } from 'lucide-react';
 import {
-  forecastingApi, productionsApi, costForecastsApi, labourFlowsApi, dashboardApi,
+  forecastingApi, productionsApi, costForecastsApi, labourFlowsApi, dashboardApi, settingsApi,
   type Forecast, type PercentometerRatio, type CatalogueItem, type Production,
   type CostForecast, type LabourFlow, type DashboardData, type LabourBurnRateItem
 } from '@/lib/api';
@@ -37,7 +37,7 @@ const BAR_COLOURS = [
 const inputCls =
   'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500';
 
-type CalcResult = { cost_type: string; percentage: number; estimated_cost: number };
+type CalcResult = { cost_type: string; percentage: number; estimated_cost: number; base_percentage?: number | null; is_atl?: boolean };
 
 export default function ForecastingPage() {
   return (
@@ -120,6 +120,58 @@ function ForecastingContent() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showEditRatios, setShowEditRatios] = useState(false);
 
+  // FB-07 — Ben's Percentometer: crew builder + above-the-line (ATL) fixed costs
+  type PmCrewRow = { grade: string; weekly_rate: string; headcount: string; weeks: string };
+  const [pmMode, setPmMode] = useState<'crew' | 'total'>('crew');
+  const [pmCrew, setPmCrew] = useState<PmCrewRow[]>([
+    { grade: 'Supervisor', weekly_rate: '', headcount: '', weeks: '' },
+    { grade: 'Chargehand', weekly_rate: '', headcount: '', weeks: '' },
+    { grade: 'Carpenter',  weekly_rate: '', headcount: '', weeks: '' },
+  ]);
+  const [pmAtl, setPmAtl] = useState('25');
+  const [pmAtlSaved, setPmAtlSaved] = useState<number | null>(null);
+  const [pmAtlSaving, setPmAtlSaving] = useState(false);
+  const [calcKnownCost, setCalcKnownCost] = useState<number | null>(null);
+  const [calcAtl, setCalcAtl] = useState<number | null>(null);
+  const pmCrewTotal = pmCrew.reduce((sum, r) => sum + (parseFloat(r.weekly_rate) || 0) * (parseFloat(r.headcount) || 0) * (parseFloat(r.weeks) || 0), 0);
+  const updatePmCrew = (idx: number, field: keyof PmCrewRow, value: string) =>
+    setPmCrew(rows => rows.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+
+  useEffect(() => {
+    forecastingApi.getPercentometerSettings()
+      .then(st => { setPmAtl(String(st.atl_pct)); setPmAtlSaved(st.atl_pct); })
+      .catch(() => { /* keep the 25% default from Ben's spreadsheet */ });
+    // Prefill weekly rates from the latest Carpenters rate card (still editable)
+    forecastingApi.getBectuRates()
+      .then(raw => {
+        const rows = (Array.isArray(raw) ? raw : []) as Array<{ trade: string; rank: string; weekly_rate: string | null; daily_rate: string | null; rate_year?: string | null }>;
+        const latest = (rank: string) => rows
+          .filter(r => r.trade === 'Carpenters' && r.rank === rank)
+          .sort((a, b) => String(b.rate_year ?? '').localeCompare(String(a.rate_year ?? '')))[0];
+        setPmCrew(prev => prev.map(r => {
+          if (r.weekly_rate) return r;
+          const hit = latest(r.grade);
+          const weekly = hit ? (hit.weekly_rate ? parseFloat(hit.weekly_rate) : parseFloat(hit.daily_rate ?? '0') * 5) : 0;
+          return weekly > 0 ? { ...r, weekly_rate: String(weekly) } : r;
+        }));
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveAtlDefault = async () => {
+    const v = Number(pmAtl);
+    if (!Number.isFinite(v) || v < 0 || v >= 100) { setCalcError('Above-the-line % must be from 0 to less than 100.'); return; }
+    setPmAtlSaving(true);
+    try {
+      await settingsApi.patch('percentometer_atl_pct', v);
+      setPmAtlSaved(v);
+    } catch (err: unknown) {
+      setCalcError(err instanceof Error ? err.message : 'Could not save the default');
+    } finally {
+      setPmAtlSaving(false);
+    }
+  };
+
   useEffect(() => {
     forecastingApi.getRatios()
       .then(data => {
@@ -132,19 +184,37 @@ function ForecastingContent() {
   }, []);
 
   const handleCalculate = async () => {
-    const val = parseFloat(carpenterInput);
-    if (isNaN(val) || val <= 0) { setCalcError('Enter a valid carpenter cost.'); return; }
+    const atl = Number(pmAtl);
+    if (pmAtl === '' || !Number.isFinite(atl) || atl < 0 || atl >= 100) { setCalcError('Above-the-line % must be from 0 to less than 100.'); return; }
+    let input: Parameters<typeof forecastingApi.calculate>[0];
+    if (pmMode === 'crew') {
+      if (!(pmCrewTotal > 0)) { setCalcError('Enter a weekly rate, number of carpenters and weeks for at least one grade.'); return; }
+      input = {
+        crew: pmCrew
+          .filter(r => r.weekly_rate !== '' || r.headcount !== '' || r.weeks !== '')
+          .map(r => ({ grade: r.grade, weekly_rate: parseFloat(r.weekly_rate) || 0, headcount: parseFloat(r.headcount) || 0, weeks: parseFloat(r.weeks) || 0 })),
+        atl_pct: atl,
+      };
+    } else {
+      const val = parseFloat(carpenterInput);
+      if (isNaN(val) || val <= 0) { setCalcError('Enter a valid carpenter cost.'); return; }
+      input = { known_cost: val, atl_pct: atl };
+    }
     setCalcLoading(true);
     setCalcError('');
     try {
-      const res = await forecastingApi.calculate(val);
-      // Backend returns: { breakdown: [{cost_type, percentage, estimated_value}], total_estimated_job_cost }
+      const res = await forecastingApi.calculate(input);
+      // breakdown: departments (percentage = share of the total after ATL) + the above-the-line line
       setCalcResults(res.breakdown.map(r => ({
         cost_type: r.cost_type,
-        percentage: r.percentage,           // already ×100 from backend
+        percentage: r.percentage,
         estimated_cost: r.estimated_value,
+        base_percentage: r.base_percentage,
+        is_atl: r.is_atl,
       })));
       setCalcTotal(res.total_estimated_job_cost);
+      setCalcKnownCost(res.known_cost);
+      setCalcAtl(res.atl_pct);
     } catch (err: unknown) {
       setCalcError(err instanceof Error ? err.message : 'Calculation failed');
     } finally {
@@ -341,7 +411,8 @@ function ForecastingContent() {
       )}
       {showSaveModal && (
         <SaveScenarioModal
-          carpenterCost={parseFloat(carpenterInput) || null}
+          carpenterCost={calcKnownCost}
+          atlPct={calcAtl}
           initialProductionId={percentometerProdId}
           productions={productions}
           onClose={() => setShowSaveModal(false)}
@@ -738,8 +809,75 @@ function ForecastingContent() {
                     </select>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
-                    <div className="flex-1">
+                  {/* FB-07 — carpenter cost: build it from the crew (Ben's spreadsheet) or type the total */}
+                  <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 w-fit" role="tablist" aria-label="Carpenter cost input">
+                    <button type="button" role="tab" aria-selected={pmMode === 'crew'} onClick={() => setPmMode('crew')}
+                      className={`px-3 py-1 text-xs font-semibold rounded-md ${pmMode === 'crew' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                      Build from crew
+                    </button>
+                    <button type="button" role="tab" aria-selected={pmMode === 'total'} onClick={() => setPmMode('total')}
+                      className={`px-3 py-1 text-xs font-semibold rounded-md ${pmMode === 'total' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                      Enter carpenter total
+                    </button>
+                  </div>
+
+                  {pmMode === 'crew' ? (
+                    <div className="border border-slate-200 rounded-lg overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-500">
+                            <th className="px-2 py-2 text-left font-semibold">Grade</th>
+                            <th className="px-2 py-2 text-right font-semibold">Weekly rate £</th>
+                            <th className="px-2 py-2 text-right font-semibold">Carpenters</th>
+                            <th className="px-2 py-2 text-right font-semibold">Weeks</th>
+                            <th className="px-2 py-2 text-right font-semibold">Cost</th>
+                            <th className="w-6" />
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {pmCrew.map((row, idx) => (
+                            <tr key={idx}>
+                              <td className="px-2 py-1.5">
+                                <input aria-label="Grade" value={row.grade} onChange={e => updatePmCrew(idx, 'grade', e.target.value)}
+                                  className="w-full border border-slate-200 rounded px-1.5 py-1 text-xs" />
+                              </td>
+                              {(['weekly_rate', 'headcount', 'weeks'] as const).map(field => (
+                                <td key={field} className="px-2 py-1.5">
+                                  <input aria-label={field.replace('_', ' ')} type="number" min="0" step={field === 'weekly_rate' ? '0.01' : '1'}
+                                    value={row[field]} onChange={e => updatePmCrew(idx, field, e.target.value)}
+                                    className="w-full border border-slate-200 rounded px-1.5 py-1 text-xs text-right" />
+                                </td>
+                              ))}
+                              <td className="px-2 py-1.5 text-right font-semibold text-slate-800 whitespace-nowrap">
+                                {fmtGBP((parseFloat(row.weekly_rate) || 0) * (parseFloat(row.headcount) || 0) * (parseFloat(row.weeks) || 0))}
+                              </td>
+                              <td className="px-1 text-center">
+                                {pmCrew.length > 1 && (
+                                  <button type="button" onClick={() => setPmCrew(c => c.filter((_, i) => i !== idx))} className="text-slate-400 hover:text-red-600" aria-label="Remove row">
+                                    <X size={12} />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-slate-50">
+                            <td className="px-2 py-2">
+                              <button type="button" onClick={() => setPmCrew(c => [...c, { grade: '', weekly_rate: '', headcount: '', weeks: '' }])}
+                                className="text-blue-600 text-xs font-medium flex items-center gap-1 hover:underline">
+                                <Plus size={11} /> Add grade
+                              </button>
+                            </td>
+                            <td colSpan={3} className="px-2 py-2 text-right font-semibold text-slate-600">Carpenters cost</td>
+                            <td className="px-2 py-2 text-right font-bold text-slate-900 whitespace-nowrap">{fmtGBP(pmCrewTotal)}</td>
+                            <td />
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  ) : (
+                    <div>
                       <label className="text-xs text-slate-500 font-medium block mb-1">
                         Known Carpenter Cost
                         <span className="ml-2 text-xs font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">Total £ — whole project</span>
@@ -758,6 +896,25 @@ function ForecastingContent() {
                         />
                       </div>
                     </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+                    <div className="flex-1">
+                      <label htmlFor="pm-atl" className="text-xs text-slate-500 font-medium block mb-1">
+                        Construction above-the-line fixed costs (% of total)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input id="pm-atl" type="number" min="0" max="99.99" step="0.5" value={pmAtl}
+                          onChange={e => setPmAtl(e.target.value)}
+                          className="w-24 bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-right" />
+                        <span className="text-slate-500 text-sm">%</span>
+                        {!isGuest && pmAtlSaved != null && pmAtl !== '' && Number(pmAtl) !== pmAtlSaved && (
+                          <button type="button" onClick={saveAtlDefault} disabled={pmAtlSaving} className="text-blue-600 text-xs hover:underline disabled:opacity-60">
+                            {pmAtlSaving ? 'Saving…' : `Save ${pmAtl}% as default`}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                     <button
                       onClick={handleCalculate}
                       disabled={calcLoading}
@@ -769,7 +926,7 @@ function ForecastingContent() {
                   </div>
 
                   <p className="text-xs text-slate-400 leading-snug">
-                    💡 Enter the <em>total</em> your Carpenters will cost across the entire production run (e.g. all wages, all weeks combined). No time period is needed — this tool uses historical spend <em>ratios</em> to scale everything else.
+                    💡 Total = carpenters cost ÷ (carpenters share × (1 − above-the-line %)). Above-the-line fixed costs cover the construction manager, assistant CM, accountant, coordinator, buyer, HODs, box rental and runaround.
                   </p>
                 </div>
 
@@ -786,17 +943,23 @@ function ForecastingContent() {
                   </div>
                 ) : calcResults ? (
                   <div className="space-y-3">
+                    {calcKnownCost != null && (
+                      <p className="text-xs text-slate-500">
+                        Carpenters cost <strong className="text-slate-800">{fmtGBP(calcKnownCost)}</strong>
+                        {calcAtl != null && <> · above-the-line fixed costs <strong className="text-slate-800">{calcAtl}%</strong></>}
+                      </p>
+                    )}
                     {calcResults.map((r, i) => (
                       <div key={r.cost_type} className="flex items-center gap-3">
-                        <div className="w-28 text-slate-700 text-xs font-medium truncate">{r.cost_type}</div>
+                        <div className={`w-28 text-xs font-medium truncate ${r.is_atl ? 'text-amber-700' : 'text-slate-700'}`} title={r.base_percentage != null ? `${r.cost_type}: ${r.base_percentage}% of departments` : r.cost_type}>{r.cost_type}</div>
                         <div className="flex-1 flex items-center gap-2">
                           <div className="flex-1 bg-slate-100 rounded-full h-2">
                             <div
-                              className={`h-2 rounded-full ${BAR_COLOURS[i % BAR_COLOURS.length]}`}
-                              style={{ width: `${r.percentage}%` }}
+                              className={`h-2 rounded-full ${r.is_atl ? 'bg-amber-400' : BAR_COLOURS[i % BAR_COLOURS.length]}`}
+                              style={{ width: `${Math.min(r.percentage, 100)}%` }}
                             />
                           </div>
-                          <span className="text-slate-500 text-xs w-9 text-right">{r.percentage}%</span>
+                          <span className="text-slate-500 text-xs w-12 text-right">{Number(r.percentage.toFixed(2))}%</span>
                         </div>
                         <div className="w-24 text-slate-900 text-xs font-semibold text-right">
                           {fmtGBP(r.estimated_cost)}
@@ -1108,13 +1271,15 @@ function ForecastingContent() {
 
 interface SaveScenarioModalProps {
   carpenterCost: number | null;
+  /** FB-07 — ATL % the shown result was calculated with (saved with the scenario) */
+  atlPct?: number | null;
   initialProductionId?: string;
   productions: Production[];
   onClose: () => void;
   onSaved: () => void;
 }
 
-function SaveScenarioModal({ carpenterCost, initialProductionId = '', productions, onClose, onSaved }: SaveScenarioModalProps) {
+function SaveScenarioModal({ carpenterCost, atlPct = null, initialProductionId = '', productions, onClose, onSaved }: SaveScenarioModalProps) {
   const [name, setName] = useState('');
   const [productionId, setProductionId] = useState(initialProductionId);
   const [saving, setSaving] = useState(false);
@@ -1130,6 +1295,7 @@ function SaveScenarioModal({ carpenterCost, initialProductionId = '', production
         name: name.trim(),
         production_id: productionId || null,
         percentometer_carpenter_cost: carpenterCost,
+        percentometer_atl_pct: atlPct,
       });
       onSaved();
     } catch (err: unknown) {

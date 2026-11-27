@@ -127,62 +127,129 @@ const calcHireItem = item => {
   };
 };
 
+// ─── Read: amounts invoiced to production (FB-01 / ADR-05) ───────────────────
+// One list, two sources:
+//   • Xero sales invoices allocated to the production — authorised or paid, connected organisation
+//     only (the same rule as the dashboard P&L, liveCostService.getBudgetRevenue). Amount = sub_total
+//     (ex VAT). Read-only here: allocation is managed on the Sales page.
+//   • Manual cost_report_invoices rows (entered ex VAT). A manual row whose invoice number matches a
+//     counted Xero invoice on the same production is returned with duplicate_of_xero = true and is
+//     NOT counted, so an invoice keyed in both places is never double counted.
+// Optional asAtDate keeps invoices dated on or before that day (undated rows fall back to created_at).
+const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
+const normInvoiceNo = s => (s == null ? '' : String(s).trim().toLowerCase());
+
+const invoicedToProduction = async (productionId, { asAtDate } = {}, db) => {
+  const params = asAtDate ? [productionId, asAtDate] : [productionId];
+  const [{ rows: xero }, { rows: manual }] = await Promise.all([
+    db.query(
+      `SELECT xi.id, xi.invoice_number, xi.contact_name, xi.reference, xi.invoice_date,
+              xi.sub_total, xi.total_tax, xi.total, xi.xero_status
+       FROM xero_invoices xi
+       JOIN xero_connection xc ON xc.singleton = true AND xc.tenant_id = xi.tenant_id
+       WHERE xi.production_id = $1
+         AND xi.xero_status IN ('authorised', 'paid') -- XeroInvoiceStatus.AUTHORISED / PAID
+         ${asAtDate ? 'AND COALESCE(xi.invoice_date, xi.created_at::date) <= $2' : ''}
+       ORDER BY xi.invoice_date NULLS LAST, xi.invoice_number`,
+      params
+    ),
+    db.query(
+      `SELECT * FROM cost_report_invoices
+       WHERE production_id = $1
+         ${asAtDate ? 'AND COALESCE(date, created_at::date) <= $2' : ''}
+       ORDER BY date NULLS LAST, created_at`,
+      params
+    ),
+  ]);
+
+  const xeroNumbers = new Set(xero.map(x => normInvoiceNo(x.invoice_number)).filter(Boolean));
+  const rows = [
+    ...xero.map(x => ({
+      id:                  x.id,
+      source:              'xero',
+      invoice_description: x.reference || x.contact_name || null,
+      contact_name:        x.contact_name,
+      po_number:           null,
+      date:                x.invoice_date,
+      invoice_number:      x.invoice_number,
+      amount:              r2(x.sub_total),   // ex VAT
+      vat:                 r2(x.total_tax),
+      gross:               r2(x.total),
+      xero_status:         x.xero_status,
+      notes:               null,
+      duplicate_of_xero:   false,
+      counted:             true,
+    })),
+    ...manual.map(m => {
+      const dup = xeroNumbers.has(normInvoiceNo(m.invoice_number));
+      return { ...m, source: 'manual', amount: r2(m.amount), duplicate_of_xero: dup, counted: !dup };
+    }),
+  ].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+
+  const xeroTotal   = r2(rows.filter(r => r.source === 'xero').reduce((s, r) => s + r.amount, 0));
+  const manualTotal = r2(rows.filter(r => r.source === 'manual' && r.counted).reduce((s, r) => s + r.amount, 0));
+  return { rows, xero_total: xeroTotal, manual_total: manualTotal, total: r2(xeroTotal + manualTotal) };
+};
+
 // ─── Read: aggregated summary metrics ────────────────────────────────────────
 // Supplier + labour + hire equipment totals and invoiced-to-production total.
+// FB-01 / ADR-06: every figure is EX VAT (supplier = PO net; labour = timesheet total before VAT),
+// matching the dashboard P&L and Xero sub-totals. Tables still carry net / VAT / gross per line.
 const getSummaryMetrics = async (productionId, db) => {
-  const [{ rows: [costs] }, { rows: [invoiced] }, hireItems] = await Promise.all([
+  const [{ rows: [costs] }, invoiced, hireItems] = await Promise.all([
     db.query(
       `SELECT
-         COALESCE(SUM(CASE WHEN entry_type = 'supplier' THEN gross_amount ELSE 0 END), 0) AS total_supplier,
-         COALESCE(SUM(CASE WHEN entry_type = 'labour'   THEN gross_amount ELSE 0 END), 0) AS total_labour,
-         COALESCE(SUM(gross_amount), 0)                                                    AS total_costs,
-         MAX(created_at)                                                                   AS last_updated
+         COALESCE(SUM(CASE WHEN entry_type = 'supplier' THEN net_amount ELSE 0 END), 0) AS total_supplier,
+         COALESCE(SUM(CASE WHEN entry_type = 'labour'   THEN net_amount ELSE 0 END), 0) AS total_labour,
+         COALESCE(SUM(net_amount), 0)                                                    AS total_costs,
+         MAX(created_at)                                                                 AS last_updated
        FROM cost_report_entries
        WHERE production_id = $1 AND deleted_at IS NULL`,
       [productionId]
     ),
-    db.query(
-      `SELECT COALESCE(SUM(amount), 0) AS total_invoiced
-       FROM cost_report_invoices
-       WHERE production_id = $1`,
-      [productionId]
-    ),
+    invoicedToProduction(productionId, {}, db),
     getHireCosts(productionId, db),
   ]);
 
   const totalHireCosts = hireItems.reduce((acc, h) => acc + h.total_cost, 0);
   const totalCosts     = parseFloat(costs.total_costs) + totalHireCosts;
-  const totalInvoiced  = parseFloat(invoiced.total_invoiced);
+  const totalInvoiced  = invoiced.total;
   const profit         = totalInvoiced - totalCosts;
 
   return {
+    vat_basis:            'ex_vat',
     total_supplier_costs: parseFloat(costs.total_supplier),
     total_labour_costs:   parseFloat(costs.total_labour),
     total_hire_costs:     Number(totalHireCosts.toFixed(2)),
     total_costs_to_date:  Number(totalCosts.toFixed(2)),
     total_invoiced:       totalInvoiced,
-    current_profit:       profit,
-    profit_pct:           totalInvoiced > 0 ? (profit / totalInvoiced) * 100 : 0,
+    invoiced_xero:        invoiced.xero_total,
+    invoiced_manual:      invoiced.manual_total,
+    current_profit:       Number(profit.toFixed(2)),
+    // No turnover → no meaningful percentage (was 0, which read as "break-even").
+    profit_pct:           totalInvoiced > 0 ? (profit / totalInvoiced) * 100 : null,
     last_updated:         costs.last_updated,
   };
 };
 
 // ─── Read: as-at-date snapshot ────────────────────────────────────────────────
 // Returns cost totals as of asAtDate — identical to a live query run that day.
-// Powers the date-specific export feature across both report types.
+// Powers the date-specific export feature across both report types. Ex VAT (ADR-06);
+// invoiced/profit are now included so "As at" views show them too (FB-01).
 const getAsAtSnapshot = async (productionId, asAtDate, db) => {
-  const [{ rows: [snap] }, hireItems] = await Promise.all([
+  const [{ rows: [snap] }, invoiced, hireItems] = await Promise.all([
     db.query(
       `SELECT
-         COALESCE(SUM(CASE WHEN entry_type = 'supplier' THEN gross_amount ELSE 0 END), 0) AS total_supplier,
-         COALESCE(SUM(CASE WHEN entry_type = 'labour'   THEN gross_amount ELSE 0 END), 0) AS total_labour,
-         COALESCE(SUM(gross_amount), 0)                                                    AS total_costs
+         COALESCE(SUM(CASE WHEN entry_type = 'supplier' THEN net_amount ELSE 0 END), 0) AS total_supplier,
+         COALESCE(SUM(CASE WHEN entry_type = 'labour'   THEN net_amount ELSE 0 END), 0) AS total_labour,
+         COALESCE(SUM(net_amount), 0)                                                    AS total_costs
        FROM cost_report_entries
        WHERE production_id = $1
          AND date          <= $2
          AND deleted_at    IS NULL`,
       [productionId, asAtDate]
     ),
+    invoicedToProduction(productionId, { asAtDate }, db),
     getHireCosts(productionId, db),
   ]);
 
@@ -191,19 +258,28 @@ const getAsAtSnapshot = async (productionId, asAtDate, db) => {
     .filter(h => h.hire_start_date <= asAtDate)
     .reduce((acc, h) => acc + h.total_cost, 0);
 
-  const totalCosts = parseFloat(snap.total_costs) + totalHireCosts;
+  const totalCosts    = parseFloat(snap.total_costs) + totalHireCosts;
+  const totalInvoiced = invoiced.total;
+  const profit        = totalInvoiced - totalCosts;
 
   return {
+    vat_basis:            'ex_vat',
     as_at_date:           asAtDate,
     total_supplier_costs: parseFloat(snap.total_supplier),
     total_labour_costs:   parseFloat(snap.total_labour),
     total_hire_costs:     Number(totalHireCosts.toFixed(2)),
     total_costs_to_date:  Number(totalCosts.toFixed(2)),
+    total_invoiced:       totalInvoiced,
+    invoiced_xero:        invoiced.xero_total,
+    invoiced_manual:      invoiced.manual_total,
+    current_profit:       Number(profit.toFixed(2)),
+    profit_pct:           totalInvoiced > 0 ? (profit / totalInvoiced) * 100 : null,
   };
 };
 
 module.exports = {
   recordSupplierCost, softDeleteEntry,
   getSupplierCosts, getLabourCosts, getHireCosts, getSummaryMetrics, getAsAtSnapshot,
+  invoicedToProduction,
   calcHireItem,
 };

@@ -44,9 +44,12 @@ import {
   ChevronDown,
   Building2,
   Paperclip,
+  Printer,
 } from 'lucide-react';
 import { EmptyStateRow } from '@/components/EmptyState';
 import SetCodeSelect from '@/components/SetCodeSelect';
+import AutoGrowTextarea from '@/components/AutoGrowTextarea';
+import { printPdfBlob } from '@/lib/printPdf';
 import AttachedDocuments from '@/components/AttachedDocuments';
 import PaginationScrollIndicator from '@/components/PaginationScrollIndicator';
 import { usePageSize } from '@/hooks/usePagination';
@@ -1900,6 +1903,8 @@ export default function PurchaseOrdersPage() {
                   )}
                   <ColumnHeader label="PO Number" sortKey="po_number" sort={sort} onSort={setSort} className={`sticky ${isGuest ? 'left-0' : 'left-10'} bg-slate-50 z-10`} />
                   <ColumnHeader label="Date" sortKey="date_of_po" sort={sort} onSort={setSort} filterType="date" filterValue={poFilters.date_from} onFilterChange={(val) => { setPoFilters(f => ({ ...f, date_from: val, date_to: val })); setPage(1); }} />
+                  {/* FB-04 (Ben item 2): Supplier gets its own sortable column in both views */}
+                  <ColumnHeader label="Supplier" sortKey="supplier_name" sort={sort} onSort={setSort} />
                   {viewMode === 'purchasing' ? (
                     <>
                       <ColumnHeader label="Production" sortKey="prod_name" sort={sort} onSort={setSort} filterType="select" filterOptions={productions.map(p => ({ label: p.name, value: p.id }))} filterValue={poFilters.production_id} onFilterChange={(val) => { setPoFilters(f => ({ ...f, production_id: val, set_code: '' })); setPage(1); }} />
@@ -1932,7 +1937,7 @@ export default function PurchaseOrdersPage() {
                   : loadError
                     ? (
                       <tr>
-                        <td colSpan={10} className="px-5 py-12 text-center text-sm text-red-600">
+                        <td colSpan={11} className="px-5 py-12 text-center text-sm text-red-600">
                           <AlertCircle size={14} className="inline mr-1" />Couldn&apos;t load purchase orders: {loadError}
                           <button type="button" onClick={loadData} className="ml-2 text-blue-600 hover:underline">Retry</button>
                         </td>
@@ -1942,7 +1947,7 @@ export default function PurchaseOrdersPage() {
                     ? (
                       pos.length === 0 ? (
                         <EmptyStateRow
-                          colSpan={10}
+                          colSpan={11}
                           icon={FileText}
                           title="No purchase orders yet"
                           description="No purchase orders have been raised in the database."
@@ -1955,7 +1960,7 @@ export default function PurchaseOrdersPage() {
                         />
                       ) : (
                         <EmptyStateRow
-                          colSpan={10}
+                          colSpan={11}
                           icon={AlertCircle}
                           title="No matching purchase orders"
                           description="No purchase orders match your currently applied search criteria or filters."
@@ -2019,6 +2024,9 @@ export default function PurchaseOrdersPage() {
                           <td className="px-4 py-2 text-slate-600 text-xs font-normal whitespace-nowrap">
                             {fmtDate(po.date_of_po)}
                           </td>
+                          <td className="px-4 py-2 text-slate-700 text-xs font-normal max-w-[200px]">
+                            <span className="line-clamp-2" title={po.supplier_name || ''}>{po.supplier_name || '—'}</span>
+                          </td>
 
                           {viewMode === 'purchasing' ? (
                             <>
@@ -2035,9 +2043,6 @@ export default function PurchaseOrdersPage() {
                                 <p className="text-slate-700 text-xs font-normal line-clamp-2" title={po.description || po.title || ''}>
                                   {po.description || po.title || '—'}
                                 </p>
-                                {po.supplier_name && (
-                                  <p className="text-slate-400 text-xs mt-0.5 font-normal">{po.supplier_name}</p>
-                                )}
                               </td>
                               <td className="px-4 py-2 text-slate-700 text-xs text-right font-normal whitespace-nowrap">
                                 {fmt(po.gross_amount)}
@@ -2153,6 +2158,24 @@ export default function PurchaseOrdersPage() {
                                         ? <Loader2 size={13} className="animate-spin text-slate-400" />
                                         : <Download size={13} className="text-slate-400" />}
                                       <span>Download PDF</span>
+                                    </button>
+                                    {/* Print — straight to the print dialog (Ben, Nov 2026) */}
+                                    <button
+                                      type="button"
+                                      disabled={!!busy}
+                                      onClick={() => {
+                                        setOpenActionDropdownId(null);
+                                        handleAction(po.id, 'print-pdf', async () => {
+                                          const outcome = await printPdfBlob(await purchaseOrdersApi.getPdfBlob(po.id), `${po.po_number}.pdf`);
+                                          if (outcome === 'downloaded') throw new Error('Pop-ups are blocked, so the PDF was downloaded instead of opening for printing.');
+                                        }, (msg) => setActionError(msg ? { id: po.id, msg } : null));
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal transition-colors disabled:opacity-50"
+                                    >
+                                      {busy && actionLoading === po.id + ':print-pdf'
+                                        ? <Loader2 size={13} className="animate-spin text-slate-400" />
+                                        : <Printer size={13} className="text-slate-400" />}
+                                      <span>Print</span>
                                     </button>
                                   </div>
 
@@ -3919,7 +3942,14 @@ export default function PurchaseOrdersPage() {
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-slate-600 mb-1">Description</label>
-                    <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />
+                    {/* FB-04 (Ben items 7 & 27-Nov): multi-line box that opens to the full text (a one-line
+                        input dropped the line breaks and hid the body); grows as you type, scrolls past 60% of the screen */}
+                    <AutoGrowTextarea
+                      aria-label="Description"
+                      value={editForm.description}
+                      onChange={v => setEditForm(f => ({ ...f, description: v }))}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
                 </div>
               </div>
@@ -4403,6 +4433,19 @@ export default function PurchaseOrdersPage() {
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
               >
                 <Download size={14} className="text-slate-500" /> Download PDF
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await printPdfBlob(await purchaseOrdersApi.getPdfBlob(viewFullPO.id), `${viewFullPO.po_number}.pdf`);
+                  } catch (err) {
+                    console.error('Print PDF failed:', err);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-sm mr-auto ml-2"
+              >
+                <Printer size={14} className="text-slate-500" /> Print
               </button>
               <button onClick={() => setViewFullPO(null)} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-white transition-colors">
                 Close

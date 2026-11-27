@@ -33,6 +33,10 @@ export class Forecast {
   @Column({ type: 'decimal', precision: 14, scale: 2, name: 'percentometer_total', nullable: true })
   percentometerTotal: number | null;
 
+  /** FB-07 — ATL % the scenario was calculated with (NULL = saved before above-the-line costs existed) */
+  @Column({ type: 'decimal', precision: 5, scale: 2, name: 'percentometer_atl_pct', nullable: true })
+  percentometerAtlPct: number | null;
+
   @Column({ type: 'uuid', name: 'created_by', nullable: true })
   createdById: string | null;
 

@@ -99,7 +99,8 @@ export type Type2Report = {
   production_sets: ProductionSet[];
   margins_reference: { items: string[]; notes: string | null } | null;
   weekly_pl: PLRow[];
-  invoices_to_production: Array<{ id: string; amount: string; date: string; invoice_number: string | null }>;
+  /** FB-01: allocated Xero invoices + manual entries (ex VAT); duplicates of Xero are flagged and not counted */
+  invoices_to_production: Array<{ id: string; amount: string | number; date: string | null; invoice_number: string | null; source?: 'xero' | 'manual'; duplicate_of_xero?: boolean; counted?: boolean }>;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

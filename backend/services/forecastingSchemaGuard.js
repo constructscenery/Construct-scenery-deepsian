@@ -104,6 +104,39 @@ async function ensureForecastingTables() {
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
+    // FB-08 (Ben's item 9) — same columns as migration ExtendCostForecasts, so a database whose tables
+    // were created here (after migrations ran) still gets them. Idempotent; never changes data except
+    // filling grand_total_with_margin (= cost) where it is still empty.
+    await db.query(`
+      ALTER TABLE cost_forecasts
+        ADD COLUMN IF NOT EXISTS rate_card_type          TEXT          NOT NULL DEFAULT 'standard',
+        ADD COLUMN IF NOT EXISTS rate_multiplier         NUMERIC(5,4)  NOT NULL DEFAULT 1.0000,
+        ADD COLUMN IF NOT EXISTS travel_hourly_rate      NUMERIC(10,2) NOT NULL DEFAULT 25.00,
+        ADD COLUMN IF NOT EXISTS per_diem_rate           NUMERIC(10,2) NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS margin_enabled          BOOLEAN       NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS margin_pct              NUMERIC(6,2)  NOT NULL DEFAULT 10.00,
+        ADD COLUMN IF NOT EXISTS margin_total            NUMERIC(14,2) NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS grand_total_with_margin NUMERIC(14,2);
+      UPDATE cost_forecasts SET grand_total_with_margin = grand_total_cost WHERE grand_total_with_margin IS NULL;
+
+      ALTER TABLE cost_forecast_crew_lines
+        ADD COLUMN IF NOT EXISTS daily_rate      NUMERIC(10,2) NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS default_ot_rate NUMERIC(10,2) NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS ot_hours        NUMERIC(8,2)  NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS ot_rate         NUMERIC(10,2),
+        ADD COLUMN IF NOT EXISTS travel_hours    NUMERIC(8,2)  NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS per_diem_days   NUMERIC(8,2)  NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS saturday_days   NUMERIC(8,2)  NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS saturday_rate   NUMERIC(10,2),
+        ADD COLUMN IF NOT EXISTS sunday_days     NUMERIC(8,2)  NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS sunday_rate     NUMERIC(10,2),
+        ADD COLUMN IF NOT EXISTS margin_applied  BOOLEAN       NOT NULL DEFAULT true,
+        ADD COLUMN IF NOT EXISTS margin_amount   NUMERIC(12,2) NOT NULL DEFAULT 0;
+
+      ALTER TABLE cost_forecast_non_labour_lines
+        ADD COLUMN IF NOT EXISTS margin_applied BOOLEAN       NOT NULL DEFAULT true,
+        ADD COLUMN IF NOT EXISTS margin_amount  NUMERIC(12,2) NOT NULL DEFAULT 0;
+    `);
     console.log('✅ Schema guard: Forecasting Addendum 4 tables ensured');
   } catch (err) {
     console.error('⚠️  Schema guard failed (Forecasting Addendum 4):', err.message);

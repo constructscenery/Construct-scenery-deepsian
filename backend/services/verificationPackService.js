@@ -143,6 +143,13 @@ const generateVerificationPack = async (timesheets, productionName) => {
         addPlaceholderPage(merged, boldFont, font, ts, 'Invoice file could not be read — please check manually.');
         invoicePageCount++;
       }
+    } else if (!isPAYE && ts.invoice_override_reason) {
+      // FB-06: self-employed timesheet verified without an invoice — say so, with the reason given.
+      // Standard PDF fonts only encode WinAnsi, so strip anything else rather than fail the whole pack.
+      const reason = String(ts.invoice_override_reason).replace(/[^\x20-\x7E\u00A0-\u00FF\u2013\u2014\u2018\u2019\u201C\u201D\u20AC]/g, '?');
+      const short  = reason.length > 70 ? `${reason.slice(0, 67)}...` : reason;
+      addPlaceholderPage(merged, boldFont, font, ts, `Verified without invoice: ${short}`);
+      invoicePageCount++;
     } else {
       // PAYE crew (no invoice required) or SE without invoice attached
       addPlaceholderPage(merged, boldFont, font, ts, null);

@@ -122,6 +122,7 @@ function NewProductionModal({ onClose, onCreated }: NewProductionModalProps) {
     start_date: '', end_date: '',
     contract_type: '' as ContractType | '',
     rate_card_type: 'standard' as RateCardType,
+    agreed_price: '',
     status: 'pre_production' as ProductionStatus,
     supervising_art_director: '',
     supervising_art_director_mobile: '',
@@ -148,10 +149,17 @@ function NewProductionModal({ onClose, onCreated }: NewProductionModalProps) {
       setError('End date cannot be before start date.');
       return;
     }
+    // FB-02: optional budget / agreed price for On a Price productions (ex VAT)
+    const budgetText = form.agreed_price.trim().replace(/[£,\s]/g, '');
+    if (form.contract_type === 'on_a_price' && budgetText !== '' && !/^\d+(\.\d{1,2})?$/.test(budgetText)) {
+      setError('Budget must be an amount like 75000 or 75000.50 (ex VAT), or empty.');
+      return;
+    }
     setSaving(true); setError('');
     try {
       await productionsApi.create({
         ...form,
+        agreed_price: form.contract_type === 'on_a_price' && budgetText !== '' ? budgetText : null,
         contract_type:                  form.contract_type as ContractType,
         start_date:                     form.start_date || null,
         end_date:                       form.end_date   || null,
@@ -234,6 +242,15 @@ function NewProductionModal({ onClose, onCreated }: NewProductionModalProps) {
             onChange={v => setForm(f => ({ ...f, contract_type: v }))}
           />
           <RateCardSelector value={form.rate_card_type} onChange={v => setForm(f => ({ ...f, rate_card_type: v }))} />
+          {form.contract_type === 'on_a_price' && (
+            <div>
+              <label htmlFor="new-agreed-price" className="block text-xs font-medium text-slate-600 mb-1">Budget / agreed price (ex VAT) <span className="text-slate-400 font-normal">— optional</span></label>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 text-sm">£</span>
+                <input id="new-agreed-price" inputMode="decimal" className={inputCls} placeholder="e.g. 75000" value={form.agreed_price} onChange={set('agreed_price')} />
+              </div>
+            </div>
+          )}
 
           {/* Key Contacts */}
           <div className="pt-2 border-t border-slate-100 space-y-3">

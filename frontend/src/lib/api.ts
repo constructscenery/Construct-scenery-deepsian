@@ -227,6 +227,8 @@ export type Production = {
   contract_type: ContractType;
   /** CS-08 — commercial pays every rate-card rate + commercial_rate_uplift_pct */
   rate_card_type?: RateCardType;
+  /** FB-02 — On a Price budget / agreed price, ex VAT (decimal string from Postgres; null = not set) */
+  agreed_price?: string | number | null;
   status: ProductionStatus;
   created_by: string;
   created_at: string;
@@ -464,6 +466,10 @@ export type Timesheet = {
   overtime_hours_total?: number | null;
   invoice_attachment_url: string | null;
   invoice_attachment_name: string | null;
+  /** FB-06 — set when a self-employed timesheet was verified without an invoice */
+  invoice_override_reason?: string | null;
+  invoice_override_by?: string | null;
+  invoice_override_at?: string | null;
   // joined from crew_members
   first_name?: string;
   last_name?: string;
@@ -506,6 +512,9 @@ export const timesheetsApi = {
     request<{ message: string; timesheet: Timesheet }>(`/api/timesheets/${id}/submit`, { method: 'POST' }),
   bulkDistribute: (data: { week_ending_date?: string; production_id?: string; timesheet_ids?: string[] }) =>
     request<{ message: string; results?: { sent: string[]; failed: string[]; no_email: string[] } }>('/api/timesheets/bulk-distribute', { method: 'POST', body: data }),
+  /** FB-05 — verify many timesheets with the single-verify rules; never overrides a missing invoice */
+  bulkVerify: (timesheet_ids: string[]) =>
+    request<BulkVerifyResult>('/api/timesheets/bulk-verify', { method: 'POST', body: { timesheet_ids } }),
   getWeeklyDocuments: (params: { production_id: string; week_ending_date: string }) => {
     const qs = '?' + new URLSearchParams(params).toString();
     return request<WeeklyTimesheetDocument[]>(`/api/timesheets/weekly-documents${qs}`, { cache: 'no-store' });
@@ -525,6 +534,14 @@ export const timesheetsApi = {
   },
   deleteWeeklyDocument: (id: string) =>
     request<{ success: boolean; message: string }>(`/api/timesheets/weekly-documents/${id}`, { method: 'DELETE' }),
+};
+
+export type BulkVerifyResult = {
+  message: string;
+  verified_count: number;
+  skipped_count: number;
+  verified: string[];
+  skipped: Array<{ timesheet_id: string; code: 'NOT_FOUND' | 'NOT_READY' | 'INVOICE_REQUIRED'; reason: string }>;
 };
 
 export type GatewayError = {
@@ -626,6 +643,15 @@ export const purchaseOrdersApi = {
       method: 'POST', body: {},
     }),
   history: (id: string) => request<POHistoryEntry[]>(`/api/purchase-orders/${id}/history`),
+  /** The PO PDF as a Blob (used by Download and Print). */
+  getPdfBlob: async (id: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cs_token') : null;
+    const res = await fetch(`/api/purchase-orders/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error('Failed to download PDF');
+    return res.blob();
+  },
   downloadPdf: async (id: string, po_number: string) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('cs_token') : null;
     const res = await fetch(`/api/purchase-orders/${id}/pdf`, {
@@ -1029,19 +1055,32 @@ export type CostReportSupplierItem = {
 
 export type CostReportLabourWeek = {
   week_ending_date: string;
+  /** FB-01 / ADR-06: ex VAT; total_vat + total_inc_vat alongside */
   total: number;
-  crew: Array<{ crew_number: string; name: string; trade: string | null; rank: string | null; grand_total: number }>;
+  total_vat?: number;
+  total_inc_vat?: number;
+  crew: Array<{ crew_number: string; name: string; trade: string | null; rank: string | null; net_total?: number; vat?: number; grand_total: number }>;
 };
 
+/** FB-01 / ADR-05 — one row of "Amounts invoiced to production": an allocated Xero invoice or a manual entry. */
 export type CostReportInvoice = {
   id: string;
-  production_id: string;
+  production_id?: string;
+  source?: 'xero' | 'manual';
   invoice_description: string | null;
+  contact_name?: string | null;
   po_number: string | null;
-  date: string;
+  date: string | null;
   invoice_number: string | null;
-  amount: string;
+  /** ex VAT */
+  amount: string | number;
+  vat?: number;
+  gross?: number;
+  xero_status?: string;
   notes: string | null;
+  /** manual invoice whose number matches a counted Xero invoice — shown, not counted */
+  duplicate_of_xero?: boolean;
+  counted?: boolean;
 };
 
 export type CostReport = {
@@ -1049,13 +1088,20 @@ export type CostReport = {
   contract_type: ContractType;
   as_at_date: string;
   metrics: {
+    vat_basis?: 'ex_vat';
+    /** FB-02 — On a Price budget (agreed price, ex VAT); null when not set or Cost Plus */
+    budget?: number | null;
+    budget_remaining?: number | null;
+    invoiced_xero?: number;
+    invoiced_manual?: number;
     total_supplier_costs: number;
     total_labour_costs: number;
     total_hire_costs?: number;
     total_costs_to_date: number;
     total_invoiced_to_production: number;
     current_profit: number;
-    profit_percentage_of_turnover: string;
+    /** null when nothing has been invoiced */
+    profit_percentage_of_turnover: string | null;
   };
   supplier_costs: CostReportSupplierItem[];
   labour_weekly: CostReportLabourWeek[];
@@ -1096,8 +1142,30 @@ export type Forecast = {
   combined_total: number;
   percentometer_carpenter_cost: number | null;
   percentometer_total: number | null;
+  /** FB-07 — ATL % the scenario was calculated with (null = saved before ATL existed) */
+  percentometer_atl_pct?: number | string | null;
   created_at: string;
   created_by: string;
+};
+
+/** FB-07 — one line of the Percentometer result (Ben's spreadsheet). */
+export type PercentometerBreakdownLine = {
+  cost_type: string;
+  /** the stored ratio, e.g. 42 (null for the above-the-line line) */
+  base_percentage: number | null;
+  /** share of the total after above-the-line costs, e.g. 31.5 */
+  percentage: number;
+  estimated_value: number;
+  is_atl: boolean;
+};
+export type PercentometerCrewRow = { grade: string; weekly_rate: number; headcount: number; weeks: number; cost?: number };
+export type PercentometerResult = {
+  known_cost: number;
+  known_cost_type: string;
+  atl_pct: number;
+  total_estimated_job_cost: number;
+  breakdown: PercentometerBreakdownLine[];
+  crew?: PercentometerCrewRow[];
 };
 
 export type PercentometerRatio = {
@@ -1126,6 +1194,7 @@ export const forecastingApi = {
     name: string;
     production_id?: string | null;
     percentometer_carpenter_cost?: number | null;
+    percentometer_atl_pct?: number | null;
     labour_items?: unknown[];
     materials_items?: unknown[];
   }) => request<Forecast>('/api/forecasting/forecasts', { method: 'POST', body: data }),
@@ -1138,13 +1207,13 @@ export const forecastingApi = {
     request<PercentometerRatio[]>('/api/forecasting/percentometer/ratios', {
       method: 'PUT', body: { ratios },
     }),
-  calculate: (known_cost: number) =>
-    request<{
-      breakdown: Array<{ cost_type: string; percentage: number; estimated_value: number }>;
-      total_estimated_job_cost: number;
-    }>('/api/forecasting/percentometer/calculate', {
-      method: 'POST', body: { known_cost, known_cost_type: 'Carpenters' },
+  /** FB-07 — pass known_cost, or crew rows to build the carpenter cost; atl_pct defaults to the saved setting */
+  calculate: (input: { known_cost?: number; crew?: PercentometerCrewRow[]; atl_pct?: number }) =>
+    request<PercentometerResult>('/api/forecasting/percentometer/calculate', {
+      method: 'POST', body: { ...input, known_cost_type: 'Carpenters' },
     }),
+  getPercentometerSettings: () =>
+    request<{ atl_pct: number; default_atl_pct: number }>('/api/forecasting/percentometer/settings'),
 
   getCatalogue: () => request<CatalogueItem[]>('/api/forecasting/catalogue'),
   createCatalogueItem: (data: Partial<CatalogueItem>) =>
@@ -1175,6 +1244,22 @@ export type CostForecastCrewLine = {
   rate_unit: 'daily' | 'weekly';
   line_total: string | number;
   sort_order: number;
+  // FB-08 (item 9) — synced card rates (× rate multiplier) and the user's extras
+  daily_rate?: string | number;
+  default_ot_rate?: string | number;
+  ot_hours?: string | number;
+  /** typed override; null/'' = default_ot_rate */
+  ot_rate?: string | number | null;
+  travel_hours?: string | number;
+  per_diem_days?: string | number;
+  saturday_days?: string | number;
+  /** typed override; null/'' = daily rate × 1 */
+  saturday_rate?: string | number | null;
+  sunday_days?: string | number;
+  /** typed override; null/'' = daily rate × 2 */
+  sunday_rate?: string | number | null;
+  margin_applied?: boolean;
+  margin_amount?: string | number;
 };
 
 export type CostForecastNonLabourLine = {
@@ -1189,6 +1274,8 @@ export type CostForecastNonLabourLine = {
   line_total: string | number;
   is_custom: boolean;
   sort_order: number;
+  margin_applied?: boolean;
+  margin_amount?: string | number;
 };
 
 export type CostForecast = {
@@ -1210,7 +1297,18 @@ export type CostForecast = {
   rates_snapshot?: unknown;
   total_crew_cost: string | number;
   total_non_labour_cost: string | number;
+  /** cost without margin (dashboard variance uses the crew cost) */
   grand_total_cost: string | number;
+  // FB-08 (item 9)
+  rate_card_type?: RateCardType;
+  production_rate_card_type?: RateCardType;
+  rate_multiplier?: string | number;
+  travel_hourly_rate?: string | number;
+  per_diem_rate?: string | number;
+  margin_enabled?: boolean;
+  margin_pct?: string | number;
+  margin_total?: string | number;
+  grand_total_with_margin?: string | number | null;
   notes: string | null;
   created_by?: string | null;
   created_by_name?: string | null;
@@ -1240,6 +1338,11 @@ export const costForecastsApi = {
     end_date?: string;
     default_view?: 'daily' | 'weekly';
     notes?: string;
+    rate_card_type?: RateCardType;
+    travel_hourly_rate?: number;
+    per_diem_rate?: number;
+    margin_enabled?: boolean;
+    margin_pct?: number;
     crew_lines?: CostForecastCrewLine[];
     non_labour_lines?: CostForecastNonLabourLine[];
   }) => request<CostForecast>(`/api/forecasting/cost-forecasts/${id}`, { method: 'PUT', body: data }),
@@ -1935,7 +2038,9 @@ export type ProductionPLItem = {
   profit_loss: number | null; profit_pct: number | null;
 };
 export type ProductionPLTotals = {
-  budget_revenue: number; labour_charged: number; materials_charged: number; profit_loss: number; management_costs: number;
+  /** FB-03: null when no production has a budget */
+  budget_revenue: number | null; labour_charged: number; materials_charged: number; profit_loss: number | null; management_costs: number;
+  budgeted_count?: number;
 };
 export type ProductionPLResponse = {
   generated_at: string; vat_basis: 'ex_vat'; productions: ProductionPLItem[]; totals: ProductionPLTotals;

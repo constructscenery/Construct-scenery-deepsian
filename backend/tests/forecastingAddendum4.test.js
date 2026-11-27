@@ -154,10 +154,11 @@ describe('Cost Forecasts API (Addendum 4)', () => {
 
   test('POST /api/forecasting/cost-forecasts/:id/lock — locks forecast and captures snapshot', async () => {
     dbMock.respond([]);
-    dbMock.respond([SAMPLE_COST_FORECAST]); // existing
+    dbMock.respond([SAMPLE_COST_FORECAST]); // existing (standard rate card → no uplift lookup)
     dbMock.respond(SAMPLE_BECTU_RATES);     // bectu rates for snapshot
-    dbMock.respond([{ id: 'line-1', trade: 'Carpenters', rank: 'Carpenter', units: 2, unit_rate: 100 }]);
-    dbMock.respond([]);
+    dbMock.respond([{ id: 'line-1', cost_forecast_id: 'cf-001', trade: 'Carpenters', rank: 'Carpenter', units: 2, unit_rate: 100 }]);
+    dbMock.respond([]);                     // non-labour lines
+    dbMock.respond([]);                     // crew line re-priced
     dbMock.respond([{ ...SAMPLE_COST_FORECAST, status: 'locked' }]); // update returning
     dbMock.respond([]);
 
@@ -167,7 +168,12 @@ describe('Cost Forecasts API (Addendum 4)', () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('locked');
     const client = await dbMock.connect.mock.results[0].value;
-    expect(client.query).toHaveBeenCalledWith(expect.stringContaining('UPDATE cost_forecast_crew_lines'), [1655, 'br-1', 'line-1']);
+    // FB-08: the line is re-priced from the card (weekly 1655 × 2 units) with the extras columns
+    const crewUpdate = client.query.mock.calls.find(([sql]) => sql.includes('UPDATE cost_forecast_crew_lines'));
+    expect(crewUpdate[1].slice(0, 6)).toEqual([2, 1655, 'weekly', 'br-1', 331, 59.07]);
+    expect(crewUpdate[1].slice(15)).toEqual([3310, 0, 'line-1', 'cf-001']);
+    const lockUpdate = client.query.mock.calls.find(([sql]) => sql.includes("SET status = 'locked'"));
+    expect(lockUpdate[1].slice(2)).toEqual([3310, 0, 3310, 0, 3310, 1, 'cf-001']);
     expect(client.query).toHaveBeenCalledWith('COMMIT');
     expect(client.release).toHaveBeenCalled();
   });

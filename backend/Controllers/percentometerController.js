@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const percentometer = require('../services/percentometerCalc');
 
 // Trade names that appear as cost_type in percentometer_ratios and map to labour trades
 const TRADE_COST_TYPES = new Set(['Carpenters', 'Painters', 'Stagehands', 'Riggers', 'Sculptors', 'Metalwork']);
@@ -8,13 +9,25 @@ const TRADE_COST_TYPES = new Set(['Carpenters', 'Painters', 'Stagehands', 'Rigge
 const getRatios = async (req, res) => {
   try {
     const where = req.query.current === 'true' ? 'WHERE effective_to IS NULL' : '';
-    const { rows } = await db.query(
-      `SELECT id, cost_type, percentage, effective_from, effective_to, created_at
-       FROM percentometer_ratios
-       ${where}
-       ORDER BY percentage DESC, cost_type`,
-      []
-    );
+    let rows;
+    try {
+      ({ rows } = await db.query(
+        `SELECT id, cost_type, percentage, effective_from, effective_to, created_at
+         FROM percentometer_ratios
+         ${where}
+         ORDER BY percentage DESC, cost_type`,
+        []
+      ));
+    } catch (err) {
+      // Schema drift (FB F-H): migration 1786720649585 drops effective_from/_to. Every row is then current.
+      if (err.code !== '42703') throw err;
+      ({ rows } = await db.query(
+        `SELECT id, cost_type, percentage, NULL::date AS effective_from, NULL::date AS effective_to, created_at
+         FROM percentometer_ratios
+         ORDER BY percentage DESC, cost_type`,
+        []
+      ));
+    }
     res.json(rows);
   } catch (err) {
     console.error('getRatios:', err);
@@ -23,31 +36,16 @@ const getRatios = async (req, res) => {
 };
 
 // ─── POST /api/percentometer/calculate ───────────────────────────────────────
-// Stateless calculation — no DB write. Returns full breakdown from a known cost.
+// Stateless calculation — no DB write. Same maths as /api/forecasting/percentometer/calculate
+// (FB-07 / ADR-09: active ratios + above-the-line fixed costs from Ben's spreadsheet).
 const calculate = async (req, res) => {
-  const { known_cost, known_cost_type } = req.body;
+  const { known_cost, known_cost_type, atl_pct } = req.body || {};
   if (!known_cost) return res.status(400).json({ error: 'known_cost is required' });
 
   try {
-    const { rows } = await db.query(
-      'SELECT * FROM percentometer_ratios WHERE effective_to IS NULL ORDER BY percentage DESC'
-    );
-    const costType   = known_cost_type || 'Carpenters';
-    const knownRatio = rows.find(r => r.cost_type === costType);
-    if (!knownRatio)
-      return res.status(400).json({ error: `Unknown cost type: ${costType}` });
-
-    const totalEstimate = parseFloat(known_cost) / parseFloat(knownRatio.percentage);
-    res.json({
-      known_cost:               parseFloat(known_cost),
-      known_cost_type:          costType,
-      total_estimated_job_cost: totalEstimate,
-      breakdown: rows.map(r => ({
-        cost_type:       r.cost_type,
-        percentage:      parseFloat(r.percentage) * 100,
-        estimated_value: totalEstimate * parseFloat(r.percentage),
-      })),
-    });
+    const result = await percentometer.calculateFromDb({ knownCost: known_cost, knownCostType: known_cost_type, atlPct: atl_pct });
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json(result);
   } catch (err) {
     console.error('calculate:', err);
     res.status(500).json({ error: err.message });

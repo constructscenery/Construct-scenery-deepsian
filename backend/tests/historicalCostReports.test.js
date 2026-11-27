@@ -1,5 +1,9 @@
 jest.mock('../config/db', () => ({ query: jest.fn(), connect: jest.fn() }));
-jest.mock('../services/costReportService', () => ({ getSupplierCosts: jest.fn(), getLabourCosts: jest.fn(), getSummaryMetrics: jest.fn() }));
+jest.mock('../services/costReportService', () => ({
+  getSupplierCosts: jest.fn(), getLabourCosts: jest.fn(), getSummaryMetrics: jest.fn(),
+  // FB-01: Type 2 reads invoiced-to-production through the service (Xero + manual)
+  invoicedToProduction: async () => ({ rows: [], total: 0, xero_total: 0, manual_total: 0 }),
+}));
 jest.mock('../services/costReportPdfService', () => ({ generateCostReportPdf: jest.fn() }));
 jest.mock('../services/costReportType2PdfService', () => ({ generateCostReportType2Pdf: jest.fn() }));
 jest.mock('../services/fileStorage', () => ({ validate: jest.fn(), store: jest.fn(), deleteFile: jest.fn(), streamToResponse: jest.fn() }));

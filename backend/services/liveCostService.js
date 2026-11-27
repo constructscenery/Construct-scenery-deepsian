@@ -258,6 +258,10 @@ const sumPL = rows => {
     if (r.budget_revenue != null) { t.budget_revenue += r.budget_revenue; t.profit_loss += r.profit_loss; }
   }
   Object.keys(t).forEach(k => { t[k] = r2(t[k]); });
+  // FB-03 (F-F): with no budgeted production there is no profit to total — report null ("—"),
+  // not a green £0 that reads as break-even.
+  t.budgeted_count = rows.filter(r => r.budget_revenue != null).length;
+  if (t.budgeted_count === 0) { t.budget_revenue = null; t.profit_loss = null; }
   return t;
 };
 

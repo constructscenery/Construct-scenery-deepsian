@@ -83,7 +83,8 @@ export default function ProductionPLCard() {
                 </td>
                 <td className="px-3 py-3 text-right whitespace-nowrap">
                   {p.budget_revenue == null
-                    ? <Link href="/cost-report" className="text-blue-600 hover:underline">Set budget</Link>
+                    ? <Link href={`/cost-report?production_id=${p.production_id}`} className="text-blue-600 hover:underline"
+                        title={p.contract_type === 'cost_plus' ? 'Set up the Master Budget on the cost report' : 'Enter the agreed price on the cost report'}>Set budget</Link>
                     : <Money value={p.budget_revenue} />}
                   {p.invoiced_to_date > 0 && <div className="text-slate-400">{gbp(p.invoiced_to_date)} invoiced</div>}
                 </td>
@@ -118,7 +119,8 @@ export default function ProductionPLCard() {
         <p className="flex items-start gap-1.5 px-5 py-3 border-t border-slate-100 text-[11px] text-slate-400">
           <Info size={12} className="mt-px flex-shrink-0" />
           <span>
-            Profit / Loss = Budget − Labour − Materials, for productions with a budget.
+            Profit / Loss = Budget − Labour − Materials, for productions with a budget (green = profit, red = loss).
+            {data.totals.budgeted_count === 0 && ' No production has a budget yet — use “Set budget”.'}
             {management > 0 && ` Management costs (${gbp(management)}, on universal management set codes) are kept out of production figures.`}
           </span>
         </p>

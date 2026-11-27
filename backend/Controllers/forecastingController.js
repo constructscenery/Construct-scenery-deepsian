@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const percentometer = require('../services/percentometerCalc');
 
 const DEFAULT_RATIOS = [
   { cost_type: 'Carpenters',  percentage: 0.42 },
@@ -32,7 +33,7 @@ const getAllForecasts = async (req, res) => {
               f.total_labour_cost    AS total_labour,
               f.total_materials_cost AS total_materials,
               f.total_forecast_cost  AS combined_total,
-              f.percentometer_carpenter_cost, f.percentometer_total,
+              f.percentometer_carpenter_cost, f.percentometer_total, f.percentometer_atl_pct,
               p.id AS prod_id, p.name AS prod_name
        FROM forecasts f
        LEFT JOIN productions p ON f.production_id = p.id
@@ -52,10 +53,12 @@ const getAllForecasts = async (req, res) => {
 const createForecast = async (req, res) => {
   const {
     scenario_name, name, production_id,
-    labour_items, materials_items, percentometer_carpenter_cost,
+    labour_items, materials_items, percentometer_carpenter_cost, percentometer_atl_pct,
   } = req.body;
   const forecastName = scenario_name || name;
   if (!forecastName) return res.status(400).json({ error: 'scenario_name is required' });
+  if (percentometer_atl_pct != null && percentometer.parseAtlPct(percentometer_atl_pct) == null)
+    return res.status(400).json({ error: 'percentometer_atl_pct must be a number from 0 to less than 100' });
 
   const calcLabourSubtotal = (item) => {
     const daily   = parseFloat(item.daily_rate || 0);
@@ -73,25 +76,33 @@ const createForecast = async (req, res) => {
     const price = parseFloat(i.unit_price || 0);
     return s + (i.subtotal != null ? parseFloat(i.subtotal) : qty * price);
   }, 0);
-  const percentometerTotal = percentometer_carpenter_cost
-    ? parseFloat(percentometer_carpenter_cost) / 0.42
-    : null;
-
   const client = await db.connect();
   try {
+    // FB-07 (F-B): the saved total comes from the same calculation as the calculator (active ratios +
+    // ATL), not a hard-coded ÷ 0.42. The ATL % used is stored with the scenario.
+    let percentometerTotal = null;
+    let percentometerAtl   = null;
+    if (percentometer_carpenter_cost) {
+      const calc = await percentometer.calculateFromDb({ knownCost: percentometer_carpenter_cost, atlPct: percentometer_atl_pct }, client);
+      if (calc.error) return res.status(400).json({ error: calc.error });  // finally releases the client
+      percentometerTotal = calc.total_estimated_job_cost;
+      percentometerAtl   = calc.atl_pct;
+    }
+
     await client.query('BEGIN');
 
     const { rows: [forecast] } = await client.query(
       `INSERT INTO forecasts
          (name, production_id, total_labour_cost, total_materials_cost, total_forecast_cost,
-          percentometer_carpenter_cost, percentometer_total, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+          percentometer_carpenter_cost, percentometer_total, percentometer_atl_pct, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        RETURNING *`,
       [
         forecastName, production_id || null,
         totalLabour, totalMaterials, totalLabour + totalMaterials,
         percentometer_carpenter_cost ? parseFloat(percentometer_carpenter_cost) : null,
         percentometerTotal,
+        percentometerAtl,
         req.user.id,
       ]
     );
@@ -151,7 +162,7 @@ const createForecast = async (req, res) => {
       `SELECT f.id, f.name AS scenario_name, f.production_id, f.created_by, f.created_at,
               f.total_labour_cost AS total_labour, f.total_materials_cost AS total_materials,
               f.total_forecast_cost AS combined_total,
-              f.percentometer_carpenter_cost, f.percentometer_total,
+              f.percentometer_carpenter_cost, f.percentometer_total, f.percentometer_atl_pct,
               p.id AS prod_id, p.name AS prod_name
        FROM forecasts f
        LEFT JOIN productions p ON f.production_id = p.id
@@ -180,7 +191,7 @@ const getForecastById = async (req, res) => {
       `SELECT f.id, f.name AS scenario_name, f.production_id, f.created_by, f.created_at,
               f.total_labour_cost AS total_labour, f.total_materials_cost AS total_materials,
               f.total_forecast_cost AS combined_total,
-              f.percentometer_carpenter_cost, f.percentometer_total,
+              f.percentometer_carpenter_cost, f.percentometer_total, f.percentometer_atl_pct,
               p.id AS prod_id, p.name AS prod_name
        FROM forecasts f
        LEFT JOIN productions p ON f.production_id = p.id
@@ -206,8 +217,10 @@ const getForecastById = async (req, res) => {
 const updateForecast = async (req, res) => {
   const {
     scenario_name, name, production_id,
-    labour_items, materials_items, percentometer_carpenter_cost,
+    labour_items, materials_items, percentometer_carpenter_cost, percentometer_atl_pct,
   } = req.body;
+  if (percentometer_atl_pct != null && percentometer.parseAtlPct(percentometer_atl_pct) == null)
+    return res.status(400).json({ error: 'percentometer_atl_pct must be a number from 0 to less than 100' });
 
   const client = await db.connect();
   try {
@@ -217,7 +230,8 @@ const updateForecast = async (req, res) => {
       'SELECT * FROM forecasts WHERE id = $1 AND deleted_at IS NULL',
       [req.params.id]
     );
-    if (!existing) return res.status(404).json({ error: 'Forecast not found' });
+    // (was returned without ROLLBACK, handing the pool a client still inside a transaction)
+    if (!existing) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Forecast not found' }); }
 
     // Metadata patch
     const metaUpdates = [];
@@ -232,8 +246,16 @@ const updateForecast = async (req, res) => {
     if (percentometer_carpenter_cost !== undefined) {
       metaUpdates.push(`percentometer_carpenter_cost = $${j++}`);
       metaVals.push(percentometer_carpenter_cost ? parseFloat(percentometer_carpenter_cost) : null);
+      // FB-07 (F-B): same calculation as the calculator, ATL % stored with the scenario.
+      let calc = null;
+      if (percentometer_carpenter_cost) {
+        calc = await percentometer.calculateFromDb({ knownCost: percentometer_carpenter_cost, atlPct: percentometer_atl_pct }, client);
+        if (calc.error) { await client.query('ROLLBACK'); return res.status(400).json({ error: calc.error }); }
+      }
       metaUpdates.push(`percentometer_total = $${j++}`);
-      metaVals.push(percentometer_carpenter_cost ? parseFloat(percentometer_carpenter_cost) / 0.42 : null);
+      metaVals.push(calc ? calc.total_estimated_job_cost : null);
+      metaUpdates.push(`percentometer_atl_pct = $${j++}`);
+      metaVals.push(calc ? calc.atl_pct : null);
     }
 
     // Replace items if provided — recalculate totals
@@ -325,7 +347,7 @@ const updateForecast = async (req, res) => {
       `SELECT f.id, f.name AS scenario_name, f.production_id, f.created_by, f.created_at,
               f.total_labour_cost AS total_labour, f.total_materials_cost AS total_materials,
               f.total_forecast_cost AS combined_total,
-              f.percentometer_carpenter_cost, f.percentometer_total,
+              f.percentometer_carpenter_cost, f.percentometer_total, f.percentometer_atl_pct,
               p.id AS prod_id, p.name AS prod_name
        FROM forecasts f
        LEFT JOIN productions p ON f.production_id = p.id
@@ -412,43 +434,45 @@ const linkForecast = async (req, res) => {
 // ─── Percentometer ────────────────────────────────────────────────────────────
 
 // GET /api/forecasting/percentometer/ratios
+// Active ratios only (F-A: versioned rows with effective_to set are history, not live ratios).
 const getRatios = async (req, res) => {
   try {
-    const { rows } = await db.query(
-      'SELECT * FROM percentometer_ratios ORDER BY percentage DESC'
-    );
-    res.json(rows.length ? rows : DEFAULT_RATIOS);
+    res.json(await percentometer.getActiveRatios());
   } catch {
     res.json(DEFAULT_RATIOS);
   }
 };
 
+// GET /api/forecasting/percentometer/settings  — FB-07: the ATL % the calculator starts from
+const getPercentometerSettings = async (req, res) => {
+  try {
+    res.json({ atl_pct: await percentometer.getAtlPct(), default_atl_pct: percentometer.DEFAULT_ATL_PCT });
+  } catch (err) {
+    console.error('getPercentometerSettings:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // POST /api/forecasting/percentometer/calculate
+// FB-07 / ADR-09 — Ben's spreadsheet: total = carpenters ÷ (carpenter share × (1 − ATL)).
+// Body: { known_cost } or { crew: [{ grade, weekly_rate, headcount, weeks }] }, optional atl_pct
+// (defaults to app_settings.percentometer_atl_pct) and known_cost_type (default Carpenters).
 const calculatePercentometer = async (req, res) => {
-  const { known_cost, known_cost_type } = req.body;
-  if (!known_cost) return res.status(400).json({ error: 'known_cost is required' });
+  const { known_cost, known_cost_type, crew, atl_pct } = req.body || {};
+  let knownCost = known_cost;
+  let crewRows  = null;
+  if (crew != null) {
+    const built = percentometer.carpenterCostFromCrew(crew);
+    if (built.error) return res.status(400).json({ error: built.error });
+    knownCost = built.total;
+    crewRows  = built.rows;
+  }
+  if (!knownCost) return res.status(400).json({ error: 'known_cost (or crew) is required' });
 
   try {
-    const { rows } = await db.query(
-      'SELECT * FROM percentometer_ratios ORDER BY percentage DESC'
-    );
-    const activeRatios = rows.length ? rows : DEFAULT_RATIOS;
-    const costType     = known_cost_type || 'Carpenters';
-    const knownRatio   = activeRatios.find(r => r.cost_type === costType);
-    if (!knownRatio)
-      return res.status(400).json({ error: `Unknown cost type: ${costType}` });
-
-    const totalEstimate = parseFloat(known_cost) / parseFloat(knownRatio.percentage);
-    res.json({
-      known_cost:               parseFloat(known_cost),
-      known_cost_type:          costType,
-      total_estimated_job_cost: totalEstimate,
-      breakdown: activeRatios.map(r => ({
-        cost_type:       r.cost_type,
-        percentage:      parseFloat(r.percentage) * 100,
-        estimated_value: totalEstimate * parseFloat(r.percentage),
-      })),
-    });
+    const result = await percentometer.calculateFromDb({ knownCost, knownCostType: known_cost_type, atlPct: atl_pct });
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json(crewRows ? { ...result, crew: crewRows } : result);
   } catch (err) {
     console.error('calculatePercentometer:', err);
     res.status(500).json({ error: err.message });
@@ -581,7 +605,7 @@ const getBectuRates = async (req, res) => {
 
 module.exports = {
   getAllForecasts, createForecast, getForecastById, updateForecast, deleteForecast, linkForecast,
-  getRatios, calculatePercentometer, updateRatios,
+  getRatios, getPercentometerSettings, calculatePercentometer, updateRatios,
   getCatalogue, createCatalogueItem, updateCatalogueItem, deleteCatalogueItem,
   getBectuRates,
 };

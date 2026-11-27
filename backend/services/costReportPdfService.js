@@ -102,7 +102,7 @@ const generateCostReportPdf = ({ production, metrics, supplierEntries, labourEnt
     // ── Page 1: Summary metrics ────────────────────────────────────────────────
     let y = drawPageHeader(null);
 
-    doc.fontSize(10).font('Helvetica-Bold').fillColor('#1e293b').text('SUMMARY', L, y);
+    doc.fontSize(10).font('Helvetica-Bold').fillColor('#1e293b').text('SUMMARY (ex VAT)', L, y);
     y += 14;
 
     const metricBox = (label, value, x, bw) => {
@@ -125,7 +125,7 @@ const generateCostReportPdf = ({ production, metrics, supplierEntries, labourEnt
     if (metrics.current_profit !== undefined) {
       doc.fontSize(8.5).font('Helvetica').fillColor('#475569')
          .text(`Current Profit: ${fmt(metrics.current_profit)}`, L, y)
-         .text(`Profit %: ${parseFloat(metrics.profit_pct || 0).toFixed(1)}%`, L + 160, y);
+         .text(`Profit %: ${metrics.profit_pct == null ? '—' : `${parseFloat(metrics.profit_pct).toFixed(1)}%`}`, L + 160, y);
       if (metrics.last_updated) {
         doc.text(`Last updated: ${fmtDate(metrics.last_updated)}`, L + 320, y);
       }

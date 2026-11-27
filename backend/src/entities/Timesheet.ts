@@ -39,6 +39,16 @@ export class Timesheet {
   @Column({ type: 'text', name: 'invoice_attachment_name', nullable: true })
   invoiceAttachmentName: string | null;
 
+  /** FB-06 — set when a self-employed timesheet was verified without an invoice */
+  @Column({ type: 'text', name: 'invoice_override_reason', nullable: true })
+  invoiceOverrideReason: string | null;
+
+  @Column({ type: 'uuid', name: 'invoice_override_by', nullable: true })
+  invoiceOverrideById: string | null;
+
+  @Column({ type: 'timestamptz', name: 'invoice_override_at', nullable: true })
+  invoiceOverrideAt: Date | null;
+
   @Column({ type: 'decimal', precision: 12, scale: 2, name: 'weekly_rate', default: 0 })
   weeklyRate: number;
 

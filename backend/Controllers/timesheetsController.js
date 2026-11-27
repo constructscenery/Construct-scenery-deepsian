@@ -953,56 +953,135 @@ const chaseInvoices = async (req, res) => {
   }
 };
 
-// ─── POST /api/timesheets/:id/verify ─────────────────────────────────────────
-// Finalises a timesheet and locks it from further editing.
+// ─── Verify (finalise) one timesheet — shared by single and bulk verify ──────
+// Rules (unchanged from the original single verify):
 //   - Status must be distributed or amendment_requested.
 //   - PAYE crew: no invoice needed → always allowed.
-//   - Self-employed crew: invoice must be attached → 409 INVOICE_REQUIRED if not.
+//   - Self-employed crew: an invoice must be attached → INVOICE_REQUIRED if not …
+//   - … unless an explicit override reason is given (FB-06 / ADR-08). Bulk verify never overrides.
+// The status update is guarded with the ready statuses so two concurrent verifies cannot both win.
+// Returns { ok: true, timesheet, overridden } or { ok: false, status, code, message }.
+const VERIFY_READY_STATUSES = ['distributed', 'amendment_requested'];  // TimesheetStatus
+const MIN_OVERRIDE_REASON = 5;
+
+const verifyOne = async (timesheetId, user, { overrideReason = null } = {}) => {
+  const { rows: [ts] } = await db.query(
+    `SELECT t.id, t.status, t.invoice_attachment_url, cm.employment_status
+     FROM timesheets t
+     JOIN crew_members cm ON t.crew_member_id = cm.id
+     WHERE t.id = $1`,
+    [timesheetId]
+  );
+  if (!ts) return { ok: false, status: 404, code: 'NOT_FOUND', message: 'Timesheet not found' };
+
+  if (!VERIFY_READY_STATUSES.includes(ts.status))
+    return {
+      ok: false, status: 409, code: 'NOT_READY',
+      message: ts.status === 'finalised'  // TimesheetStatus.FINALISED
+        ? 'Timesheet is already verified'
+        : 'Timesheet must be distributed (or amendment_requested) before it can be finalised',
+    };
+
+  const reason = typeof overrideReason === 'string' ? overrideReason.trim() : '';
+  const needsInvoice = ts.employment_status === 'self_employed' && !ts.invoice_attachment_url;  // EmploymentStatus.SELF_EMPLOYED
+  if (needsInvoice && reason.length < MIN_OVERRIDE_REASON)
+    return {
+      ok: false, status: 409, code: 'INVOICE_REQUIRED',
+      message: reason
+        ? `Give a reason of at least ${MIN_OVERRIDE_REASON} characters to verify without an invoice`
+        : 'An invoice must be attached before finalising a self-employed timesheet',
+    };
+  const overridden = needsInvoice;   // a reason is only recorded when it was actually needed
+
+  const { rows: [updated] } = await db.query(
+    `UPDATE timesheets
+     SET status = 'finalised',  -- TimesheetStatus.FINALISED
+         invoice_override_reason = CASE WHEN $2::boolean THEN $3 ELSE invoice_override_reason END,
+         invoice_override_by     = CASE WHEN $2::boolean THEN $4::uuid ELSE invoice_override_by END,
+         invoice_override_at     = CASE WHEN $2::boolean THEN NOW() ELSE invoice_override_at END
+     WHERE id = $1 AND status = ANY($5::text[])
+     RETURNING *`,
+    [timesheetId, overridden, overridden ? reason : null, overridden ? (user?.id || null) : null, VERIFY_READY_STATUSES]
+  );
+  if (!updated)
+    return { ok: false, status: 409, code: 'NOT_READY', message: 'Timesheet changed while verifying — refresh and try again' };
+
+  await logAudit({
+    userId: user?.id,
+    userName: user?.full_name,
+    userRole: user?.role,
+    productionId: updated.production_id,
+    category: 'payroll',
+    action: overridden ? 'timesheet_finalised_without_invoice' : 'timesheet_finalised',
+    entityType: 'timesheet',
+    entityId: updated.id,
+    details: overridden
+      ? `Finalised and verified timesheet for week ending ${updated.week_ending_date} WITHOUT an invoice. Reason: ${reason}`
+      : `Finalised and verified timesheet for week ending ${updated.week_ending_date}`,
+    metadata: {
+      timesheet_id: updated.id, week_ending_date: updated.week_ending_date, crew_member_id: updated.crew_member_id,
+      ...(overridden ? { invoice_override_reason: reason } : {}),
+    },
+  });
+  return { ok: true, timesheet: updated, overridden };
+};
+
+// ─── POST /api/timesheets/:id/verify ─────────────────────────────────────────
+// Finalises a timesheet and locks it from further editing.
+// Body (optional): { invoice_override_reason } — FB-06: verify a self-employed timesheet without an
+// invoice. Without it the original 409 { error: 'INVOICE_REQUIRED' } contract is unchanged.
 const verifyTimesheet = async (req, res) => {
   try {
-    const { rows: [ts] } = await db.query(
-      `SELECT t.id, t.status, t.invoice_attachment_url,
-              cm.employment_status
-       FROM timesheets t
-       JOIN crew_members cm ON t.crew_member_id = cm.id
-       WHERE t.id = $1`,
-      [req.params.id]
-    );
-    if (!ts) return res.status(404).json({ error: 'Timesheet not found' });
-
-    const readyStatuses = ['distributed', 'amendment_requested'];
-    if (!readyStatuses.includes(ts.status))
-      return res.status(409).json({
-        error: 'Timesheet must be distributed (or amendment_requested) before it can be finalised',
-      });
-
-    if (ts.employment_status === 'self_employed' && !ts.invoice_attachment_url)
-      return res.status(409).json({
-        error:    'INVOICE_REQUIRED',
-        message:  'An invoice must be attached before finalising a self-employed timesheet',
-      });
-
-    const { rows: [updated] } = await db.query(
-      `UPDATE timesheets SET status = 'finalised' WHERE id = $1 RETURNING *`,  // TimesheetStatus.FINALISED
-      [req.params.id]
-    );
-    res.json({ message: 'Timesheet verified', timesheet: updated });
-
-    await logAudit({
-      userId: req.user?.id,
-      userName: req.user?.full_name,
-      userRole: req.user?.role,
-      productionId: updated.production_id,
-      category: 'payroll',
-      action: 'timesheet_finalised',
-      entityType: 'timesheet',
-      entityId: updated.id,
-      details: `Finalised and verified timesheet for week ending ${updated.week_ending_date}`,
-      metadata: { timesheet_id: updated.id, week_ending_date: updated.week_ending_date, crew_member_id: updated.crew_member_id },
+    const result = await verifyOne(req.params.id, req.user, { overrideReason: req.body?.invoice_override_reason });
+    if (!result.ok) {
+      if (result.code === 'INVOICE_REQUIRED')
+        return res.status(409).json({ error: 'INVOICE_REQUIRED', message: result.message });
+      return res.status(result.status).json({ error: result.message });
+    }
+    res.json({
+      message: result.overridden ? 'Timesheet verified without invoice' : 'Timesheet verified',
+      timesheet: result.timesheet,
     });
   } catch (err) {
     console.error('verifyTimesheet:', err);
     res.status(500).json({ error: err.message });
+  }
+};
+
+// ─── POST /api/timesheets/bulk-verify ────────────────────────────────────────
+// FB-05: verify many timesheets with exactly the single-verify rules. Never overrides a missing
+// invoice — those come back in `skipped` with code INVOICE_REQUIRED so they can be handled one by one.
+// Body: { timesheet_ids: string[] }  (1–200 ids)
+const MAX_BULK_VERIFY = 200;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const bulkVerifyTimesheets = async (req, res) => {
+  const ids = Array.isArray(req.body?.timesheet_ids) ? [...new Set(req.body.timesheet_ids)] : null;
+  if (!ids || !ids.length)
+    return res.status(400).json({ error: 'timesheet_ids must be a non-empty array' });
+  if (ids.length > MAX_BULK_VERIFY)
+    return res.status(400).json({ error: `At most ${MAX_BULK_VERIFY} timesheets can be verified at once` });
+  if (ids.some(id => typeof id !== 'string' || !UUID_RE.test(id)))
+    return res.status(400).json({ error: 'timesheet_ids must contain timesheet ids' });
+
+  const verified = [];
+  const skipped  = [];
+  try {
+    for (const id of ids) {
+      const result = await verifyOne(id, req.user);
+      if (result.ok) verified.push(id);
+      else skipped.push({ timesheet_id: id, code: result.code, reason: result.message });
+    }
+    res.json({
+      message: `${verified.length} timesheet(s) verified${skipped.length ? `, ${skipped.length} skipped` : ''}`,
+      verified_count: verified.length,
+      skipped_count:  skipped.length,
+      verified,
+      skipped,
+    });
+  } catch (err) {
+    console.error('bulkVerifyTimesheets:', err);
+    // Partial progress is real (each verify is its own guarded update) — report it.
+    res.status(500).json({ error: err.message, verified, skipped });
   }
 };
 
@@ -2159,7 +2238,7 @@ module.exports = {
   createTimesheet, getTimesheetById,
   saveEntries, patchTimesheet,
   bulkDistribute, resendTimesheet, sendSingleTimesheet, submitTimesheet,
-  attachInvoice, chaseInvoices, verifyTimesheet,
+  attachInvoice, chaseInvoices, verifyTimesheet, bulkVerifyTimesheets,
   generateVerificationPackPdf, generateVerificationPackCombinedPdf, getVerificationPack, getTimesheetVerificationPack, getDraftPdf,
   deleteTimesheet, getWeeklyDocuments, uploadWeeklyDocument, deleteWeeklyDocument,
   getImportTemplate, previewImport, importCSV,

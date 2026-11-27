@@ -313,7 +313,7 @@ describe('GET /api/dashboard/production-pl', () => {
       management_costs: 340, profit_loss: 96140, profit_pct: 96.14, draft_timesheets: 2,
     });
     expect(c).toMatchObject({ budget_revenue: null, profit_loss: null, labour_charged: 0, materials_charged: 0 });
-    expect(res.body.totals).toEqual({ budget_revenue: 100000, labour_charged: 2660, materials_charged: 1200, profit_loss: 96140, management_costs: 340 });
+    expect(res.body.totals).toEqual({ budget_revenue: 100000, labour_charged: 2660, materials_charged: 1200, profit_loss: 96140, management_costs: 340, budgeted_count: 1 });
   });
 
   test('only active, non-deleted productions are listed', async () => {

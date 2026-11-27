@@ -4,6 +4,17 @@ const { recalculateAndStore, storedTotalsReproducible } = require('../services/t
 
 // RateCardType.STANDARD / RateCardType.COMMERCIAL (CS-08)
 const RATE_CARD_TYPES = ['standard', 'commercial'];
+
+// FB-02 / ADR-07 — production budget (productions.agreed_price, ex VAT; the On a Price budget the
+// dashboard P&L and cost report read). '' / null clears it. Returns { value } or { error }.
+const parseBudget = (raw) => {
+  if (raw === null || raw === '') return { value: null };
+  const s = typeof raw === 'number' ? String(raw) : String(raw).trim().replace(/[£,\s]/g, '');
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) return { error: 'agreed_price must be a positive amount with at most 2 decimal places, or empty to clear' };
+  const value = Number(s);
+  if (!Number.isFinite(value) || value >= 1e12) return { error: 'agreed_price is too large' };
+  return { value };
+};
 const { withFinalCostReport } = require('../services/historicalCostReportService');
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -109,13 +120,15 @@ const createProduction = async (req, res) => {
     supervising_art_director, supervising_art_director_mobile, supervising_art_director_email,
     financial_controller, financial_controller_mobile, financial_controller_email,
     art_dept_coordinator, art_dept_coordinator_mobile, art_dept_coordinator_email,
-    notes, rate_card_type,
+    notes, rate_card_type, agreed_price,
   } = req.body;
 
   if (!name || !contract_type)
     return res.status(400).json({ error: 'name and contract_type are required' });
   if (rate_card_type !== undefined && !RATE_CARD_TYPES.includes(rate_card_type))
     return res.status(400).json({ error: `rate_card_type must be one of: ${RATE_CARD_TYPES.join(', ')}` });
+  const budget = agreed_price === undefined ? { value: null } : parseBudget(agreed_price);
+  if (budget.error) return res.status(400).json({ error: budget.error });
 
   // ProductionStatus.PRE_PRODUCTION / ProductionStatus.ACTIVE_BUILD
   const initialStatus = status ?? 'pre_production';
@@ -130,8 +143,8 @@ const createProduction = async (req, res) => {
           supervising_art_director, supervising_art_director_mobile, supervising_art_director_email,
           financial_controller, financial_controller_mobile, financial_controller_email,
           art_dept_coordinator, art_dept_coordinator_mobile, art_dept_coordinator_email,
-          notes, rate_card_type)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+          notes, rate_card_type, agreed_price)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
        RETURNING *`,
       [
         name, production_code || null, production_company || null, production_designer || null, production_type || null,
@@ -143,8 +156,17 @@ const createProduction = async (req, res) => {
         art_dept_coordinator || null, art_dept_coordinator_mobile || null, art_dept_coordinator_email || null,
         notes || null,
         rate_card_type || 'standard', // RateCardType.STANDARD
+        budget.value,
       ]
     );
+    if (budget.value != null) {
+      await logAudit({
+        userId: req.user?.id, userName: req.user?.full_name, userRole: req.user?.role, productionId: rows[0].id,
+        category: 'financial', action: 'production_budget_changed', entityType: 'production', entityId: rows[0].id,
+        details: `Budget for ${rows[0].name} set to £${budget.value.toFixed(2)} (ex VAT)`,
+        metadata: { from: null, to: budget.value },
+      });
+    }
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error('createProduction:', err);
@@ -200,7 +222,7 @@ const updateProduction = async (req, res) => {
     'supervising_art_director', 'supervising_art_director_mobile', 'supervising_art_director_email',
     'financial_controller', 'financial_controller_mobile', 'financial_controller_email',
     'art_dept_coordinator', 'art_dept_coordinator_mobile', 'art_dept_coordinator_email',
-    'notes', 'rate_card_type',
+    'notes', 'rate_card_type', 'agreed_price',
   ];
   const updates = {};
   allowed.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
@@ -209,6 +231,11 @@ const updateProduction = async (req, res) => {
     return res.status(400).json({ error: 'No updatable fields provided' });
   if (updates.rate_card_type !== undefined && !RATE_CARD_TYPES.includes(updates.rate_card_type))
     return res.status(400).json({ error: `rate_card_type must be one of: ${RATE_CARD_TYPES.join(', ')}` });
+  if (updates.agreed_price !== undefined) {
+    const budget = parseBudget(updates.agreed_price);
+    if (budget.error) return res.status(400).json({ error: budget.error });
+    updates.agreed_price = budget.value;
+  }
 
   try {
     // Contract type lock: block change if linked POs or timesheets exist
@@ -239,6 +266,12 @@ const updateProduction = async (req, res) => {
       const { rows: [curr] } = await db.query('SELECT rate_card_type FROM productions WHERE id = $1', [req.params.id]);
       previousRateCard = curr?.rate_card_type ?? null;
     }
+    // FB-02: remember the budget before the change so it can be audited
+    let previousBudget;
+    if (updates.agreed_price !== undefined) {
+      const { rows: [curr] } = await db.query('SELECT agreed_price FROM productions WHERE id = $1', [req.params.id]);
+      previousBudget = curr?.agreed_price == null ? null : Number(curr.agreed_price);
+    }
 
     const fields     = Object.keys(updates);
     const values     = Object.values(updates);
@@ -255,6 +288,15 @@ const updateProduction = async (req, res) => {
         category: 'rate_card', action: 'production_rate_card_changed', entityType: 'production', entityId: req.params.id,
         details: `Rate card for ${rows[0].name} changed from ${previousRateCard || 'standard'} to ${updates.rate_card_type}. Existing timesheets keep their rates until recalculated or re-saved.`,
         metadata: { from: previousRateCard, to: updates.rate_card_type },
+      });
+    }
+    if (updates.agreed_price !== undefined && previousBudget !== updates.agreed_price) {
+      const money = v => (v == null ? 'not set' : `£${Number(v).toFixed(2)}`);
+      await logAudit({
+        userId: req.user?.id, userName: req.user?.full_name, userRole: req.user?.role, productionId: req.params.id,
+        category: 'financial', action: 'production_budget_changed', entityType: 'production', entityId: req.params.id,
+        details: `Budget for ${rows[0].name} changed from ${money(previousBudget)} to ${money(updates.agreed_price)} (ex VAT)`,
+        metadata: { from: previousBudget, to: updates.agreed_price },
       });
     }
     res.json(rows[0]);

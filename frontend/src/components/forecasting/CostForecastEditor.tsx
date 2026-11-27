@@ -10,7 +10,12 @@ import {
   type CostForecast,
   type CostForecastCrewLine,
   type CostForecastNonLabourLine,
+  type RateCardType,
 } from '@/lib/api';
+import {
+  priceCrewLine, priceNonLabourLine, sumForecast, defaultSaturdayRate, defaultSundayRate,
+  type ForecastSettings,
+} from '@/lib/costForecastCalc';
 
 interface CostForecastEditorProps {
   forecastId: string;
@@ -47,6 +52,20 @@ export default function CostForecastEditor({
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  // FB-08 (Ben item 9) — forecast-level options
+  const [rateCard, setRateCard] = useState<RateCardType>('standard');
+  const [travelRate, setTravelRate] = useState('25');
+  const [perDiemRate, setPerDiemRate] = useState('0');
+  const [marginEnabled, setMarginEnabled] = useState(false);
+  const [marginPct, setMarginPct] = useState('10');
+  const [showExtras, setShowExtras] = useState(true);
+  const settings: ForecastSettings = {
+    travel_hourly_rate: travelRate,
+    per_diem_rate: perDiemRate,
+    margin_enabled: marginEnabled,
+    margin_pct: marginPct,
+  };
+
   // Add custom line modal state
   const [showAddCustom, setShowAddCustom] = useState(false);
   const [customDesc, setCustomDesc] = useState('');
@@ -64,6 +83,11 @@ export default function CostForecastEditor({
       setCrewLines(data.crew_lines || []);
       setNonLabourLines(data.non_labour_lines || []);
       setViewMode(data.default_view || 'weekly');
+      setRateCard((data.rate_card_type as RateCardType) || 'standard');
+      setTravelRate(String(data.travel_hourly_rate ?? 25));
+      setPerDiemRate(String(data.per_diem_rate ?? 0));
+      setMarginEnabled(Boolean(data.margin_enabled));
+      setMarginPct(String(data.margin_pct ?? 10));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load forecast');
     } finally {
@@ -90,31 +114,30 @@ export default function CostForecastEditor({
           ? (line.rate_unit === 'weekly' ? Number((currentRate / 5).toFixed(2)) : currentRate)
           : (line.rate_unit === 'daily' ? Number((currentRate * 5).toFixed(2)) : currentRate);
 
-        const units = parseFloat(String(line.units)) || 0;
         return {
           ...line,
           rate_unit: mode,
           unit_rate: newRate,
-          line_total: Number((units * newRate).toFixed(2)),
         };
       })
     );
   };
 
-  // Update crew line units
-  const handleCrewUnitsChange = (lineId: string, valStr: string) => {
-    const units = valStr === '' ? 0 : parseFloat(valStr);
-    setCrewLines(prev =>
-      prev.map(l => {
-        if (l.id !== lineId) return l;
-        const rate = parseFloat(String(l.unit_rate)) || 0;
-        return {
-          ...l,
-          units: valStr,
-          line_total: Number(((isNaN(units) ? 0 : units) * rate).toFixed(2)),
-        };
-      })
-    );
+  // Update a typed crew-line field (units, OT, travel, per diem, weekends, rate overrides, margin toggle).
+  // Totals are priced live in render (lib/costForecastCalc) and re-priced by the server on save.
+  type CrewField = 'units' | 'ot_hours' | 'ot_rate' | 'travel_hours' | 'per_diem_days'
+    | 'saturday_days' | 'saturday_rate' | 'sunday_days' | 'sunday_rate';
+  const handleCrewFieldChange = (lineId: string, field: CrewField, valStr: string) => {
+    setCrewLines(prev => prev.map(l => (l.id === lineId ? { ...l, [field]: valStr } : l)));
+  };
+  const handleCrewUnitsChange = (lineId: string, valStr: string) => handleCrewFieldChange(lineId, 'units', valStr);
+  const toggleCrewMargin = (lineId: string) =>
+    setCrewLines(prev => prev.map(l => (l.id === lineId ? { ...l, margin_applied: l.margin_applied === false } : l)));
+  const toggleNonLabourMargin = (lineId: string) =>
+    setNonLabourLines(prev => prev.map(l => (l.id === lineId ? { ...l, margin_applied: l.margin_applied === false } : l)));
+  const setAllMargins = (on: boolean) => {
+    setCrewLines(prev => prev.map(l => ({ ...l, margin_applied: on })));
+    setNonLabourLines(prev => prev.map(l => ({ ...l, margin_applied: on })));
   };
 
   // Update non-labour line quantity or rate
@@ -167,23 +190,42 @@ export default function CostForecastEditor({
     setShowAddCustom(false);
   };
 
-  // Live Totals Calculation
-  const totalCrewCost = crewLines.reduce((acc, l) => acc + (parseFloat(String(l.line_total)) || 0), 0);
-  const totalNonLabourCost = nonLabourLines.reduce((acc, l) => acc + (parseFloat(String(l.line_total)) || 0), 0);
-  const grandTotalCost = totalCrewCost + totalNonLabourCost;
+  // Live Totals Calculation (FB-08: extras + margin, priced exactly like the server)
+  const pricedCrew = crewLines.map(l => ({ ...l, ...priceCrewLine(l, settings) }));
+  const pricedNonLabour = nonLabourLines.map(l => ({ ...l, ...priceNonLabourLine(l, settings) }));
+  const totals = sumForecast(pricedCrew, pricedNonLabour);
+  const totalCrewCost = totals.total_crew_cost;
+  const totalNonLabourCost = totals.total_non_labour_cost;
+  const grandTotalCost = totals.grand_total_cost;
+  const pricedById = new Map(pricedCrew.map(l => [l.id, l]));
+
+  const validNumber = (v: string, max = 100000) => v !== '' && Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= max;
 
   // Save changes
-  const handleSave = async () => {
+  const handleSave = async (override?: { rate_card_type?: RateCardType }) => {
+    if (!validNumber(travelRate) || !validNumber(perDiemRate) || !validNumber(marginPct, 1000)) {
+      setError('Travel £/hr, per diem £/day and margin % must be numbers of 0 or more.');
+      return false;
+    }
     setSaving(true);
     setError('');
     setSuccessMsg('');
     try {
       const updated = await costForecastsApi.update(forecastId, {
         default_view: viewMode,
+        rate_card_type: override?.rate_card_type ?? rateCard,
+        travel_hourly_rate: Number(travelRate),
+        per_diem_rate: Number(perDiemRate),
+        margin_enabled: marginEnabled,
+        margin_pct: Number(marginPct),
         crew_lines: crewLines,
         non_labour_lines: nonLabourLines,
       });
       setForecast(prev => prev ? { ...prev, ...updated } : prev);
+      // The server re-prices everything (card rates × rate card); show exactly what it stored.
+      if (updated.crew_lines) setCrewLines(updated.crew_lines);
+      if (updated.non_labour_lines) setNonLabourLines(updated.non_labour_lines);
+      if (updated.rate_card_type) setRateCard(updated.rate_card_type);
       setSuccessMsg('Changes saved successfully');
       setTimeout(() => setSuccessMsg(''), 3000);
       return true;
@@ -193,6 +235,16 @@ export default function CostForecastEditor({
     } finally {
       setSaving(false);
     }
+  };
+
+  // FB-08: switching Standard ⇄ Commercial re-prices every card rate on the server, so save straight away
+  const handleRateCardChange = async (next: RateCardType) => {
+    if (next === rateCard || isLocked) return;
+    const msg = next === 'commercial'
+      ? 'Switch this forecast to COMMERCIAL rates?\n\nEvery rate-card rate (weekly/daily, default OT, weekend defaults) is re-priced with the commercial uplift. Typed rate overrides, travel and per diem are not uplifted. Your other changes are saved too.'
+      : 'Switch this forecast back to STANDARD rates?\n\nEvery rate-card rate is re-priced without the commercial uplift. Your other changes are saved too.';
+    if (!confirm(msg)) return;
+    await handleSave({ rate_card_type: next });
   };
 
   // Lock forecast
@@ -356,6 +408,60 @@ export default function CostForecastEditor({
             </div>
           )}
         </div>
+
+        {/* FB-08 (Ben item 9) — rate card, travel, per diem and margin for this forecast */}
+        <div className="flex flex-wrap items-end gap-4 pt-3 border-t border-slate-100 text-xs">
+          <div>
+            <span className="block text-slate-500 font-medium mb-1">Rates</span>
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200" role="radiogroup" aria-label="Rate card">
+              {(['standard', 'commercial'] as const).map(rc => (
+                <button key={rc} type="button" role="radio" aria-checked={rateCard === rc}
+                  onClick={() => handleRateCardChange(rc)} disabled={isLocked || saving || locking}
+                  className={`px-2.5 py-1 rounded-md font-semibold capitalize disabled:cursor-not-allowed ${rateCard === rc ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
+                  {rc}
+                </button>
+              ))}
+            </div>
+            {forecast.production_rate_card_type && forecast.production_rate_card_type !== rateCard && (
+              <span className="block text-[11px] text-amber-700 mt-1">Production is on {forecast.production_rate_card_type} rates</span>
+            )}
+          </div>
+          <label className="block">
+            <span className="block text-slate-500 font-medium mb-1">Travel £/hr</span>
+            <input type="number" min="0" step="0.01" value={travelRate} onChange={e => setTravelRate(e.target.value)} disabled={isLocked}
+              className="w-24 px-2 py-1 border border-slate-200 rounded-lg text-right disabled:bg-slate-50" />
+          </label>
+          <label className="block">
+            <span className="block text-slate-500 font-medium mb-1">Per diem £/day</span>
+            <input type="number" min="0" step="0.01" value={perDiemRate} onChange={e => setPerDiemRate(e.target.value)} disabled={isLocked}
+              className="w-24 px-2 py-1 border border-slate-200 rounded-lg text-right disabled:bg-slate-50" />
+          </label>
+          <div>
+            <span className="block text-slate-500 font-medium mb-1">Margin</span>
+            <div className="flex items-center gap-2">
+              <button type="button" role="switch" aria-checked={marginEnabled} aria-label="Apply margin to this forecast"
+                onClick={() => setMarginEnabled(v => !v)} disabled={isLocked}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-60 ${marginEnabled ? 'bg-green-600' : 'bg-slate-300'}`}>
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${marginEnabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </button>
+              <input type="number" min="0" max="1000" step="0.5" value={marginPct} onChange={e => setMarginPct(e.target.value)} disabled={isLocked || !marginEnabled}
+                aria-label="Margin %" className="w-16 px-2 py-1 border border-slate-200 rounded-lg text-right disabled:bg-slate-50 disabled:text-slate-400" />
+              <span className="text-slate-500">%</span>
+            </div>
+          </div>
+          {marginEnabled && !isLocked && (
+            <div className="flex items-center gap-2 pb-1">
+              <span className="text-slate-500">All lines:</span>
+              <button type="button" onClick={() => setAllMargins(true)} className="text-blue-600 hover:underline font-medium">margin on</button>
+              <span className="text-slate-300">|</span>
+              <button type="button" onClick={() => setAllMargins(false)} className="text-blue-600 hover:underline font-medium">margin off</button>
+            </div>
+          )}
+          <label className="flex items-center gap-1.5 pb-1 ml-auto text-slate-600 cursor-pointer">
+            <input type="checkbox" checked={showExtras} onChange={e => setShowExtras(e.target.checked)} />
+            Show OT / travel / per diem / weekends
+          </label>
+        </div>
       </div>
 
       {error && (
@@ -377,7 +483,10 @@ export default function CostForecastEditor({
         <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex flex-wrap gap-2 items-center justify-between">
           <div>
             <h2 className="text-sm font-bold text-slate-900 tracking-tight">1. Crew Costs (Linked from BECTU Rate Card)</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Rates dynamically pulled from active BECTU agreement. Enter required crew units.</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Rates pulled from the active rate card{rateCard === 'commercial' ? ' with the commercial uplift' : ''}. Enter crew units and any OT, travel, per diem or weekend days.
+              Blank Sat / Sun / OT rates use the defaults (Saturday = day rate, Sunday = 2 × day rate, OT = rate card).
+            </p>
           </div>
           <span className="text-xs font-semibold px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg">
             Subtotal: {fmt(totalCrewCost)}
@@ -393,6 +502,19 @@ export default function CostForecastEditor({
                 <th className="px-4 py-3 text-right">Unit Rate ({viewMode === 'daily' ? 'Daily' : 'Weekly'})</th>
                 <th className="px-4 py-3 text-center w-32">No. of Units</th>
                 <th className="px-4 py-3 text-center w-24">Period</th>
+                {showExtras && (
+                  <>
+                    <th className="px-2 py-3 text-center" title="Overtime hours (total for the line)">OT hrs</th>
+                    <th className="px-2 py-3 text-center" title="OT £/hr — blank uses the rate card">OT £/hr</th>
+                    <th className="px-2 py-3 text-center" title="Travel hours (total) × travel £/hr">Travel hrs</th>
+                    <th className="px-2 py-3 text-center" title="Per diem days × per diem £/day">Per diem days</th>
+                    <th className="px-2 py-3 text-center">Sat days</th>
+                    <th className="px-2 py-3 text-center" title="Saturday £/day — blank = day rate">Sat £/day</th>
+                    <th className="px-2 py-3 text-center">Sun days</th>
+                    <th className="px-2 py-3 text-center" title="Sunday £/day — blank = 2 × day rate">Sun £/day</th>
+                  </>
+                )}
+                {marginEnabled && <th className="px-2 py-3 text-center">Margin</th>}
                 <th className="px-5 py-3 text-right">Total (£)</th>
               </tr>
             </thead>
@@ -404,12 +526,23 @@ export default function CostForecastEditor({
                 return (
                   <React.Fragment key={secKey}>
                     <tr className="bg-slate-100 border-t border-b border-slate-200">
-                      <td colSpan={6} className="px-5 py-2 text-xs font-bold text-slate-700 uppercase tracking-wide">
+                      <td colSpan={6 + (showExtras ? 8 : 0) + (marginEnabled ? 1 : 0)} className="px-5 py-2 text-xs font-bold text-slate-700 uppercase tracking-wide">
                         {SECTION_HEADERS[secKey] || secKey}
                       </td>
                     </tr>
                     {sectionLines.map(line => {
-                      const units = parseFloat(String(line.units)) || 0;
+                      const priced = pricedById.get(line.id);
+                      const extraInput = (field: CrewField, placeholder?: string, step = '0.5') => (
+                        <input
+                          type="number" min="0" step={step}
+                          disabled={isLocked || locking || saving}
+                          value={line[field] === null || line[field] === undefined || (placeholder === undefined && Number(line[field]) === 0) ? '' : String(line[field])}
+                          placeholder={placeholder ?? '0'}
+                          aria-label={`${field.replace(/_/g, ' ')} — ${line.rank}`}
+                          onChange={e => handleCrewFieldChange(line.id, field, e.target.value)}
+                          className="w-16 px-1.5 py-1 text-center text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400"
+                        />
+                      );
                       return (
                         <tr key={line.id} className="hover:bg-slate-50 transition-colors">
                           <td className="px-5 py-2.5 font-mono text-xs text-slate-500">{line.cost_code || '—'}</td>
@@ -434,8 +567,29 @@ export default function CostForecastEditor({
                           <td className="px-4 py-2.5 text-center text-xs text-slate-500 capitalize">
                             {viewMode}
                           </td>
-                          <td className="px-5 py-2.5 text-right text-xs font-semibold text-slate-900">
-                            {fmt(line.line_total)}
+                          {showExtras && (
+                            <>
+                              <td className="px-1 py-2 text-center">{extraInput('ot_hours')}</td>
+                              <td className="px-1 py-2 text-center">{extraInput('ot_rate', Number(line.default_ot_rate || 0).toFixed(2), '0.01')}</td>
+                              <td className="px-1 py-2 text-center">{extraInput('travel_hours')}</td>
+                              <td className="px-1 py-2 text-center">{extraInput('per_diem_days')}</td>
+                              <td className="px-1 py-2 text-center">{extraInput('saturday_days')}</td>
+                              <td className="px-1 py-2 text-center">{extraInput('saturday_rate', defaultSaturdayRate(line.daily_rate).toFixed(2), '0.01')}</td>
+                              <td className="px-1 py-2 text-center">{extraInput('sunday_days')}</td>
+                              <td className="px-1 py-2 text-center">{extraInput('sunday_rate', defaultSundayRate(line.daily_rate).toFixed(2), '0.01')}</td>
+                            </>
+                          )}
+                          {marginEnabled && (
+                            <td className="px-2 py-2 text-center">
+                              <input type="checkbox" checked={line.margin_applied !== false} onChange={() => toggleCrewMargin(line.id)}
+                                disabled={isLocked} aria-label={`Apply margin — ${line.rank}`} />
+                            </td>
+                          )}
+                          <td className="px-5 py-2.5 text-right text-xs font-semibold text-slate-900 whitespace-nowrap">
+                            {fmt(priced?.line_total ?? line.line_total)}
+                            {marginEnabled && Number(priced?.margin_amount || 0) > 0 && (
+                              <span className="block text-[11px] font-normal text-green-700">+ {fmt(priced?.margin_amount)} margin</span>
+                            )}
                           </td>
                         </tr>
                       );
@@ -480,6 +634,7 @@ export default function CostForecastEditor({
                 <th className="px-4 py-3 text-right">Unit Rate (£)</th>
                 <th className="px-4 py-3 text-center w-28">Quantity</th>
                 <th className="px-4 py-3 text-center w-28">Unit Type</th>
+                {marginEnabled && <th className="px-2 py-3 text-center">Margin</th>}
                 <th className="px-5 py-3 text-right">Total (£)</th>
                 {!isLocked && <th className="px-4 py-3 w-10"></th>}
               </tr>
@@ -517,8 +672,17 @@ export default function CostForecastEditor({
                   <td className="px-4 py-2.5 text-center text-xs text-slate-500 capitalize">
                     {nl.unit_type || 'weekly'}
                   </td>
-                  <td className="px-5 py-2.5 text-right text-xs font-semibold text-slate-900">
-                    {fmt(nl.line_total)}
+                  {marginEnabled && (
+                    <td className="px-2 py-2 text-center">
+                      <input type="checkbox" checked={nl.margin_applied !== false} onChange={() => toggleNonLabourMargin(nl.id)}
+                        disabled={isLocked} aria-label={`Apply margin — ${nl.description}`} />
+                    </td>
+                  )}
+                  <td className="px-5 py-2.5 text-right text-xs font-semibold text-slate-900 whitespace-nowrap">
+                    {fmt(priceNonLabourLine(nl, settings).line_total)}
+                    {marginEnabled && priceNonLabourLine(nl, settings).margin_amount > 0 && (
+                      <span className="block text-[11px] font-normal text-green-700">+ {fmt(priceNonLabourLine(nl, settings).margin_amount)} margin</span>
+                    )}
                   </td>
                   {!isLocked && (
                     <td className="px-4 py-2 text-center">
@@ -649,13 +813,25 @@ export default function CostForecastEditor({
               <span>TOTAL FORECAST COST:</span>{' '}
               <span className="text-blue-600 ml-1.5">{fmt(grandTotalCost)}</span>
             </div>
+            {marginEnabled && (
+              <>
+                <div>
+                  <span className="text-slate-400">Margin ({marginPct || 0}%):</span>{' '}
+                  <strong className="text-green-700">{fmt(totals.margin_total)}</strong>
+                </div>
+                <div className="text-sm font-bold text-slate-900 border-l border-slate-200 pl-6">
+                  <span>TOTAL WITH MARGIN:</span>{' '}
+                  <span className="text-green-700 ml-1.5">{fmt(totals.grand_total_with_margin)}</span>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
             {!isLocked && (
               <button
                 type="button"
-                onClick={handleSave}
+                onClick={() => handleSave()}
                 disabled={saving || locking}
                 className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
               >

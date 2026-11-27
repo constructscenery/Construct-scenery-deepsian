@@ -48,6 +48,7 @@ router.delete('/forecasts/:id', requireRole(...ALL_ROLES), ctrl.deleteForecast);
 
 // Percentometer
 router.get('/percentometer/ratios',     ctrl.getRatios);
+router.get('/percentometer/settings',   ctrl.getPercentometerSettings);  // FB-07
 router.post('/percentometer/calculate', ctrl.calculatePercentometer);
 router.put('/percentometer/ratios',     requireRole(...ALL_ROLES), ctrl.updateRatios);
 

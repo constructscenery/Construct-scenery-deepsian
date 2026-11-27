@@ -65,8 +65,22 @@ describe('POST /api/percentometer/calculate', () => {
       .send({ known_cost: 42000, known_cost_type: 'Carpenters' });
 
     expect(res.status).toBe(200);
-    expect(res.body.total_estimated_job_cost).toBeCloseTo(100000, 0);  // 42000 / 0.42
+    // FB-07: Ben's spreadsheet — 25% above-the-line fixed costs by default → 42000 / (0.42 × 0.75)
+    expect(res.body.total_estimated_job_cost).toBeCloseTo(133333.33, 2);
+    expect(res.body.atl_pct).toBe(25);
     expect(Array.isArray(res.body.breakdown)).toBe(true);
+    expect(res.body.breakdown).toHaveLength(12);   // 11 departments + the above-the-line line
+    expect(res.body.breakdown.find(b => b.cost_type === 'Carpenters').estimated_value).toBeCloseTo(42000, 2);
+  });
+
+  test('atl_pct 0 reproduces the old ratio-only result (FB-07)', async () => {
+    dbMock.respond(SAMPLE_RATIOS);
+    const res = await request(app)
+      .post('/api/percentometer/calculate')
+      .set(authHeader('md'))
+      .send({ known_cost: 42000, known_cost_type: 'Carpenters', atl_pct: 0 });
+    expect(res.status).toBe(200);
+    expect(res.body.total_estimated_job_cost).toBeCloseTo(100000, 2);
     expect(res.body.breakdown).toHaveLength(11);
   });
 

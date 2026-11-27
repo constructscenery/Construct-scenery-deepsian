@@ -688,7 +688,7 @@ export default function CrewEarningsReportModal({
         {/* Modal Footer */}
         <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between print:hidden">
           <p className="text-xs text-slate-500">
-            Construct Scenery Database · Timesheets & Crew Earnings Module
+            The Office · Timesheets & Crew Earnings Module
           </p>
           <div className="flex items-center gap-2">
             <button

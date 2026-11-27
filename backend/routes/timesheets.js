@@ -29,6 +29,7 @@ router.post('/import/preview', csvUpload.single('csv'),       requireRole(...ALL
 router.post('/import',         csvUpload.single('csv'),       requireRole(...ALL_ROLES), ctrl.importCSV);
 
 router.post('/bulk-distribute',   requireRole(...ALL_ROLES), ctrl.bulkDistribute);
+router.post('/bulk-verify',       requireRole(...ALL_ROLES), ctrl.bulkVerifyTimesheets);  // FB-05
 router.post('/chase-invoices',    requireRole(...ALL_ROLES), ctrl.chaseInvoices);
 router.post('/verification-pack', requireRole(...ALL_ROLES), ctrl.generateVerificationPackPdf);
 router.post('/verification-pack-pdf', requireRole(...ALL_ROLES), ctrl.generateVerificationPackCombinedPdf);

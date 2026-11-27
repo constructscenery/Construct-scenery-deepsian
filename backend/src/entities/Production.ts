@@ -65,6 +65,10 @@ export class Production {
   @Column({ type: 'text', name: 'rate_card_type', default: RateCardType.STANDARD })
   rateCardType: RateCardType;
 
+  /** FB-02 — On a Price budget / agreed price, ex VAT (read by the dashboard P&L and the cost report) */
+  @Column({ type: 'decimal', precision: 14, scale: 2, name: 'agreed_price', nullable: true })
+  agreedPrice: string | null;
+
   @Column({ type: 'text', default: ProductionStatus.PRE_PRODUCTION })
   status: ProductionStatus;
 

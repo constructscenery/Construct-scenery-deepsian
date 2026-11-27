@@ -7,8 +7,9 @@ import Link from 'next/link';
 import {
   ChevronLeft, ChevronRight, CheckCircle2, AlertCircle, Loader2,
   Mail, Paperclip, ShieldCheck, X, Plus, ExternalLink, UserX, Send, FileText,
-  ChevronDown, Download, Search, Trash2, FileUp, FileSpreadsheet, CheckSquare,
+  ChevronDown, Download, Search, Trash2, FileUp, FileSpreadsheet, CheckSquare, Printer,
 } from 'lucide-react';
+import { printPdfBlob, printOutcomeMessage } from '@/lib/printPdf';
 import TimesheetImportModal from './TimesheetImportModal';
 import SendTimesheetsChecklistModal from './SendTimesheetsChecklistModal';
 import {
@@ -22,18 +23,69 @@ import { usePagedList } from '@/hooks/usePagination';
 
 // ─── Inline API helpers ───────────────────────────────────────────────────────
 
-const verifyTimesheet = async (id: string) => {
+// FB-06: an optional reason verifies a self-employed timesheet without an invoice.
+// Errors carry `code` ('INVOICE_REQUIRED' when the invoice is missing) so the page can offer the override.
+const verifyTimesheet = async (id: string, invoiceOverrideReason?: string) => {
   const r = await fetch(`/api/timesheets/${id}/verify`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${localStorage.getItem('cs_token')}`,
     },
+    body: JSON.stringify(invoiceOverrideReason ? { invoice_override_reason: invoiceOverrideReason } : {}),
   });
   const data = await r.json();
-  if (!r.ok) throw new Error(data.message || data.error || 'Verify failed');
+  if (!r.ok) {
+    const err = new Error(data.message || data.error || 'Verify failed') as Error & { code?: string };
+    if (data.error === 'INVOICE_REQUIRED') err.code = 'INVOICE_REQUIRED';
+    throw err;
+  }
   return data;
 };
+
+// ─── FB-06 — Verify without invoice (reason required) ─────────────────────────
+function VerifyWithoutInvoiceModal({ name, busy, error, onCancel, onConfirm }: {
+  name: string; busy: boolean; error: string; onCancel: () => void; onConfirm: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState('');
+  const ok = reason.trim().length >= 5;
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onCancel}>
+      <div role="dialog" aria-modal="true" aria-labelledby="vwi-title" className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <h2 id="vwi-title" className="text-slate-900 font-semibold">Verify without invoice?</h2>
+          <button onClick={onCancel} className="text-slate-400 hover:text-slate-600" aria-label="Close"><X size={18} /></button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <p className="text-sm text-slate-600">
+            <strong className="text-slate-800">{name}</strong> is self-employed and has no invoice attached.
+            You can still verify this timesheet — the reason is recorded in the audit log and shown in the verification pack.
+          </p>
+          <div>
+            <label htmlFor="vwi-reason" className="block text-xs font-medium text-slate-600 mb-1">Reason *</label>
+            <textarea
+              id="vwi-reason" rows={3} autoFocus value={reason} onChange={e => setReason(e.target.value)} maxLength={500}
+              placeholder="e.g. Invoice promised by email, needed for this week's pay run"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-[11px] text-slate-400 mt-1">At least 5 characters.</p>
+          </div>
+          {error && <p className="text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-slate-100">
+          <button onClick={onCancel} className="px-3 py-2 text-sm text-slate-600 hover:text-slate-800">Cancel</button>
+          <button
+            onClick={() => onConfirm(reason.trim())} disabled={!ok || busy}
+            className="flex items-center gap-2 bg-amber-600 text-white text-sm rounded-lg px-4 py-2 hover:bg-amber-700 disabled:opacity-60"
+          >
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+            Verify without invoice
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const attachInvoice = (id: string, formData: FormData) =>
   fetch(`/api/timesheets/${id}/attach-invoice`, {
@@ -811,6 +863,12 @@ export default function TimesheetsPage() {
 
   // Action states
   const [verifying, setVerifying]   = useState<string | null>(null);
+  // FB-05 / FB-06
+  const [overrideTarget, setOverrideTarget] = useState<{ id: string; name: string } | null>(null);
+  const [overrideBusy, setOverrideBusy]     = useState(false);
+  const [overrideError, setOverrideError]   = useState('');
+  const [bulkVerifying, setBulkVerifying]   = useState(false);
+  const [bulkVerifyResult, setBulkVerifyResult] = useState<{ message: string; skipped: Array<{ name: string; reason: string }> } | null>(null);
   const [chasing, setChasing]       = useState(false);
   const [chaseMsg, setChaseMsg]     = useState('');
   const [attachModal, setAttachModal] = useState<{ id: string; name: string } | null>(null);
@@ -1118,9 +1176,54 @@ export default function TimesheetsPage() {
       await verifyTimesheet(id);
       await loadSheets();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Verify failed');
+      if ((err as { code?: string })?.code === 'INVOICE_REQUIRED') {
+        // FB-06: offer "verify without invoice" with a reason instead of a dead-end alert
+        const ts = sheets.find(s => s.id === id);
+        setOverrideError('');
+        setOverrideTarget({ id, name: ts ? `${ts.first_name ?? ''} ${ts.last_name ?? ''}`.trim() || 'This crew member' : 'This crew member' });
+      } else {
+        alert(err instanceof Error ? err.message : 'Verify failed');
+      }
     } finally {
       setVerifying(null);
+    }
+  };
+
+  const handleVerifyWithoutInvoice = async (reason: string) => {
+    if (!overrideTarget) return;
+    setOverrideBusy(true);
+    setOverrideError('');
+    try {
+      await verifyTimesheet(overrideTarget.id, reason);
+      setOverrideTarget(null);
+      await loadSheets();
+    } catch (err: unknown) {
+      setOverrideError(err instanceof Error ? err.message : 'Verify failed');
+    } finally {
+      setOverrideBusy(false);
+    }
+  };
+
+  // FB-05: bulk verify the selected timesheets (same rules as one-by-one; never skips the invoice check)
+  const handleBulkVerify = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    if (!confirm(`Verify ${ids.length} selected timesheet(s)?\n\nOnly distributed or amendment-requested timesheets are verified. Self-employed crew without an invoice are skipped — verify those one at a time.`)) return;
+    setBulkVerifying(true);
+    setBulkVerifyResult(null);
+    try {
+      const res = await timesheetsApi.bulkVerify(ids);
+      const nameOf = (id: string) => {
+        const ts = sheets.find(s => s.id === id);
+        return ts ? `${ts.first_name ?? ''} ${ts.last_name ?? ''}`.trim() || id : id;
+      };
+      setBulkVerifyResult({ message: res.message, skipped: res.skipped.map(sk => ({ name: nameOf(sk.timesheet_id), reason: sk.reason })) });
+      setSelectedIds(new Set());
+      await loadSheets();
+    } catch (err: unknown) {
+      setBulkVerifyResult({ message: err instanceof Error ? err.message : 'Bulk verify failed', skipped: [] });
+    } finally {
+      setBulkVerifying(false);
     }
   };
 
@@ -1275,65 +1378,47 @@ export default function TimesheetsPage() {
     }
   };
 
-  const handleGenerateRowPack = async (ts: Timesheet) => {
-    setPackDownloadingId(ts.id);
-    setPackMsg('');
-    try {
-      const res = await fetch(`/api/timesheets/${ts.id}/verification-pack`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('cs_token')}`,
-        },
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setPackMsg((data as { error?: string }).error ?? 'Failed to generate verification pack');
-        return;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const crewName = `${ts.first_name ?? ''} ${ts.last_name ?? ''}`.trim() || 'Crew';
-      const prodName = ts.prod_name ?? selectedProdName ?? 'Production';
-      a.download = `VerificationPack_${crewName.replace(/[^a-zA-Z0-9]+/g, '_')}_${prodName.replace(/[^a-zA-Z0-9]+/g, '_')}_w-e-${ts.week_ending_date}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setPackMsg(`Verification pack downloaded for ${crewName}`);
-    } catch (err: unknown) {
-      setPackMsg(err instanceof Error ? err.message : 'Failed to generate verification pack');
-    } finally {
-      setPackDownloadingId(null);
+  // One fetch for both Download and Print (Ben, Nov 2026: "add a print button to actions").
+  // kind 'pack' = verification pack (timesheet + invoice) for sent timesheets; 'draft' = draft timesheet PDF.
+  const fetchRowPdf = async (ts: Timesheet, kind: 'pack' | 'draft') => {
+    const res = await fetch(`/api/timesheets/${ts.id}/${kind === 'pack' ? 'verification-pack' : 'draft-pdf'}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('cs_token')}` },
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error((data as { error?: string }).error ?? (kind === 'pack' ? 'Failed to generate verification pack' : 'Failed to download draft PDF'));
     }
+    const crewName = `${ts.first_name ?? ''} ${ts.last_name ?? ''}`.trim() || 'Crew';
+    const prodName = ts.prod_name ?? selectedProdName ?? 'Production';
+    const filename = `${kind === 'pack' ? 'VerificationPack' : 'Timesheet_Draft'}_${crewName.replace(/[^a-zA-Z0-9]+/g, '_')}_${prodName.replace(/[^a-zA-Z0-9]+/g, '_')}_w-e-${ts.week_ending_date}.pdf`;
+    return { blob: await res.blob(), filename, crewName };
   };
 
-  const handleDownloadDraft = async (ts: Timesheet) => {
+  const handleRowPdf = async (ts: Timesheet, kind: 'pack' | 'draft', mode: 'download' | 'print') => {
     setPackDownloadingId(ts.id);
     setPackMsg('');
     try {
-      const res = await fetch(`/api/timesheets/${ts.id}/draft-pdf`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('cs_token')}` },
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setPackMsg((data as { error?: string }).error ?? 'Failed to download draft PDF');
+      const { blob, filename, crewName } = await fetchRowPdf(ts, kind);
+      const what = kind === 'pack' ? `the verification pack for ${crewName}` : `the draft timesheet for ${crewName}`;
+      if (mode === 'print') {
+        setPackMsg(printOutcomeMessage(await printPdfBlob(blob, filename), what));
         return;
       }
-      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const crewName = `${ts.first_name ?? ''} ${ts.last_name ?? ''}`.trim() || 'Crew';
-      const prodName = ts.prod_name ?? selectedProdName ?? 'Production';
-      a.download = `Timesheet_Draft_${crewName.replace(/[^a-zA-Z0-9]+/g, '_')}_${prodName.replace(/[^a-zA-Z0-9]+/g, '_')}_w-e-${ts.week_ending_date}.pdf`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
-      setPackMsg(`Draft PDF downloaded for ${crewName}`);
+      setPackMsg(kind === 'pack' ? `Verification pack downloaded for ${crewName}` : `Draft PDF downloaded for ${crewName}`);
     } catch (err: unknown) {
-      setPackMsg(err instanceof Error ? err.message : 'Failed to download draft PDF');
+      setPackMsg(err instanceof Error ? err.message : (kind === 'pack' ? 'Failed to generate verification pack' : 'Failed to download draft PDF'));
     } finally {
       setPackDownloadingId(null);
     }
   };
+  const handleGenerateRowPack = (ts: Timesheet) => handleRowPdf(ts, 'pack', 'download');
+  const handleDownloadDraft = (ts: Timesheet) => handleRowPdf(ts, 'draft', 'download');
 
   const handleSendSingle = async (ts: Timesheet) => {
     setSendingId(ts.id);
@@ -1386,6 +1471,15 @@ export default function TimesheetsPage() {
 
   return (
     <>
+      {overrideTarget && (
+        <VerifyWithoutInvoiceModal
+          name={overrideTarget.name}
+          busy={overrideBusy}
+          error={overrideError}
+          onCancel={() => setOverrideTarget(null)}
+          onConfirm={handleVerifyWithoutInvoice}
+        />
+      )}
       {showNewTs && (
         <NewTimesheetModal
           productions={productions}
@@ -1515,6 +1609,20 @@ export default function TimesheetsPage() {
                   {bulkMsg || chaseMsg}
                 </span>
               )}
+              {bulkVerifyResult && (
+                <div role="status" className="text-xs rounded-lg px-3 py-1.5 border bg-green-50 border-green-200 text-green-800 max-w-md">
+                  <div className="flex items-start gap-2">
+                    <span className="font-medium">{bulkVerifyResult.message}</span>
+                    <button onClick={() => setBulkVerifyResult(null)} className="ml-auto text-green-700 hover:text-green-900" aria-label="Dismiss"><X size={12} /></button>
+                  </div>
+                  {bulkVerifyResult.skipped.length > 0 && (
+                    <ul className="mt-1 list-disc pl-4 text-amber-800">
+                      {bulkVerifyResult.skipped.slice(0, 8).map((sk, i) => <li key={i}>{sk.name}: {sk.reason}</li>)}
+                      {bulkVerifyResult.skipped.length > 8 && <li>…and {bulkVerifyResult.skipped.length - 8} more</li>}
+                    </ul>
+                  )}
+                </div>
+              )}
               <button
                 onClick={() => setShowImportModal(true)}
                 className="flex items-center gap-2 text-slate-700 text-sm border border-slate-200 bg-white rounded-lg px-3 py-2 hover:bg-slate-50 shadow-sm transition-colors font-medium"
@@ -1544,6 +1652,15 @@ export default function TimesheetsPage() {
               >
                 {chasing ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
                 Chase Invoices
+              </button>
+              <button
+                onClick={handleBulkVerify}
+                disabled={bulkVerifying || selectedIds.size === 0}
+                className="flex items-center gap-2 text-green-700 text-sm border border-green-200 bg-white rounded-lg px-3 py-2 hover:bg-green-50 shadow-sm disabled:opacity-60 transition-colors font-medium"
+                title={selectedIds.size > 0 ? `Verify ${selectedIds.size} selected timesheet(s)` : 'Tick timesheets to verify them in one go'}
+              >
+                {bulkVerifying ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                Verify Selected{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
               </button>
               <button
                 onClick={handleBulkSend}
@@ -1928,7 +2045,9 @@ export default function TimesheetsPage() {
                           <td className="w-14 px-1.5 py-2.5 text-center">
                             {invoiced
                               ? <CheckCircle2 size={15} className="text-green-500 mx-auto" />
-                              : <AlertCircle size={15} className="text-orange-400 mx-auto" />}
+                              : ts.invoice_override_reason
+                                ? <span title={`Verified without invoice: ${ts.invoice_override_reason}`} className="inline-flex"><ShieldCheck size={15} className="text-amber-500 mx-auto" aria-label="Verified without invoice" /></span>
+                                : <AlertCircle size={15} className="text-orange-400 mx-auto" />}
                           </td>
                           <td className="w-24 px-2 py-2.5 text-center">
                             <div className="flex flex-col items-center gap-0.5">
@@ -2068,6 +2187,16 @@ export default function TimesheetsPage() {
                                           <span>Download Draft PDF</span>
                                         </button>
                                       )}
+                                      {/* Print — same PDF as the download, straight to the print dialog */}
+                                      <button
+                                        type="button"
+                                        onClick={() => { setOpenActionsMenu(null); handleRowPdf(ts, ts.status !== 'draft' ? 'pack' : 'draft', 'print'); }}
+                                        disabled={packDownloadingId === ts.id}
+                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 text-slate-700 hover:bg-slate-50 font-normal transition-colors disabled:opacity-60"
+                                      >
+                                        <Printer size={13} className="text-slate-400" />
+                                        <span>{ts.status !== 'draft' ? 'Print PDF Pack' : 'Print Draft PDF'}</span>
+                                      </button>
                                     </div>
 
                                     <div className="py-0.5">

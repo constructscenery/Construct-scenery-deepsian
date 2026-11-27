@@ -129,6 +129,7 @@ function EditProductionModal({ production, onClose, onSaved }: EditProductionMod
     end_date:                        production.end_date   ? production.end_date.split('T')[0]   : '',
     contract_type:                   production.contract_type as ContractType | '',
     rate_card_type:                  (production.rate_card_type ?? 'standard') as RateCardType,
+    agreed_price:                    production.agreed_price == null ? '' : String(production.agreed_price),
   });
   const [saving, setSaving]               = useState(false);
   // CS-08: after switching the rate card, offer to re-price unfinalised timesheets
@@ -162,10 +163,17 @@ function EditProductionModal({ production, onClose, onSaved }: EditProductionMod
       setError('End date cannot be before start date.');
       return;
     }
+    // FB-02: budget / agreed price (On a Price only; Cost Plus budgets live in the Master Budget)
+    const budgetText = form.agreed_price.trim().replace(/[£,\s]/g, '');
+    if (form.contract_type === 'on_a_price' && budgetText !== '' && !/^\d+(\.\d{1,2})?$/.test(budgetText)) {
+      setError('Budget must be an amount like 75000 or 75000.50 (ex VAT), or empty.');
+      return;
+    }
     setSaving(true); setError('');
     try {
       const updated = await productionsApi.update(production.id, {
         ...form,
+        agreed_price: form.contract_type === 'on_a_price' ? (budgetText === '' ? null : budgetText) : undefined,
         contract_type:                  form.contract_type as ContractType,
         start_date:                     form.start_date || null,
         end_date:                       form.end_date   || null,
@@ -303,6 +311,19 @@ function EditProductionModal({ production, onClose, onSaved }: EditProductionMod
             lockedReason="Locked — linked POs or timesheets exist"
           />
           <RateCardSelector value={form.rate_card_type} upliftPct={upliftPct} onChange={v => setForm(f => ({ ...f, rate_card_type: v }))} />
+          {form.contract_type === 'on_a_price' && (
+            <div>
+              <label htmlFor="edit-agreed-price" className="block text-xs font-medium text-slate-600 mb-1">Budget / agreed price (ex VAT)</label>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 text-sm">£</span>
+                <input id="edit-agreed-price" inputMode="decimal" className={inputCls} placeholder="e.g. 75000" value={form.agreed_price} onChange={set('agreed_price')} />
+              </div>
+              <p className="text-slate-400 text-[11px] mt-1">Used by the dashboard Production P&amp;L and the cost report. Leave empty if not agreed yet.</p>
+            </div>
+          )}
+          {form.contract_type === 'cost_plus' && (
+            <p className="text-slate-400 text-[11px]">Cost Plus budgets are set in the cost report&apos;s Master Budget.</p>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Start Date</label>

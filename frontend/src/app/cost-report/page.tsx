@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react';
 import TopBar from '@/components/TopBar';
 import {
   Download, ChevronDown, ChevronRight, TrendingUp, TrendingDown,
-  Plus, X, Loader2, SlidersHorizontal,
+  Plus, X, Loader2, SlidersHorizontal, Pencil,
 } from 'lucide-react';
 import {
   productionsApi, costReportApi, costReportExtApi,
@@ -26,6 +26,82 @@ function SkeletonCard() {
       <div className="h-3 w-24 bg-slate-100 rounded mb-2" />
       <div className="h-6 w-20 bg-slate-100 rounded mb-1" />
       <div className="h-2.5 w-16 bg-slate-100 rounded" />
+    </div>
+  );
+}
+
+// ─── FB-02 — Budget (agreed price) card with inline Set / Edit ────────────────
+function BudgetCard({ productionId, budget, totalCosts, canEdit, onSaved }: {
+  productionId: string; budget: number | null; totalCosts: number; canEdit: boolean; onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const start = () => { setValue(budget == null ? '' : String(budget)); setError(''); setEditing(true); };
+  const save = async () => {
+    const cleaned = value.trim().replace(/[£,\s]/g, '');
+    if (cleaned !== '' && !/^\d+(\.\d{1,2})?$/.test(cleaned)) { setError('Enter an amount like 75000 or 75000.50'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      await productionsApi.update(productionId, { agreed_price: cleaned === '' ? null : cleaned });
+      setEditing(false);
+      onSaved();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not save the budget');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remaining = budget == null ? null : budget - totalCosts;
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 px-4 py-4 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-slate-500 text-xs font-medium leading-tight">Budget (agreed price)</p>
+        {canEdit && !editing && (
+          <button type="button" onClick={start} className="text-blue-600 hover:text-blue-800" title={budget == null ? 'Set budget' : 'Edit budget'} aria-label={budget == null ? 'Set budget' : 'Edit budget'}>
+            <Pencil size={12} />
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <div className="mt-1 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 text-slate-500 text-sm">£</span>
+            <input
+              autoFocus inputMode="decimal" value={value} onChange={e => setValue(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
+              placeholder="ex VAT" aria-label="Budget ex VAT"
+              className="min-w-0 flex-1 border border-slate-300 rounded-md px-2 py-1 text-sm"
+            />
+          </div>
+          {error && <p className="text-red-600 text-[11px]">{error}</p>}
+          <div className="flex gap-1.5">
+            <button type="button" onClick={save} disabled={saving} className="flex-1 bg-blue-600 text-white text-xs rounded-md py-1 hover:bg-blue-700 disabled:opacity-60">
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button type="button" onClick={() => setEditing(false)} className="flex-1 border border-slate-200 text-slate-600 text-xs rounded-md py-1 hover:bg-slate-50">Cancel</button>
+          </div>
+          <p className="text-slate-400 text-[11px]">Leave empty to clear.</p>
+        </div>
+      ) : budget == null ? (
+        <>
+          <p className="text-slate-400 text-lg font-bold mt-1">Not set</p>
+          {canEdit
+            ? <button type="button" onClick={start} className="text-blue-600 text-xs mt-0.5 hover:underline">Set budget</button>
+            : <p className="text-slate-400 text-xs mt-0.5">ex VAT</p>}
+        </>
+      ) : (
+        <>
+          <p className="text-slate-900 text-lg font-bold mt-1">{fmtGBP(budget)}</p>
+          <p className={`text-xs mt-0.5 ${remaining != null && remaining < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+            {remaining != null && remaining < 0 ? `${fmtGBP(Math.abs(remaining))} over budget` : `${fmtGBP(remaining ?? 0)} left · ex VAT`}
+          </p>
+        </>
+      )}
     </div>
   );
 }
@@ -115,7 +191,7 @@ function AddInvoiceForm({ productionId, onClose, onSaved }: AddInvoiceFormProps)
               <input type="date" className={inputCls} value={form.date} onChange={set('date')} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Amount (£) *</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Amount ex VAT (£) *</label>
               <input type="number" step="0.01" min="0.01" className={inputCls} placeholder="0.00" value={form.amount} onChange={set('amount')} />
             </div>
           </div>
@@ -182,7 +258,10 @@ function CostReportContent() {
   useEffect(() => {
     productionsApi.list().then(data => {
       setProductions(data);
-      if (data.length > 0) setSelectedId(data[0].id);
+      // FB-02 (F-C): /cost-report?production_id=<id> (e.g. "Set budget" on the dashboard P&L) opens that production
+      const wanted = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('production_id') : null;
+      const target = wanted && data.some(p => p.id === wanted) ? wanted : data[0]?.id;
+      if (target) setSelectedId(target);
     }).catch(() => {});
   }, []);
 
@@ -310,6 +389,7 @@ function CostReportContent() {
   const totalCosts = m?.total_costs_to_date ?? 0;
   const totalInvoiced = m?.total_invoiced_to_production ?? 0;
   const progressPct = totalInvoiced > 0 ? Math.min(100, (totalCosts / totalInvoiced) * 100) : 0;
+  const profitPct = m?.profit_percentage_of_turnover;
 
   // Filtered supplier costs
   const filteredSupplierCosts = (report?.supplier_costs ?? []).filter(r => {
@@ -349,7 +429,8 @@ function CostReportContent() {
   const supplierTotal = filteredSupplierCosts.reduce((s, r) => s + r.total, 0);
   const supplierExVatTotal = filteredSupplierCosts.reduce((s, r) => s + r.cost_ex_vat, 0);
   const supplierVatTotal = filteredSupplierCosts.reduce((s, r) => s + r.vat, 0);
-  const invoiceTotal = report?.invoices_to_production.reduce((s, r) => s + parseFloat(r.amount), 0) ?? 0;
+  // FB-01: counted rows only — a manual invoice that duplicates a Xero invoice is shown but not added
+  const invoiceTotal = report?.invoices_to_production.reduce((s, r) => s + (r.counted === false ? 0 : parseFloat(String(r.amount))), 0) ?? 0;
 
   const activeCostFilterCount = [supplierSearch, setCodeFilter, tradeFilter, crewSearch, weekFrom, weekTo].filter(Boolean).length + (costType !== 'all' ? 1 : 0);
 
@@ -606,11 +687,20 @@ function CostReportContent() {
         {!isCostPlus && <div className="space-y-4 md:space-y-5">
 
         {/* Metric cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-4">
+        <div className="flex flex-col gap-2">
+        <p className="text-slate-400 text-xs leading-normal">All figures ex VAT</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
           {loading ? (
-            Array.from({ length: 7 }).map((_, i) => <SkeletonCard key={i} />)
+            Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)
           ) : m ? (
             <>
+              <BudgetCard
+                productionId={selectedId}
+                budget={m.budget ?? null}
+                totalCosts={m.total_costs_to_date}
+                canEdit={!isGuest}
+                onSaved={loadReport}
+              />
               <div className="bg-white rounded-xl border border-slate-200 px-4 py-4 shadow-sm">
                 <p className="text-slate-500 text-xs font-medium leading-tight">Total Costs to Date</p>
                 <p className="text-slate-900 text-lg font-bold mt-1">{fmtGBP(m.total_costs_to_date)}</p>
@@ -619,7 +709,11 @@ function CostReportContent() {
               <div className="bg-white rounded-xl border border-slate-200 px-4 py-4 shadow-sm">
                 <p className="text-slate-500 text-xs font-medium leading-tight">Total Invoiced to Production</p>
                 <p className="text-slate-900 text-lg font-bold mt-1">{fmtGBP(m.total_invoiced_to_production)}</p>
-                <p className="text-slate-400 text-xs mt-0.5">all invoices raised</p>
+                <p className="text-slate-400 text-xs mt-0.5">
+                  {(m.invoiced_xero ?? 0) > 0 && (m.invoiced_manual ?? 0) > 0
+                    ? `Xero ${fmtGBP(m.invoiced_xero ?? 0)} + manual ${fmtGBP(m.invoiced_manual ?? 0)}`
+                    : (m.invoiced_xero ?? 0) > 0 ? 'from Xero' : 'Xero + manual invoices'}
+                </p>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 px-4 py-4 shadow-sm">
                 <p className="text-slate-500 text-xs font-medium leading-tight">Current Profit</p>
@@ -636,20 +730,20 @@ function CostReportContent() {
               </div>
               <div className="bg-white rounded-xl border border-slate-200 px-4 py-4 shadow-sm">
                 <p className="text-slate-500 text-xs font-medium leading-tight">Profit % of Turnover</p>
-                <p className={`text-lg font-bold mt-1 ${profitIsPositive ? 'text-green-600' : 'text-red-500'}`}>
-                  {m.profit_percentage_of_turnover}
+                <p className={`text-lg font-bold mt-1 ${profitPct == null ? 'text-slate-400' : profitIsPositive ? 'text-green-600' : 'text-red-500'}`}>
+                  {profitPct == null ? '—' : `${profitPct}%`}
                 </p>
                 <p className="text-slate-400 text-xs mt-0.5">of invoiced revenue</p>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 px-4 py-4 shadow-sm">
                 <p className="text-slate-500 text-xs font-medium leading-tight">Supplier Costs</p>
                 <p className="text-slate-900 text-lg font-bold mt-1">{fmtGBP(m.total_supplier_costs)}</p>
-                <p className="text-slate-400 text-xs mt-0.5">approved POs only</p>
+                <p className="text-slate-400 text-xs mt-0.5">approved POs</p>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 px-4 py-4 shadow-sm">
                 <p className="text-slate-500 text-xs font-medium leading-tight">Labour Costs</p>
                 <p className="text-slate-900 text-lg font-bold mt-1">{fmtGBP(m.total_labour_costs)}</p>
-                <p className="text-slate-400 text-xs mt-0.5">verified timesheets</p>
+                <p className="text-slate-400 text-xs mt-0.5">processed pay runs</p>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 px-4 py-4 shadow-sm">
                 <p className="text-slate-500 text-xs font-medium leading-tight">Hire Equipment</p>
@@ -658,6 +752,7 @@ function CostReportContent() {
               </div>
             </>
           ) : null}
+        </div>
         </div>
 
         {/* Progress bar */}
@@ -673,10 +768,14 @@ function CostReportContent() {
                 style={{ width: `${progressPct}%` }}
               />
             </div>
-            <div className="flex justify-between text-xs text-slate-400 mt-1.5">
-              <span>{progressPct.toFixed(1)}% of invoiced amount spent</span>
-              <span>{(100 - progressPct).toFixed(1)}% remaining margin</span>
-            </div>
+            {totalInvoiced > 0 ? (
+              <div className="flex justify-between text-xs text-slate-400 mt-1.5">
+                <span>{progressPct.toFixed(1)}% of invoiced amount spent</span>
+                <span>{totalCosts > totalInvoiced ? `${fmtGBP(totalCosts - totalInvoiced)} over invoiced` : `${(100 - progressPct).toFixed(1)}% remaining margin`}</span>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 mt-1.5">No invoices raised yet — nothing to measure costs against.</p>
+            )}
           </div>
         )}
 
@@ -687,7 +786,7 @@ function CostReportContent() {
               <h2 className="text-slate-900 font-semibold text-sm">Amounts Invoiced to Production</h2>
               {!loading && report && (
                 <p className="text-slate-400 text-xs mt-0.5">
-                  {report.invoices_to_production.length} invoice{report.invoices_to_production.length !== 1 ? 's' : ''} raised
+                  {report.invoices_to_production.length} invoice{report.invoices_to_production.length !== 1 ? 's' : ''} · Xero invoices allocated to this production (Sales) + manual entries · ex VAT
                 </p>
               )}
             </div>
@@ -705,10 +804,11 @@ function CostReportContent() {
               <thead>
                 <tr className="bg-slate-50">
                   <th className="px-5 py-2.5 text-xs font-semibold text-slate-500 text-left">Description</th>
+                  <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-center">Source</th>
                   <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-center">PO Number</th>
                   <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-center">Date</th>
                   <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-center">Invoice No.</th>
-                  <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-right">Amount (£)</th>
+                  <th className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-right">Amount ex VAT (£)</th>
                   <th className="px-4 py-2.5 text-xs font-semibold text-slate-500">Notes</th>
                 </tr>
               </thead>
@@ -716,7 +816,7 @@ function CostReportContent() {
                 {loading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 6 }).map((_, j) => (
+                      {Array.from({ length: 7 }).map((_, j) => (
                         <td key={j} className="px-4 py-3">
                           <div className="h-4 bg-slate-100 rounded animate-pulse" />
                         </td>
@@ -725,23 +825,31 @@ function CostReportContent() {
                   ))
                 ) : report?.invoices_to_production.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-8 text-center text-slate-400 text-sm">No invoices raised yet.</td>
+                    <td colSpan={7} className="px-5 py-8 text-center text-slate-400 text-sm">No invoices raised yet. Allocate Xero invoices to this production on the Sales page, or add one manually.</td>
                   </tr>
                 ) : (
                   report?.invoices_to_production.map(inv => (
-                    <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
+                    <tr key={`${inv.source ?? 'manual'}-${inv.id}`} className={`hover:bg-slate-50/50 transition-colors ${inv.duplicate_of_xero ? 'opacity-60' : ''}`}>
                       <td className="px-5 py-3 text-slate-800 font-medium">{inv.invoice_description ?? '—'}</td>
+                      <td className="px-4 py-3 text-center">
+                        {inv.source === 'xero'
+                          ? <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200" title={inv.xero_status ? `Xero: ${inv.xero_status}` : 'Xero'}>Xero</span>
+                          : <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">Manual</span>}
+                        {inv.duplicate_of_xero && (
+                          <span className="block mt-1 text-[10px] font-semibold text-amber-700" title="Same invoice number as a Xero invoice on this production — not counted twice">Duplicate of Xero — not counted</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-blue-700 text-xs font-mono text-center">{inv.po_number ?? '—'}</td>
                       <td className="px-4 py-3 text-slate-500 text-xs text-center">{inv.date ? fmtDate(inv.date) : '—'}</td>
                       <td className="px-4 py-3 text-slate-600 text-xs text-center">{inv.invoice_number ?? '—'}</td>
-                      <td className="px-4 py-3 text-slate-900 font-semibold text-right">{fmtGBP(parseFloat(inv.amount))}</td>
+                      <td className={`px-4 py-3 font-semibold text-right ${inv.duplicate_of_xero ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{fmtGBP(parseFloat(String(inv.amount)))}</td>
                       <td className="px-4 py-3 text-slate-400 text-xs">{inv.notes ?? ''}</td>
                     </tr>
                   ))
                 )}
                 {!loading && (report?.invoices_to_production.length ?? 0) > 0 && (
                   <tr className="bg-slate-50">
-                    <td className="px-5 py-2.5 text-slate-700 font-bold text-xs" colSpan={4}>Total Invoiced to Production</td>
+                    <td className="px-5 py-2.5 text-slate-700 font-bold text-xs" colSpan={5}>Total Invoiced to Production</td>
                     <td className="px-4 py-2.5 text-slate-900 font-bold text-right">{fmtGBP(invoiceTotal)}</td>
                     <td />
                   </tr>
@@ -759,7 +867,7 @@ function CostReportContent() {
               Supplier Costs
               {(supplierSearch || setCodeFilter) && <span className="ml-2 text-xs text-blue-600 font-medium">(filtered)</span>}
             </h2>
-            {!loading && <span className="text-blue-600 text-xs font-semibold">Total: {fmtGBP(supplierTotal)}</span>}
+            {!loading && <span className="text-blue-600 text-xs font-semibold">Total ex VAT: {fmtGBP(supplierExVatTotal)}</span>}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -832,7 +940,7 @@ function CostReportContent() {
               {(tradeFilter || crewSearch || weekFrom || weekTo) && <span className="ml-2 text-xs text-blue-600 font-medium">(filtered)</span>}
             </h2>
             {!loading && m && (
-              <span className="text-blue-600 text-xs font-semibold">Total: {fmtGBP(m.total_labour_costs)}</span>
+              <span className="text-blue-600 text-xs font-semibold">Total ex VAT: {fmtGBP(m.total_labour_costs)}</span>
             )}
           </div>
           <div className="overflow-x-auto">
@@ -842,7 +950,7 @@ function CostReportContent() {
                   <th className="px-4 py-2.5 text-slate-500 font-semibold text-left w-8" />
                   <th className="px-4 py-2.5 text-slate-500 font-semibold text-left">Week Ending</th>
                   <th className="px-4 py-2.5 text-slate-500 font-semibold text-center">No. of Crew</th>
-                  <th className="px-4 py-2.5 text-slate-500 font-semibold text-right">Total (£)</th>
+                  <th className="px-4 py-2.5 text-slate-500 font-semibold text-right">Total ex VAT (£)</th>
                   <th className="px-4 py-2.5 text-slate-500 font-semibold text-right">Running Total</th>
                 </tr>
               </thead>
@@ -895,7 +1003,7 @@ function CostReportContent() {
                             <td className="px-4 py-2 text-slate-400 text-center">
                               {c.trade ?? '—'}{c.rank ? ` · ${c.rank}` : ''}
                             </td>
-                            <td className="px-4 py-2 text-slate-600 font-medium text-right">{fmtGBP(c.grand_total)}</td>
+                            <td className="px-4 py-2 text-slate-600 font-medium text-right">{fmtGBP(c.net_total ?? c.grand_total)}</td>
                             <td />
                           </tr>
                         ))}
